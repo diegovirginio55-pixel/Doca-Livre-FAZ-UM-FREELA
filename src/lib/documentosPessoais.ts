@@ -1,3 +1,4 @@
+import { DDDS_VALIDOS } from './apisPublicas'
 import { cpfValido } from './pix'
 
 export function soDigitos(valor: string) {
@@ -62,7 +63,7 @@ export function erroTelefone(valor: string) {
   const d = soDigitos(valor)
   if (d.length < 10) return 'Informe o telefone com DDD.'
   const ddd = Number(d.slice(0, 2))
-  if (ddd < 11 || d[0] === '0' || d[1] === '0') return 'DDD inválido.'
+  if (!DDDS_VALIDOS.has(ddd)) return 'DDD inválido.'
   if (d.length === 11 && d[2] !== '9') return 'Celular deve começar com 9 depois do DDD.'
   return ''
 }

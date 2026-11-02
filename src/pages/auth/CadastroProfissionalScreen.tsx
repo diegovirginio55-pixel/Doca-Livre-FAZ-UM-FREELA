@@ -1,3 +1,4 @@
+import { UFS, mascararCep, useCepAutomatico, useCidadesDaUf } from '../../lib/apisPublicas'
 import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react'
 import { CATEGORIES } from '../../data/categories'
 import { LOCAIS_OPERACAO } from '../../data/cidades'
@@ -137,10 +138,19 @@ export function CadastroProfissionalScreen({ onBack, onDone }: Props) {
     formAtual.current = form
   }, [form])
 
-  const ufs = useMemo(() => [...new Set(LOCAIS_OPERACAO.map((local) => local.estado))].sort(), [])
-  const cidades = useMemo(
+  const ufs = useMemo(() => [...new Set([...UFS, ...LOCAIS_OPERACAO.map((local) => local.estado)])].sort(), [])
+  const cidadesBase = useMemo(
     () => LOCAIS_OPERACAO.filter((local) => local.estado === form.estado).map((local) => local.cidade),
     [form.estado],
+  )
+  const cidades = useCidadesDaUf(form.estado, cidadesBase)
+  const cepStatus = useCepAutomatico(form.cep, (e) =>
+    setForm((f) => ({
+      ...f,
+      rua: e.rua ? (e.bairro ? `${e.rua} - ${e.bairro}` : e.rua) : f.rua,
+      cidade: e.cidade || f.cidade,
+      estado: e.estado || f.estado,
+    })),
   )
   const pixInfo = form.pix.trim() ? validarChavePix(form.pix) : null
   const certsExtras = form.certificados.filter((item) => !CERTIFICADOS_COMUNS.includes(item.tipo))
@@ -578,6 +588,11 @@ export function CadastroProfissionalScreen({ onBack, onDone }: Props) {
         )}
         {step === PASSO.raio && (
           <div className="raio-passo">
+            <label className="field">
+              <span>CEP</span>
+              <input value={form.cep} onChange={(e) => set('cep', mascararCep(e.target.value))} inputMode="numeric" autoComplete="postal-code" placeholder="00000-000" maxLength={9} />
+              {cepStatus.texto && <small className={cepStatus.erro ? 'error' : 'muted'}>{cepStatus.texto}</small>}
+            </label>
             <p>A partir da sua cidade, você só entra em missões dentro desse raio.</p>
             <label className="field">
               <span>Estado</span>
@@ -603,6 +618,14 @@ export function CadastroProfissionalScreen({ onBack, onDone }: Props) {
                   <option key={cidade} value={cidade} />
                 ))}
               </datalist>
+            </label>
+            <label className="field">
+              <span>Rua</span>
+              <input value={form.rua} onChange={(e) => set('rua', e.target.value)} autoComplete="address-line1" />
+            </label>
+            <label className="field">
+              <span>Número</span>
+              <input value={form.numero} onChange={(e) => set('numero', e.target.value)} />
             </label>
             <label className="field">
               <span>Raio máximo para trabalhar</span>

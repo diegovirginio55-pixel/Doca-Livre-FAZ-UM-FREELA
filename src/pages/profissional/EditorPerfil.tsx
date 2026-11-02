@@ -1,3 +1,5 @@
+import { UFS, mascararCep, useCepAutomatico, useCidadesDaUf } from '../../lib/apisPublicas'
+import { mascararCpf, mascararRg, mascararTelefone } from '../../lib/documentosPessoais'
 import { useEffect, useId, useMemo, useRef, useState } from 'react'
 import { AnexoCurriculo, CamposSobre, ListaExperiencias, conferirExperiencias } from '../../components/CurriculoCampos'
 import { CATEGORIES, cargoLabel } from '../../data/categories'
@@ -101,10 +103,19 @@ export function EditorPerfil({
     formAtual.current = form
   }, [form])
 
-  const ufs = useMemo(() => [...new Set(LOCAIS_OPERACAO.map((local) => local.estado))].sort(), [])
-  const cidades = useMemo(
+  const ufs = useMemo(() => [...new Set([...UFS, ...LOCAIS_OPERACAO.map((local) => local.estado)])].sort(), [])
+  const cidadesBase = useMemo(
     () => LOCAIS_OPERACAO.filter((local) => local.estado === form.estado).map((local) => local.cidade),
     [form.estado],
+  )
+  const cidades = useCidadesDaUf(form.estado, cidadesBase)
+  const cepStatus = useCepAutomatico(form.cep, (e) =>
+    setForm((f) => ({
+      ...f,
+      rua: e.rua ? (e.bairro ? `${e.rua} - ${e.bairro}` : e.rua) : f.rua,
+      cidade: e.cidade || f.cidade,
+      estado: e.estado || f.estado,
+    })),
   )
   const pixInfo = form.pix.trim() ? validarChavePix(form.pix) : null
 
@@ -266,15 +277,15 @@ export function EditorPerfil({
           </label>
           <label>
             <span>Telefone</span>
-            <input value={form.telefone} onChange={(e) => set('telefone', e.target.value)} />
+            <input type="tel" inputMode="tel" value={form.telefone} onChange={(e) => set('telefone', mascararTelefone(e.target.value))} placeholder="(11) 91234-5678" maxLength={15} />
           </label>
           <label>
             <span>CPF</span>
-            <input value={form.cpf} onChange={(e) => set('cpf', e.target.value)} />
+            <input inputMode="numeric" value={form.cpf} onChange={(e) => set('cpf', mascararCpf(e.target.value))} placeholder="000.000.000-00" maxLength={14} />
           </label>
           <label>
             <span>RG</span>
-            <input value={form.rg} onChange={(e) => set('rg', e.target.value)} />
+            <input value={form.rg} onChange={(e) => set('rg', mascararRg(e.target.value))} />
           </label>
         </div>
       </section>
@@ -282,6 +293,11 @@ export function EditorPerfil({
       <section className="td-card">
         <h2>Onde você mora</h2>
         <div className="td-form">
+          <label>
+              <span>CEP</span>
+              <input value={form.cep} onChange={(e) => set('cep', mascararCep(e.target.value))} inputMode="numeric" autoComplete="postal-code" placeholder="00000-000" maxLength={9} />
+              {cepStatus.texto && <small className={cepStatus.erro ? 'error' : 'muted'}>{cepStatus.texto}</small>}
+            </label>
           <label>
             <span>Estado</span>
             <select value={form.estado} onChange={(e) => set('estado', e.target.value)}>
@@ -313,10 +329,7 @@ export function EditorPerfil({
             <span>Número</span>
             <input value={form.numero} onChange={(e) => set('numero', e.target.value)} />
           </label>
-          <label>
-            <span>CEP</span>
-            <input value={form.cep} onChange={(e) => set('cep', e.target.value)} />
-          </label>
+
           <label>
             <span>Raio máximo para trabalhar (km)</span>
             <input

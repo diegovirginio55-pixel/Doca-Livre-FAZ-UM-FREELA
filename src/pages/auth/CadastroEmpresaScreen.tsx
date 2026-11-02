@@ -1,4 +1,6 @@
-import { useMemo, useRef, useState, type FormEvent } from 'react'
+import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react'
+import { UFS, buscarCnpj, capitalizar, erroCnpj, mascararCep, mascararCnpj, useCepAutomatico, useCidadesDaUf } from '../../lib/apisPublicas'
+import { erroCpf, erroTelefone, mascararCpf, mascararTelefone } from '../../lib/documentosPessoais'
 import { AceiteCadastro, todosAceitos } from '../../components/AceiteTermos'
 import { LOCAIS_OPERACAO } from '../../data/cidades'
 import type { TermoId } from '../../lib/termos'
@@ -84,11 +86,103 @@ export function CadastroEmpresaScreen({ onBack, onDone }: Props) {
     tipo: 'transportadora' as EmpresaTipo,
   })
 
-  const ufs = useMemo(() => [...new Set(LOCAIS_OPERACAO.map((local) => local.estado))].sort(), [])
-  const cidades = useMemo(
+  const ufs = useMemo(() => [...new Set([...UFS, ...LOCAIS_OPERACAO.map((local) => local.estado)])].sort(), [])
+  const cidadesBase = useMemo(
     () => LOCAIS_OPERACAO.filter((local) => local.estado === form.estado).map((local) => local.cidade),
     [form.estado],
   )
+  const cidades = useCidadesDaUf(form.estado, cidadesBase)
+  const cepStatus = useCepAutomatico(form.cep, (e) =>
+    setForm((f) => ({
+      ...f,
+      rua: e.rua ? (e.bairro ? `${e.rua} - ${e.bairro}` : e.rua) : f.rua,
+      cidade: e.cidade || f.cidade,
+      estado: e.estado || f.estado,
+    })),
+  )
+  const [cnpjInfo, setCnpjInfo] = useState<{ texto: string; erro: boolean; bloqueia: boolean }>({
+    texto: '',
+    erro: false,
+    bloqueia: false,
+  })
+  const [cnpjBuscando, setCnpjBuscando] = useState(false)
+  const cnpjDigitos = form.cnpj.replace(/\D/g, '')
+  useEffect(() => {
+    if (cnpjDigitos.length !== 14) {
+      setCnpjInfo({ texto: '', erro: false, bloqueia: false })
+      setCnpjBuscando(false)
+      return
+    }
+    const falha = erroCnpj(cnpjDigitos)
+    if (falha) {
+      setCnpjInfo({ texto: falha, erro: true, bloqueia: true })
+      return
+    }
+    let vivo = true
+    setCnpjBuscando(true)
+    setCnpjInfo({ texto: 'Consultando o CNPJ na Receita...', erro: false, bloqueia: false })
+    void buscarCnpj(cnpjDigitos).then((res) => {
+      if (!vivo) return
+      setCnpjBuscando(false)
+      if (res === 'nao_encontrado') {
+        setCnpjInfo({ texto: 'CNPJ não encontrado na Receita Federal. Confira os números.', erro: true, bloqueia: true })
+        return
+      }
+      if (!res) {
+        setCnpjInfo({
+          texto: 'CNPJ válido. Não foi possível consultar a Receita agora, preencha os dados manualmente.',
+          erro: false,
+          bloqueia: false,
+        })
+        return
+      }
+      setForm((f) => ({
+        ...f,
+        razaoSocial: res.razaoSocial || f.razaoSocial,
+        nomeFantasia: res.nomeFantasia || f.nomeFantasia || res.razaoSocial,
+        cep: res.cep ? mascararCep(res.cep) : f.cep,
+        rua: res.rua ? capitalizar(res.bairro ? `${res.rua} - ${res.bairro}` : res.rua) : f.rua,
+        numero: res.numero || f.numero,
+        cidade: res.cidade ? capitalizar(res.cidade) : f.cidade,
+        estado: res.estado || f.estado,
+        telefone: f.telefone || (res.telefone ? mascararTelefone(res.telefone) : ''),
+      }))
+      if (!res.ativa) {
+        setCnpjInfo({
+          texto: `Este CNPJ está com situação "${res.situacao || 'não informada'}" na Receita Federal. Só é possível cadastrar empresa com CNPJ ATIVO.`,
+          erro: true,
+          bloqueia: true,
+        })
+        return
+      }
+      setCnpjInfo({
+        texto: `CNPJ ativo${res.mei ? ' (MEI)' : ''}. Dados preenchidos pela Receita, confira antes de continuar.`,
+        erro: false,
+        bloqueia: false,
+      })
+    })
+    return () => {
+      vivo = false
+    }
+  }, [cnpjDigitos])
+
+  function problemaEmpresa() {
+    return (
+      erroCnpj(form.cnpj) ||
+      (cnpjBuscando ? 'Aguarde a consulta do CNPJ terminar.' : '') ||
+      (cnpjInfo.bloqueia ? cnpjInfo.texto : '') ||
+      (!form.razaoSocial.trim() ? 'Informe a razão social.' : '') ||
+      (!form.nomeFantasia.trim() ? 'Informe o nome fantasia.' : '')
+    )
+  }
+
+  function problemaResponsavel() {
+    return (
+      (!form.responsavelNome.trim() ? 'Informe o nome do responsável.' : '') ||
+      erroCpf(form.responsavelCpf) ||
+      erroTelefone(form.telefone)
+    )
+  }
   const tipoLabel = TIPOS.find((item) => item.id === form.tipo)?.label ?? form.tipo
 
   function set<K extends keyof typeof form>(key: K, value: (typeof form)[K]) {
@@ -132,6 +226,11 @@ export function CadastroEmpresaScreen({ onBack, onDone }: Props) {
 
   function next() {
     setError('')
+    const falhaEtapa = step === 1 ? problemaEmpresa() : step === 2 ? problemaResponsavel() : ''
+    if (falhaEtapa) {
+      setError(falhaEtapa)
+      return
+    }
     if (step === 4 && (!form.cidade.trim() || !form.estado.trim())) {
       setError('Informe a cidade e o estado da operação.')
       return
@@ -151,6 +250,18 @@ export function CadastroEmpresaScreen({ onBack, onDone }: Props) {
 
   function submit(e: FormEvent) {
     e.preventDefault()
+    const falhaEmpresa = problemaEmpresa()
+    if (falhaEmpresa) {
+      setError(falhaEmpresa)
+      setStep(1)
+      return
+    }
+    const falhaResp = problemaResponsavel()
+    if (falhaResp) {
+      setError(falhaResp)
+      setStep(2)
+      return
+    }
     if (!todosDocumentosEnviados()) {
       setError('Envie os três documentos antes de concluir.')
       setStep(6)
@@ -217,7 +328,8 @@ export function CadastroEmpresaScreen({ onBack, onDone }: Props) {
           <>
             <label className="field">
               <span>CNPJ</span>
-              <input value={form.cnpj} onChange={(e) => set('cnpj', e.target.value)} required />
+              <input value={form.cnpj} onChange={(e) => set('cnpj', mascararCnpj(e.target.value))} inputMode="numeric" placeholder="00.000.000/0000-00" maxLength={18} required />
+              {cnpjInfo.texto && <small className={cnpjInfo.erro ? 'error' : 'muted'}>{cnpjInfo.texto}</small>}
             </label>
             <label className="field">
               <span>Razão social</span>
@@ -238,7 +350,7 @@ export function CadastroEmpresaScreen({ onBack, onDone }: Props) {
             </label>
             <label className="field">
               <span>CPF do responsável</span>
-              <input value={form.responsavelCpf} onChange={(e) => set('responsavelCpf', e.target.value)} required />
+              <input value={form.responsavelCpf} onChange={(e) => set('responsavelCpf', mascararCpf(e.target.value))} inputMode="numeric" placeholder="000.000.000-00" maxLength={14} required />
             </label>
             <label className="field">
               <span>Cargo</span>
@@ -246,7 +358,7 @@ export function CadastroEmpresaScreen({ onBack, onDone }: Props) {
             </label>
             <label className="field">
               <span>Telefone</span>
-              <input value={form.telefone} onChange={(e) => set('telefone', e.target.value)} required />
+              <input type="tel" inputMode="tel" value={form.telefone} onChange={(e) => set('telefone', mascararTelefone(e.target.value))} placeholder="(11) 91234-5678" maxLength={15} required />
             </label>
           </>
         )}
@@ -274,6 +386,11 @@ export function CadastroEmpresaScreen({ onBack, onDone }: Props) {
           <>
             <p className="muted">Esse endereço é o ponto da operação no mapa e na busca de colaboradores.</p>
             <label className="field">
+              <span>CEP</span>
+              <input value={form.cep} onChange={(e) => set('cep', mascararCep(e.target.value))} inputMode="numeric" autoComplete="postal-code" placeholder="00000-000" maxLength={9} required />
+              {cepStatus.texto && <small className={cepStatus.erro ? 'error' : 'muted'}>{cepStatus.texto}</small>}
+            </label>
+            <label className="field">
               <span>Estado</span>
               <select value={form.estado} onChange={(e) => set('estado', e.target.value)}>
                 {ufs.map((uf) => (
@@ -297,10 +414,6 @@ export function CadastroEmpresaScreen({ onBack, onDone }: Props) {
                   <option key={cidade} value={cidade} />
                 ))}
               </datalist>
-            </label>
-            <label className="field">
-              <span>CEP</span>
-              <input value={form.cep} onChange={(e) => set('cep', e.target.value)} required />
             </label>
             <label className="field">
               <span>Rua</span>
