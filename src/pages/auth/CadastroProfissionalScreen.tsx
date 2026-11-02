@@ -370,7 +370,7 @@ export function CadastroProfissionalScreen({ onBack, onDone }: Props) {
         )}
         {step === PASSO.dados && (
           <>
-            <label className="field"><span>Nome</span><input value={form.nome} onChange={(e) => set('nome', e.target.value)} required /></label>
+            <label className="field"><span>Nome completo</span><input value={form.nome} onChange={(e) => set('nome', e.target.value)} required /></label>
             <label className="field"><span>CPF</span><input value={form.cpf} onChange={(e) => set('cpf', e.target.value)} required /></label>
             <label className="field"><span>RG</span><input value={form.rg} onChange={(e) => set('rg', e.target.value)} required /></label>
             <label className="field"><span>Nascimento</span><input type="date" value={form.nascimento} onChange={(e) => set('nascimento', e.target.value)} required /></label>

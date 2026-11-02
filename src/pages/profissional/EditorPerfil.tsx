@@ -257,7 +257,7 @@ export function EditorPerfil({
         <h2>Seus dados</h2>
         <div className="td-form">
           <label>
-            <span>Nome</span>
+            <span>Nome completo</span>
             <input value={form.nome} onChange={(e) => set('nome', e.target.value)} />
           </label>
           <label>
