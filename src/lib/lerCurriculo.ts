@@ -20,7 +20,7 @@ export const ACCEPT_CURRICULO =
 export type LeituraCurriculo = {
   lido: CurriculoLido
   arquivoNome: string
-  /** Cópia do arquivo para a equipe da Mão de Obra. Fica de fora quando o arquivo é grande. */
+  /** Cópia do arquivo para a equipe da fazumfreela. Fica de fora quando o arquivo é grande. */
   copia?: string
   porIa: boolean
 }

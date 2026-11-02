@@ -16,7 +16,7 @@ export function PwaInstallBanner() {
         <img src="/icon-192.png" alt="" width={40} height={40} />
       </div>
       <div className="pwa-install-text">
-        <strong>Instalar o Mão de Obra</strong>
+        <strong>Instalar o fazumfreela</strong>
         <span>Adicione o app à tela inicial para abrir em tela cheia, como um aplicativo.</span>
         {showHelp && isIosSafari && (
           <span className="pwa-install-help">

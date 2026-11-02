@@ -307,7 +307,7 @@ export function PortalLoginScreen({ portal, avisoInicial, onSuccess, onBack }: P
     <div className="portal-login">
       <div className="portal-login__card">
         <div className="portal-login__header">
-          <img src={LOGO_DOCA_LIVRE_SRC} alt="fazumfreela" className="portal-login__logo" />
+          <img src={LOGO_DOCA_LIVRE_SRC} alt="Doca Livre" className="portal-login__logo" />
           <h1 className="portal-login__title">{mode === 'cadastro' ? 'Cadastro' : PORTAL_TITLE[portal]}</h1>
           <p className="portal-login__tagline">{PORTAL_TAG[portal]}</p>
         </div>

@@ -1,4 +1,4 @@
-# fazumfreela
+# Doca Livre fazumfreela
 
 Plataforma de força de trabalho para logística — marketplace operacional para conectar empresas a profissionais (motoristas, armazém, equipamentos, manutenção e administrativo).
 
@@ -49,7 +49,7 @@ No painel admin há o botão **Reset demo** para restaurar o seed.
 
 - Vite + React 19 + TypeScript  
 - Persistência em `localStorage` (sem backend)  
-- Identidade visual fazumfreela (logo, splash, amarelo `#f9db00`, sidebar)
+- Identidade visual Doca Livre (logo, splash, amarelo `#f9db00`, sidebar)
 
 ## Fase 2 (ainda não conectado)
 

@@ -18,7 +18,7 @@ export const ETT_ID = 'ett'
 export function cadastroEttInicial(): CadastroEtt {
   return {
     razaoSocial: 'DOCA LIVRE MÃO DE OBRA LTDA',
-    nomeFantasia: 'fazumfreela',
+    nomeFantasia: 'Doca Livre fazumfreela',
     cnpj: '',
     juntaComercial: '',
     socios: '',

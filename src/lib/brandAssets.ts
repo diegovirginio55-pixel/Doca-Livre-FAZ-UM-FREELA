@@ -1,5 +1,5 @@
-export const LOGO_DOCA_LIVRE_SRC = '/logo-fazumfreela.svg'
-export const BRAND_COMPANY_NAME = 'fazumfreela'
-export const BRAND_PRODUCT_NAME = ''
+export const LOGO_DOCA_LIVRE_SRC = '/logo-doca-livre.png'
+export const BRAND_COMPANY_NAME = 'DOCA LIVRE'
+export const BRAND_PRODUCT_NAME = 'fazumfreela'
 export const BRAND_SLOGAN = 'Conectando empresas aos melhores profissionais da operação.'
-export const BRAND_FULL_TITLE = BRAND_COMPANY_NAME
+export const BRAND_FULL_TITLE = `${BRAND_COMPANY_NAME} ${BRAND_PRODUCT_NAME}`

@@ -394,7 +394,7 @@ const ABAS_EMPRESA = [
   { id: 'missao', label: 'Vaga temporária', icon: <IconeVaga /> },
   { id: 'vagas', label: 'Vagas Publicadas', icon: <IconeVagasLista /> },
   { id: 'missoes', label: 'Convites enviados', icon: <IconeMissoes /> },
-  { id: 'mapa', label: 'Mapa Mão de Obra', icon: <IconeMapa /> },
+  { id: 'mapa', label: 'Mapa fazumfreela', icon: <IconeMapa /> },
   { id: 'contratacoes', label: 'Minhas contratações', icon: <IconeContratacoes /> },
   { id: 'documentos', label: 'Documentação', icon: <IconeDocs /> },
   { id: 'dados', label: 'Dados da empresa', icon: <IconeEmpresa /> },
@@ -1114,7 +1114,7 @@ export function ContratarFreelancer({ onLogout }: { onLogout: () => void }) {
             <span className="cf-topbar-menu-icon" aria-hidden />
           </button>
           <div className="cf-topbar-brand">
-            <img src={LOGO_DOCA_LIVRE_SRC} alt="fazumfreela" className="cf-topbar-logo" />
+            <img src={LOGO_DOCA_LIVRE_SRC} alt="Doca Livre" className="cf-topbar-logo" />
             <span className="cf-product">{BRAND_PRODUCT_NAME}</span>
           </div>
         </div>
@@ -1917,13 +1917,13 @@ function ContratoComMaoDeObra({ demandaId }: { demandaId: string }) {
   return (
     <div className={`cf-contrato-mo ${pendente ? 'cf-contrato-mo--pendente' : ''}`}>
       <div>
-        <strong>Contrato com a Mão de Obra · {peca.numero}</strong>
+        <strong>Contrato com a fazumfreela · {peca.numero}</strong>
         <small>
           {pendente
             ? 'Falta a assinatura da sua empresa.'
             : ett?.status === 'assinado'
               ? 'Assinado pelas duas partes.'
-              : 'Sua empresa assinou. Falta a assinatura da Mão de Obra.'}
+              : 'Sua empresa assinou. Falta a assinatura da fazumfreela.'}
         </small>
       </div>
       <button type="button" className={pendente ? 'cf-primary' : 'cf-secondary'} onClick={() => setAberto(true)}>

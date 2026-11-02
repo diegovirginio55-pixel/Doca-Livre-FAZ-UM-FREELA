@@ -1,7 +1,7 @@
 {
-  "name": "fazumfreela",
-  "short_name": "Mão de Obra",
-  "description": "Trabalho temporário fazumfreela",
+  "name": "Doca Livre fazumfreela",
+  "short_name": "fazumfreela",
+  "description": "Trabalho temporário Doca Livre",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",

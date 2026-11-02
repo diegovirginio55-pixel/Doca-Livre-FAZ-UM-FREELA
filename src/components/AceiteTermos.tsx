@@ -87,7 +87,7 @@ export function AceiteTermosGate({ onSair }: { onSair: () => void }) {
     <div className="termos-fundo" role="dialog" aria-modal="true" aria-labelledby="termos-titulo">
       <div className="termos-modal">
         <h2 id="termos-titulo">Antes de continuar</h2>
-        <p>Leia e aceite os termos atualizados da fazumfreela para usar o painel.</p>
+        <p>Leia e aceite os termos atualizados da Doca Livre fazumfreela para usar o painel.</p>
         <CaixasAceite termos={pendentes} marcados={marcados} onMarcar={setMarcados} />
         <div className="termos-acoes">
           <button type="button" className="termos-sair" onClick={onSair}>

@@ -65,10 +65,10 @@ export function AdminApp({
       </div>
       <header className="px-topbar">
         <div className="px-topbar-left">
-          <img src={LOGO_DOCA_LIVRE_SRC} alt="fazumfreela" className="px-topbar-logo" />
+          <img src={LOGO_DOCA_LIVRE_SRC} alt="Doca Livre" className="px-topbar-logo" />
           <div>
             <strong className="px-topbar-brand">Painel Administrativo</strong>
-            <p className="px-topbar-sub">fazumfreela</p>
+            <p className="px-topbar-sub">Doca Livre fazumfreela</p>
           </div>
         </div>
         <div className="px-topbar-right" style={{ marginLeft: 'auto' }}>

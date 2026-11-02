@@ -3,15 +3,15 @@ import { rotuloMotivo } from './modalidadeContratacao'
 import type { ContratoServico, Demanda, Empresa, Profissional } from './types'
 import { nowIso, uid } from './seed'
 
-/** Dados da plataforma fazumfreela (intermediadora) — demo localhost */
+/** Dados da plataforma Doca Livre (intermediadora) — demo localhost */
 export const PLATAFORMA_DOCA = {
   razaoSocial: 'DOCA LIVRE MÃO DE OBRA LTDA',
-  nomeFantasia: 'fazumfreela',
+  nomeFantasia: 'Doca Livre fazumfreela',
   cnpj: '00.000.000/0001-00',
   endereco:
     'Plataforma digital de força de trabalho para logística — ambiente de demonstração',
-  site: 'fazumfreela.com.br',
-  produto: 'fazumfreela',
+  site: 'docalivre.com.br',
+  produto: 'Doca Livre fazumfreela',
 }
 
 export type { ContratoServico }
@@ -120,7 +120,7 @@ export function renderContratoHtml(params: {
 <html lang="pt-BR">
 <head>
   <meta charset="UTF-8" />
-  <title>Contrato fazumfreela — ${c.numero}</title>
+  <title>Contrato Doca Livre — ${c.numero}</title>
   <style>
     body { font-family: 'Segoe UI', Arial, sans-serif; color: #111; line-height: 1.45; max-width: 800px; margin: 0 auto; padding: 32px 24px; font-size: 13px; }
     h1 { font-size: 1.15rem; text-align: center; margin: 0 0 20px; }
@@ -139,23 +139,23 @@ export function renderContratoHtml(params: {
 </head>
 <body>
   <div class="brand">
-    <img src="${PLATAFORMA_DOCA.site.startsWith('http') ? '' : '/logo-doca-livre.png'}" alt="fazumfreela" />
+    <img src="${PLATAFORMA_DOCA.site.startsWith('http') ? '' : '/logo-doca-livre.png'}" alt="Doca Livre" />
   </div>
   <h1>${
     demanda.motivo
       ? `CONTRATO DE TRABALHO TEMPORÁRIO — ID ${escapeHtml(c.numero)}`
-      : `CONTRATO DE PRESTAÇÃO DE SERVIÇO VIA PLATAFORMA FAZUMFREELA — ID ${escapeHtml(c.numero)}`
+      : `CONTRATO DE PRESTAÇÃO DE SERVIÇO VIA PLATAFORMA DOCA LIVRE FAZUMFREELA — ID ${escapeHtml(c.numero)}`
   }</h1>
   <p class="meta">${escapeHtml(PLATAFORMA_DOCA.produto)} · Documento gerado em ${formatDateTimeBr(c.createdAt)}</p>
 
   <p>
     A empresa <strong>${escapeHtml(PLATAFORMA_DOCA.razaoSocial)}</strong>, pessoa jurídica de direito privado,
     inscrita no CNPJ/MF sob o nº <strong>${escapeHtml(PLATAFORMA_DOCA.cnpj)}</strong>
-    (${escapeHtml(PLATAFORMA_DOCA.endereco)}), doravante denominada <strong>"FAZUMFREELA"</strong>;
+    (${escapeHtml(PLATAFORMA_DOCA.endereco)}), doravante denominada <strong>"DOCA LIVRE"</strong>;
   </p>
   <p>${
     demanda.motivo
-      ? 'A fazumfreela atua, neste fluxo, como empresa de trabalho temporário: contrata o trabalhador e o coloca à disposição da empresa tomadora. O registro dessa atividade é feito no Ministério do Trabalho, pelo SIRETT. O contrato com a tomadora é escrito.'
+      ? 'A Doca Livre fazumfreela atua, neste fluxo, como empresa de trabalho temporário: contrata o trabalhador e o coloca à disposição da empresa tomadora. O registro dessa atividade é feito no Ministério do Trabalho, pelo SIRETT. O contrato com a tomadora é escrito.'
       : 'Intermedia o presente contrato de serviço, formalizado entre as partes abaixo nominadas:'
   }</p>
 
@@ -176,7 +176,7 @@ export function renderContratoHtml(params: {
   </p>
 
   <p>
-    Todas as partes declaram estar cientes e de acordo com os termos de uso da fazumfreela
+    Todas as partes declaram estar cientes e de acordo com os termos de uso da Doca Livre fazumfreela
     e com os termos adicionais do serviço identificado na Plataforma com identificador
     <strong>${escapeHtml(c.numero)}</strong>, abaixo compilados na Descrição do Serviço.
   </p>
@@ -186,21 +186,21 @@ export function renderContratoHtml(params: {
     presente contrato, que se inicia no dia <strong>${formatDateTimeBr(c.inicioEm)}</strong>
     e tem a data prevista para término no dia <strong>${formatDateTimeBr(c.fimEm)}</strong>,
     deverão ser seguidos pelo CONTRATADO os seguintes termos contratuais adicionais,
-    conforme registrados na oferta de serviço aceita na Plataforma fazumfreela e especificados abaixo.
+    conforme registrados na oferta de serviço aceita na Plataforma Doca Livre e especificados abaixo.
   </p>
 
   <p>
     O valor ofertado pela CONTRATANTE que será pago ao CONTRATADO mediante dedução dos créditos
-    da CONTRATANTE na Plataforma fazumfreela, em conta/PIX indicado pelo CONTRATADO
+    da CONTRATANTE na Plataforma Doca Livre, em conta/PIX indicado pelo CONTRATADO
     (<strong>${escapeHtml(profissional.pix || 'a informar')}</strong>), é de:
     <strong>${formatMoneyBr(c.valor)}</strong>, podendo sofrer alterações caso haja acordo mútuo
-    ou por força dos termos de uso da fazumfreela ou dos termos do serviço abaixo.
+    ou por força dos termos de uso da Doca Livre ou dos termos do serviço abaixo.
   </p>
 
   <p>
     O presente Contrato poderá ser rescindido de boa-fé a qualquer tempo, tanto por iniciativa da
     CONTRATANTE como pelo CONTRATADO, bastando que a parte interessada comunique a outra por meio
-    da Plataforma fazumfreela e que resguarde da melhor forma o patrimônio da outra, sendo que cada parte
+    da Plataforma Doca Livre e que resguarde da melhor forma o patrimônio da outra, sendo que cada parte
     ficará responsável pelas obrigações já assumidas até a data do efetivo encerramento.
     Caso a CONTRATANTE solicite imotivadamente a rescisão antecipada, deverá pagar ao CONTRATADO
     multa correspondente ao valor de uma diária do contrato e, quando aplicável, suportar as despesas
@@ -209,7 +209,7 @@ export function renderContratoHtml(params: {
   </p>
 
   <p>
-    As partes reconhecem como válidas e eficazes as assinaturas eletrônicas realizadas na Plataforma fazumfreela,
+    As partes reconhecem como válidas e eficazes as assinaturas eletrônicas realizadas na Plataforma Doca Livre,
     registradas pelos respectivos logs de acesso, datas e horários, além dos IPs utilizados, para fins de
     rastreabilidade e comprovação, nos termos do art. 10, § 2º da Medida Provisória nº 2.200-2/2001
     e da Lei nº 14.063/2020.
@@ -249,12 +249,12 @@ export function renderContratoHtml(params: {
   <h2>Encerramento do contrato / responsabilidades</h2>
   <p>
     Ao encerrar, o CONTRATADO deverá recolher pertences pessoais, entregar documentos/comprovantes
-    quando houver, e organizar equipamentos e local de trabalho. A CONTRATANTE e a FAZUMFREELA
+    quando houver, e organizar equipamentos e local de trabalho. A CONTRATANTE e a DOCA LIVRE
     não se responsabilizam por objetos esquecidos no veículo ou no local de operação;
     bens deixados poderão ser considerados abandonados.
   </p>
   <p>
-    O CONTRATADO declara conhecimento dos termos de uso da plataforma fazumfreela,
+    O CONTRATADO declara conhecimento dos termos de uso da plataforma Doca Livre fazumfreela,
     comprometendo-se a seguir as normas de jornada previstas em lei e responsabilizando-se por
     danos causados por sua culpa, incluindo, quando aplicável, multas de trânsito.
   </p>

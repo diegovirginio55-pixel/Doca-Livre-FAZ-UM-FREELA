@@ -174,7 +174,7 @@ export function MapaMaoDeObra({ empresa }: { empresa: Empresa }) {
   return (
     <div className="mapa-page">
       <aside className="mapa-lado">
-        <h1>Mapa Mão de Obra</h1>
+        <h1>Mapa fazumfreela</h1>
         <p>
           {visiveis.length} {visiveis.length === 1 ? 'profissional' : 'profissionais'}
           {raio == null ? ' no mapa' : ` em até ${raio} km`}.

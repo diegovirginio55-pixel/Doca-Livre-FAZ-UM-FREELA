@@ -32,7 +32,7 @@ function fechar(no: NoArvore) {
 }
 
 export function montarArvore(arquivos: ArquivoMedido[]): NoArvore {
-  const raiz = novaPasta('', 'fazumfreela')
+  const raiz = novaPasta('', 'Doca Livre fazumfreela')
   for (const arquivo of arquivos) {
     const partes = arquivo.caminho.split('/')
     let atual = raiz

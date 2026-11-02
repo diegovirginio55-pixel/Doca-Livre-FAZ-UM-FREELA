@@ -39,7 +39,7 @@ export function rotuloMotivo(id: string) {
 }
 
 export const AVISO_FORMALIZACAO =
-  'A fazumfreela, neste fluxo, atua como empresa de trabalho temporário: recruta o trabalhador e o coloca à disposição da empresa tomadora. Essa atividade exige registro no Ministério do Trabalho, pelo SIRETT. O contrato com a tomadora é escrito e precisa trazer o motivo, o prazo, o valor da prestação e as regras de segurança e saúde.'
+  'A Doca Livre fazumfreela, neste fluxo, atua como empresa de trabalho temporário: recruta o trabalhador e o coloca à disposição da empresa tomadora. Essa atividade exige registro no Ministério do Trabalho, pelo SIRETT. O contrato com a tomadora é escrito e precisa trazer o motivo, o prazo, o valor da prestação e as regras de segurança e saúde.'
 
 export function diasInclusivos(inicio: string, fim: string) {
   const a = new Date(`${inicio}T12:00:00`)

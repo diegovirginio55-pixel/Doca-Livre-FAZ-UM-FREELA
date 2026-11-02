@@ -363,7 +363,7 @@ export function CadastroProfissionalScreen({ onBack, onDone }: Props) {
             <AnexoCurriculo onLido={aplicarCurriculo} arquivoAtual={curriculo?.nome} />
             <p className="cv-nota">
               A empresa que contrata vê o currículo organizado pela plataforma: cargos, experiências, cursos e
-              cidade. Telefone, CPF, endereço e o arquivo original ficam só com a equipe da Mão de Obra.
+              cidade. Telefone, CPF, endereço e o arquivo original ficam só com a equipe da fazumfreela.
             </p>
             {!curriculo && <p className="muted">Sem currículo, é só continuar e preencher os campos.</p>}
           </>
@@ -491,7 +491,7 @@ export function CadastroProfissionalScreen({ onBack, onDone }: Props) {
             )}
             <p className="cv-nota">
               Depois do cadastro, envie o certificado de cada curso em Documentos. As empresas encontram primeiro quem
-              tem os certificados aprovados pela equipe da Mão de Obra.
+              tem os certificados aprovados pela equipe da fazumfreela.
             </p>
           </>
         )}

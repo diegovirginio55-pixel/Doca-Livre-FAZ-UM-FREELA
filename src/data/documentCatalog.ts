@@ -1,5 +1,5 @@
 /**
- * Catálogo documental fazumfreela
+ * Catálogo documental Doca Livre fazumfreela
  * Base: briefing operacional + contrato de prestação + práticas de logística/RH.
  */
 
@@ -165,7 +165,7 @@ export const DOCS_PROFISSIONAL: DocumentDef[] = [
     id: 'curriculo',
     label: 'Currículo (PDF ou Word)',
     categoria: 'identidade',
-    descricao: 'Arquivo original do currículo. Fica com a equipe da Mão de Obra. A empresa vê o currículo organizado pela plataforma.',
+    descricao: 'Arquivo original do currículo. Fica com a equipe da fazumfreela. A empresa vê o currículo organizado pela plataforma.',
     temValidade: false,
     obrigatorio: 'todos',
     opcional: true,
@@ -241,7 +241,7 @@ export const DOCS_OPERACAO: DocumentDef[] = [
     id: 'contrato_prestacao',
     label: 'Contrato de prestação de serviço',
     categoria: 'operacao',
-    descricao: 'Gerado pela plataforma ao confirmar o prestador (modelo fazumfreela).',
+    descricao: 'Gerado pela plataforma ao confirmar o prestador (modelo Doca Livre).',
     temValidade: false,
     obrigatorio: 'demanda',
   },
@@ -339,7 +339,7 @@ export const DOCS_PLATAFORMA: DocumentDef[] = [
     id: 'termos_uso',
     label: 'Termos de uso',
     categoria: 'plataforma',
-    descricao: 'Condições gerais de uso da fazumfreela.',
+    descricao: 'Condições gerais de uso da Doca Livre fazumfreela.',
     temValidade: false,
     obrigatorio: 'todos',
   },
