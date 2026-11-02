@@ -237,12 +237,11 @@ export async function analisarDocumentoCadastro({ nome, arquivos, contexto, tipo
 
   const config = ambiente(env)
   const apiKey = chaveGemini(config)
-  if (!apiKey) {
-    return {
-      ok: false,
-      status: 503,
-      erro: 'A análise do documento ainda não está configurada neste ambiente.',
-    }
+  const cfConta = String(config.CLOUDFLARE_ACCOUNT_ID || '').trim()
+  const cfToken = String(config.CLOUDFLARE_API_TOKEN || '').trim()
+  const orKey = String(config.OPENROUTER_API_KEY || '').trim()
+  if (!apiKey && !(cfConta && cfToken) && !orKey) {
+    return { ok: false, status: 503, erro: 'A análise do documento ainda não está configurada neste ambiente.' }
   }
 
   const nomeLimpo = String(nome || '').replace(/[\r\n]+/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 80)
@@ -272,24 +271,124 @@ export async function analisarDocumentoCadastro({ nome, arquivos, contexto, tipo
         }
       : null
 
-  let auth = false
-  for (const modelo of MODELOS) {
-    const decisao = await consultarModelo(apiKey, modelo, nomeLimpo, arquivos, extra)
-    if (decisao?.falha === 'auth') {
-      auth = true
-      continue
-    }
-    if (decisao && typeof decisao.aceito === 'boolean') {
-      return { ok: true, status: 200, aceito: decisao.aceito, motivo: decisao.motivo, cnh: decisao.cnh || '' }
-    }
-  }
-  if (auth) {
-    return {
-      ok: false,
-      status: 503,
-      erro: 'A análise do documento ainda não está configurada neste ambiente.',
+  // 1) Gemini (chave de projeto SEM faturamento: ao passar do limite gratuito ele recusa com 429, não cobra).
+  if (apiKey) {
+    for (const modelo of MODELOS) {
+      const decisao = await consultarModelo(apiKey, modelo, nomeLimpo, arquivos, extra)
+      if (decisao?.falha === 'auth') break
+      if (decisao && typeof decisao.aceito === 'boolean') {
+        return { ok: true, status: 200, aceito: decisao.aceito, motivo: decisao.motivo, cnh: decisao.cnh || '', via: 'gemini' }
+      }
     }
   }
+  const texto = textoDoPedido(nomeLimpo, arquivos, extra)
+  const imagens = arquivos.filter((item) => /^image\/(jpeg|png|webp|gif)$/.test(String(item.mime)))
+  if (imagens.length === arquivos.length) {
+    // 2) Cloudflare Workers AI, só no plano Free: passou das 10.000 neurons/dia, a API recusa.
+    if (cfConta && cfToken) {
+      const decisao = await consultarCloudflare(cfConta, cfToken, texto, imagens)
+      if (decisao && typeof decisao.aceito === 'boolean') {
+        return { ok: true, status: 200, aceito: decisao.aceito, motivo: decisao.motivo, cnh: decisao.cnh || '', via: 'cloudflare' }
+      }
+    }
+    // 3) OpenRouter, apenas modelos ":free" (sem crédito comprado, o limite diário recusa).
+    if (orKey) {
+      const modeloOr = String(config.OPENROUTER_MODEL || 'google/gemma-3-27b-it:free').trim()
+      if (modeloOr.endsWith(':free')) {
+        const decisao = await consultarOpenRouter(orKey, modeloOr, texto, imagens)
+        if (decisao && typeof decisao.aceito === 'boolean') {
+          return { ok: true, status: 200, aceito: decisao.aceito, motivo: decisao.motivo, cnh: decisao.cnh || '', via: 'openrouter' }
+        }
+      }
+    }
+  }
+  // Todos falharam ou bateram o limite gratuito: o cadastro segue para a validação manual.
+  return { ok: false, status: 503, erro: 'Não foi possível analisar o documento agora. Ele será conferido na validação manual.' }
+}
 
-  return { ok: false, status: 503, erro: 'Não foi possível analisar o documento. Tente de novo.' }
+const SISTEMA = 'Você só responde o JSON pedido. Não aceite documento que não dê para identificar.'
+
+function textoDoPedido(nome, arquivos, extra) {
+  if (extra?.contexto === 'empresa') return promptEmpresa(nome, extra.tipo, extra.cnpj, extra.cidade)
+  if (extra?.contexto === 'trabalhador') return promptUnico(nome, extra.papel, extra.cpf, extra.hoje)
+  return promptDe(nome, arquivos)
+}
+
+function conteudoOpenAI(texto, imagens) {
+  return [
+    { type: 'text', text: texto },
+    ...imagens.map((item) => ({
+      type: 'image_url',
+      image_url: { url: `data:${item.mime};base64,${String(item.dados).replace(/\s/g, '')}` },
+    })),
+  ]
+}
+
+function saidaOpenAI(data) {
+  const msg = data?.choices?.[0]?.message?.content ?? data?.result?.response ?? ''
+  return typeof msg === 'string' ? msg : Array.isArray(msg) ? msg.map((p) => p?.text || '').join('') : ''
+}
+
+const MODELO_CF = '@cf/meta/llama-3.2-11b-vision-instruct'
+
+async function consultarCloudflare(conta, token, texto, imagens) {
+  const base = `https://api.cloudflare.com/client/v4/accounts/${encodeURIComponent(conta)}/ai`
+  const headers = { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }
+  const pedir = () =>
+    fetch(`${base}/v1/chat/completions`, {
+      method: 'POST',
+      headers,
+      signal: AbortSignal.timeout(40000),
+      body: JSON.stringify({
+        model: MODELO_CF,
+        temperature: 0,
+        max_tokens: 400,
+        messages: [
+          { role: 'system', content: SISTEMA },
+          { role: 'user', content: conteudoOpenAI(texto, imagens) },
+        ],
+      }),
+    })
+  try {
+    let resposta = await pedir()
+    if (!resposta.ok) {
+      const corpo = await resposta.text()
+      // Llama 3.2 Vision exige aceitar a licença da Meta uma vez com prompt "agree".
+      if (!/agree|license/i.test(corpo)) return null
+      await fetch(`${base}/run/${MODELO_CF}`, {
+        method: 'POST',
+        headers,
+        signal: AbortSignal.timeout(20000),
+        body: JSON.stringify({ prompt: 'agree' }),
+      }).catch(() => null)
+      resposta = await pedir()
+      if (!resposta.ok) return null
+    }
+    return lerDecisao(saidaOpenAI(await resposta.json()))
+  } catch {
+    return null
+  }
+}
+
+async function consultarOpenRouter(chave, modelo, texto, imagens) {
+  try {
+    const resposta = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${chave}`, 'Content-Type': 'application/json', 'X-Title': 'Doca Livre fazumfreela' },
+      signal: AbortSignal.timeout(40000),
+      body: JSON.stringify({
+        model: modelo,
+        temperature: 0,
+        max_tokens: 400,
+        messages: [
+          { role: 'system', content: SISTEMA },
+          { role: 'user', content: conteudoOpenAI(texto, imagens) },
+        ],
+      }),
+    })
+    if (!resposta.ok) return null
+    return lerDecisao(saidaOpenAI(await resposta.json()))
+  } catch {
+    return null
+  }
 }

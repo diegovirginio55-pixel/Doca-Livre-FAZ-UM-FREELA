@@ -43,6 +43,10 @@ Deno.serve(async (req) => {
     env: {
       GEMINI_API_KEY: Deno.env.get('GEMINI_API_KEY') ?? '',
       VITE_GEMINI_API_KEY: Deno.env.get('VITE_GEMINI_API_KEY') ?? '',
+      CLOUDFLARE_ACCOUNT_ID: Deno.env.get('CLOUDFLARE_ACCOUNT_ID') ?? '',
+      CLOUDFLARE_API_TOKEN: Deno.env.get('CLOUDFLARE_API_TOKEN') ?? '',
+      OPENROUTER_API_KEY: Deno.env.get('OPENROUTER_API_KEY') ?? '',
+      OPENROUTER_MODEL: Deno.env.get('OPENROUTER_MODEL') ?? '',
     },
   })
 
