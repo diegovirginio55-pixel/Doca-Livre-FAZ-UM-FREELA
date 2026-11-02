@@ -520,7 +520,7 @@ export function PortalLoginScreen({ portal, avisoInicial, onSuccess, onBack }: P
               Voltar ao login
             </button>
           )}
-          {mode === 'login' && portal !== 'admin' && (
+          {mode === 'login' && portal !== 'admin' && portal !== 'empresa' && (
             <button type="button" className="portal-login__link" onClick={() => goMode('cadastro')}>
               Criar conta
             </button>
