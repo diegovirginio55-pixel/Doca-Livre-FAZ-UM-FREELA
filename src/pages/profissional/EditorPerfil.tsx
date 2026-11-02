@@ -189,7 +189,9 @@ export function EditorPerfil({
     const mesmaCidade =
       form.cidade.trim().toLowerCase() === prof.endereco.cidade.trim().toLowerCase() &&
       form.estado.trim().toUpperCase() === prof.endereco.estado.trim().toUpperCase()
-    const coordenada = mesmaCidade
+    const coordenada = cepStatus.coord
+      ? cepStatus.coord
+      : mesmaCidade
       ? { lat: prof.endereco.lat, lng: prof.endereco.lng }
       : coordenadaDaCidade(form.cidade, form.estado, [
           ...state.profissionais.map((pessoa) => pessoa.endereco),

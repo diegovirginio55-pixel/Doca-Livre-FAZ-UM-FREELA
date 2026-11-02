@@ -24,6 +24,7 @@ import {
   type ModoBusca,
 } from '../../lib/analiseCurriculo'
 import { abrirCurriculoPdf } from '../../lib/curriculoPdf'
+import { useFeriadosNoPeriodo } from '../../lib/apisPublicas'
 import { MapaMaoDeObra } from './MapaMaoDeObra'
 import { SinoEmpresa } from './SinoEmpresa'
 import { AvaliacaoTrabalhador } from './AvaliacaoTrabalhador'
@@ -524,6 +525,7 @@ export function ContratarFreelancer({ onLogout }: { onLogout: () => void }) {
   const [diferenciais, setDiferenciais] = useState<string[]>([])
   const [inicio, setInicio] = useState(dataLocal(1))
   const [fim, setFim] = useState(dataLocal(5))
+  const feriados = useFeriadosNoPeriodo(inicio, fim)
   const [horaInicio, setHoraInicio] = useState('08:00')
   const [horaFim, setHoraFim] = useState('18:00')
   const [quantidade, setQuantidade] = useState(1)
@@ -1351,6 +1353,13 @@ export function ContratarFreelancer({ onLogout }: { onLogout: () => void }) {
                     <input type="date" value={fim} min={inicio || undefined} onChange={(e) => setFim(e.target.value)} />
                   </label>
                 </div>
+                {feriados.length > 0 && (
+                  <p className="cf-feriado" style={{ background: '#fff7ed', border: '1px solid #fdba74', borderRadius: 8, padding: '8px 10px', color: '#9a3412' }}>
+                    Feriado nacional no período:{' '}
+                    {feriados.map((f) => `${f.data.split('-').reverse().join('/')} (${f.nome})`).join(', ')}. Trabalho em feriado costuma ter
+                    adicional (em geral 100% sobre a diária). Combine o valor antes de confirmar.
+                  </p>
+                )}
                 <div className="cf-periodo">
                   <div className="cf-periodo-topo">
                     <span>Arraste para escolher quantos dias</span>

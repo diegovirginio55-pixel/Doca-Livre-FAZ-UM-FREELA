@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { useEffect, useState } from 'react'
 
 /** APIs públicas e gratuitas (com CORS) chamadas direto do navegador. */
@@ -35,15 +36,24 @@ export function mascararCep(valor: string) {
   return d.length > 5 ? `${d.slice(0, 5)}-${d.slice(5)}` : d
 }
 
-export type EnderecoCep = { rua: string; bairro: string; cidade: string; estado: string }
+export type EnderecoCep = { rua: string; bairro: string; cidade: string; estado: string; lat?: number; lng?: number }
 
 /** null = serviço fora do ar; 'nao_encontrado' = CEP não existe. */
 export async function buscarCep(cep: string): Promise<EnderecoCep | 'nao_encontrado' | null> {
   const d = digitos(cep)
   if (d.length !== 8) return 'nao_encontrado'
-  const b = (await getJson(`https://brasilapi.com.br/api/cep/v2/${d}`)) as Record<string, string> | null
+  const b = (await getJson(`https://brasilapi.com.br/api/cep/v2/${d}`)) as Record<string, any> | null
   if (b && !('__404' in b) && b.city) {
-    return { rua: b.street || '', bairro: b.neighborhood || '', cidade: b.city || '', estado: (b.state || '').toUpperCase() }
+    const lat = Number(b.location?.coordinates?.latitude)
+    const lng = Number(b.location?.coordinates?.longitude)
+    const temCoord = Number.isFinite(lat) && Number.isFinite(lng) && lat !== 0 && lng !== 0
+    return {
+      rua: b.street || '',
+      bairro: b.neighborhood || '',
+      cidade: b.city || '',
+      estado: String(b.state || '').toUpperCase(),
+      ...(temCoord ? { lat, lng } : {}),
+    }
   }
   const v = (await getJson(`https://viacep.com.br/ws/${d}/json/`)) as Record<string, string | boolean> | null
   if (v && !('__404' in v) && !v.erro && v.localidade) {
@@ -60,7 +70,10 @@ export async function buscarCep(cep: string): Promise<EnderecoCep | 'nao_encontr
 
 /** Busca o CEP quando ele fica com 8 dígitos e devolve uma mensagem de status. */
 export function useCepAutomatico(cep: string, aoAchar: (e: EnderecoCep) => void) {
-  const [status, setStatus] = useState<{ texto: string; erro: boolean }>({ texto: '', erro: false })
+  const [status, setStatus] = useState<{ texto: string; erro: boolean; coord?: { lat: number; lng: number } }>({
+    texto: '',
+    erro: false,
+  })
   const d = digitos(cep)
   useEffect(() => {
     if (d.length !== 8) {
@@ -75,7 +88,11 @@ export function useCepAutomatico(cep: string, aoAchar: (e: EnderecoCep) => void)
       else if (!res) setStatus({ texto: 'Não foi possível buscar o CEP agora. Preencha o endereço manualmente.', erro: false })
       else {
         aoAchar(res)
-        setStatus({ texto: 'Endereço preenchido pelo CEP. Confira e informe o número.', erro: false })
+        setStatus({
+          texto: 'Endereço preenchido pelo CEP. Confira e informe o número.',
+          erro: false,
+          coord: res.lat != null && res.lng != null ? { lat: res.lat, lng: res.lng } : undefined,
+        })
       }
     })
     return () => {
@@ -133,6 +150,9 @@ export type DadosCnpj = {
   cidade: string
   estado: string
   telefone: string
+  socios: string[]
+  cnae: string
+  atividade: string
 }
 
 /** null = serviço fora do ar; 'nao_encontrado' = CNPJ não existe na Receita. */
@@ -156,6 +176,9 @@ export async function buscarCnpj(cnpj: string): Promise<DadosCnpj | 'nao_encontr
       cidade: String(b.municipio || ''),
       estado: String(b.uf || '').toUpperCase(),
       telefone: digitos(String(b.ddd_telefone_1 || '')),
+      socios: Array.isArray(b.qsa) ? (b.qsa as { nome_socio?: string }[]).map((q) => String(q.nome_socio || '')).filter(Boolean) : [],
+      cnae: digitos(String(b.cnae_fiscal || '')),
+      atividade: String(b.cnae_fiscal_descricao || ''),
     }
   }
   const o = (await getJson(`https://api.opencnpj.org/${d}`, 10000)) as Record<string, unknown> | null
@@ -177,6 +200,11 @@ export async function buscarCnpj(cnpj: string): Promise<DadosCnpj | 'nao_encontr
       cidade: String(o.municipio || ''),
       estado: String(o.uf || '').toUpperCase(),
       telefone: tel ? digitos(`${tel.ddd || ''}${tel.numero || ''}`) : '',
+      socios: Array.isArray(o.QSA) ? (o.QSA as { nome_socio?: string }[]).map((q) => String(q.nome_socio || '')).filter(Boolean) : [],
+      cnae: digitos(String(o.cnae_principal || '')),
+      atividade: Array.isArray(o.cnaes)
+        ? String((o.cnaes as { descricao?: string; is_principal?: boolean }[]).find((c) => c.is_principal)?.descricao || '')
+        : '',
     }
   }
   if (b && '__404' in b && o && '__404' in o) return 'nao_encontrado'
@@ -234,4 +262,111 @@ export function useCidadesDaUf(uf: string, conhecidas: string[]) {
     out.push(c)
   }
   return out
+}
+
+// ---------- Sócios ----------
+
+function normalizarNome(t: string) {
+  return t.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toUpperCase().replace(/[^A-Z ]/g, ' ').replace(/\s+/g, ' ').trim()
+}
+
+/** true = é sócio; false = não aparece no quadro; null = sem quadro de sócios para conferir. */
+export function responsavelEhSocio(nome: string, socios: string[]): boolean | null {
+  if (!socios.length) return null
+  const alvo = normalizarNome(nome)
+  if (!alvo) return null
+  return socios.some((s) => {
+    const n = normalizarNome(s)
+    if (n === alvo) return true
+    const pa = alvo.split(' ')
+    const pb = n.split(' ')
+    return pa.length >= 2 && pa[0] === pb[0] && pa[pa.length - 1] === pb[pb.length - 1]
+  })
+}
+
+// ---------- CNAE (IBGE) ----------
+
+/** Classificação oficial do IBGE para o CNAE principal (seção e divisão). */
+export async function classificacaoCnae(cnae: string): Promise<string> {
+  const d = digitos(cnae)
+  if (d.length !== 7) return ''
+  const data = (await getJson(`https://servicodados.ibge.gov.br/api/v2/cnae/subclasses/${d}`)) as any
+  const item = Array.isArray(data) ? data[0] : data
+  const divisao = item?.classe?.grupo?.divisao
+  const secao = divisao?.secao?.descricao
+  if (!divisao?.descricao) return ''
+  return [secao, divisao.descricao].filter(Boolean).map((t: string) => capitalizar(String(t))).join(' · ')
+}
+
+// ---------- Feriados ----------
+
+export type Feriado = { data: string; nome: string }
+const cacheFeriados = new Map<number, Feriado[]>()
+
+export async function feriadosDoAno(ano: number): Promise<Feriado[]> {
+  const salvo = cacheFeriados.get(ano)
+  if (salvo) return salvo
+  const data = (await getJson(`https://brasilapi.com.br/api/feriados/v1/${ano}`)) as { date?: string; name?: string }[] | null
+  const lista = Array.isArray(data) ? data.map((f) => ({ data: String(f.date || ''), nome: String(f.name || '') })).filter((f) => f.data) : []
+  if (lista.length) cacheFeriados.set(ano, lista)
+  return lista
+}
+
+/** Feriados nacionais entre duas datas (AAAA-MM-DD), inclusive. */
+export function useFeriadosNoPeriodo(inicio: string, fim: string) {
+  const [lista, setLista] = useState<Feriado[]>([])
+  useEffect(() => {
+    const ini = /^\d{4}-\d{2}-\d{2}$/.test(inicio) ? inicio : ''
+    const ate = /^\d{4}-\d{2}-\d{2}$/.test(fim) && fim >= ini ? fim : ini
+    if (!ini) {
+      setLista([])
+      return
+    }
+    let vivo = true
+    const anos: number[] = []
+    for (let a = Number(ini.slice(0, 4)); a <= Number(ate.slice(0, 4)) && anos.length < 3; a += 1) anos.push(a)
+    void Promise.all(anos.map(feriadosDoAno)).then((res) => {
+      if (vivo) setLista(res.flat().filter((f) => f.data >= ini && f.data <= ate))
+    })
+    return () => {
+      vivo = false
+    }
+  }, [inicio, fim])
+  return lista
+}
+
+// ---------- DDD ----------
+
+export async function estadoDoDdd(telefone: string): Promise<{ estado: string; cidades: string[] } | null> {
+  const d = digitos(telefone)
+  if (d.length < 10) return null
+  const data = (await getJson(`https://brasilapi.com.br/api/ddd/v1/${d.slice(0, 2)}`)) as { state?: string; cities?: string[] } | null
+  if (!data || '__404' in (data as object) || !data.state) return null
+  return { estado: String(data.state).toUpperCase(), cidades: Array.isArray(data.cities) ? data.cities.map((c) => capitalizar(c)) : [] }
+}
+
+// ---------- Bancos ----------
+
+let cacheBancos: string[] | null = null
+
+/** Lista oficial de bancos (BrasilAPI / Bacen), como "001 - Banco do Brasil S.A.". */
+export function useBancos() {
+  const [lista, setLista] = useState<string[]>(cacheBancos || [])
+  useEffect(() => {
+    if (cacheBancos) return
+    let vivo = true
+    void getJson('https://brasilapi.com.br/api/banks/v1', 10000).then((data) => {
+      if (!Array.isArray(data)) return
+      const out = (data as { code?: number | null; fullName?: string; name?: string }[])
+        .filter((b) => b.code != null && (b.fullName || b.name))
+        .map((b) => `${String(b.code).padStart(3, '0')} - ${b.fullName || b.name}`)
+        .sort()
+      cacheBancos = out
+      if (vivo) setLista(out)
+    })
+    return () => {
+      vivo = false
+    }
+  }, [])
+  return lista
 }

@@ -1,4 +1,4 @@
-import { UFS, mascararCep, useCepAutomatico, useCidadesDaUf } from '../../lib/apisPublicas'
+import { UFS, estadoDoDdd, useBancos, mascararCep, useCepAutomatico, useCidadesDaUf } from '../../lib/apisPublicas'
 import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react'
 import { CATEGORIES } from '../../data/categories'
 import { LOCAIS_OPERACAO } from '../../data/cidades'
@@ -126,6 +126,7 @@ export function CadastroProfissionalScreen({ onBack, onDone }: Props) {
       freelancer: true,
     } as Disponibilidade,
     pix: '',
+    banco: '',
     cep: '',
     cidade: '',
     estado: 'SP',
@@ -199,6 +200,25 @@ export function CadastroProfissionalScreen({ onBack, onDone }: Props) {
     if (!form.certificados.some((c) => c.tipo.toLowerCase() === tipo.toLowerCase())) toggleCert(tipo)
     setCertNovo('')
   }
+
+  const bancos = useBancos()
+  const [dddInfo, setDddInfo] = useState('')
+  const dddTelefone = soDigitos(form.telefone).length >= 10 ? soDigitos(form.telefone).slice(0, 2) : ''
+  useEffect(() => {
+    if (!dddTelefone) {
+      setDddInfo('')
+      return
+    }
+    let vivo = true
+    void estadoDoDdd(dddTelefone + '00000000').then((res) => {
+      if (!vivo || !res) return
+      setDddInfo(`DDD ${dddTelefone}: ${res.estado}${res.cidades.length ? `, região de ${res.cidades.slice(0, 3).join(', ')}` : ''}.`)
+      setForm((f) => (f.cidade.trim() || f.cep.trim() ? f : { ...f, estado: res.estado }))
+    })
+    return () => {
+      vivo = false
+    }
+  }, [dddTelefone])
 
   function definirRaio(valor: string) {
     const numero = Number(valor)
@@ -407,13 +427,15 @@ export function CadastroProfissionalScreen({ onBack, onDone }: Props) {
         numero: form.numero,
         cidade: form.cidade.trim(),
         estado: form.estado.trim().toUpperCase(),
-        ...coordenadaDaCidade(form.cidade, form.estado, [
-          ...state.profissionais.map((pessoa) => pessoa.endereco),
-          ...state.empresas.map((empresa) => empresa.endereco),
-        ]),
+        ...(cepStatus.coord ??
+          coordenadaDaCidade(form.cidade, form.estado, [
+            ...state.profissionais.map((pessoa) => pessoa.endereco),
+            ...state.empresas.map((empresa) => empresa.endereco),
+          ])),
       },
       raioKm: form.raioKm,
       pix: chave.chave,
+      banco: form.banco.trim() || undefined,
     }
     const documentos = documentosEnviados()
     const res = completing
@@ -463,6 +485,7 @@ export function CadastroProfissionalScreen({ onBack, onDone }: Props) {
             <label className="field"><span>RG</span><input value={form.rg} onChange={(e) => set('rg', mascararRg(e.target.value))} autoComplete="off" placeholder="00.000.000-0" maxLength={18} required /></label>
             <label className="field"><span>Nascimento</span><input type="date" value={form.nascimento} onChange={(e) => set('nascimento', e.target.value)} required /></label>
             <label className="field"><span>Telefone</span><input type="tel" value={form.telefone} onChange={(e) => set('telefone', mascararTelefone(e.target.value))} inputMode="tel" autoComplete="tel-national" placeholder="(11) 91234-5678" maxLength={15} required /></label>
+            {dddInfo && <small className="muted">{dddInfo}</small>}
             {!completing && (
               <>
                 <label className="field"><span>E-mail</span><input type="email" value={form.email} onChange={(e) => set('email', e.target.value)} required /></label>
@@ -673,6 +696,16 @@ export function CadastroProfissionalScreen({ onBack, onDone }: Props) {
             </label>
             {pixInfo?.ok && <p className="docs-ok">Chave de {pixInfo.rotulo} conferida.</p>}
             {pixInfo && !pixInfo.ok && <p className="error">{pixInfo.erro}</p>}
+            <label className="field">
+              <span>Banco da conta Pix (opcional)</span>
+              <input value={form.banco} list="bancos-pix" onChange={(e) => set('banco', e.target.value)} placeholder="Comece a digitar o nome ou o código" />
+              <datalist id="bancos-pix">
+                {bancos.map((b) => (
+                  <option key={b} value={b} />
+                ))}
+              </datalist>
+              <small className="muted">A chave Pix não mostra o banco. Informe para a equipe conferir o pagamento mais rápido.</small>
+            </label>
             <AceiteCadastro role="profissional" marcados={aceites} onMarcar={setAceites} />
           </>
         )}

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react'
-import { UFS, buscarCnpj, capitalizar, erroCnpj, mascararCep, mascararCnpj, useCepAutomatico, useCidadesDaUf } from '../../lib/apisPublicas'
+import { UFS, buscarCnpj, classificacaoCnae, responsavelEhSocio, capitalizar, erroCnpj, mascararCep, mascararCnpj, useCepAutomatico, useCidadesDaUf } from '../../lib/apisPublicas'
 import { erroCpf, erroTelefone, mascararCpf, mascararTelefone } from '../../lib/documentosPessoais'
 import { AceiteCadastro, todosAceitos } from '../../components/AceiteTermos'
 import { LOCAIS_OPERACAO } from '../../data/cidades'
@@ -106,8 +106,12 @@ export function CadastroEmpresaScreen({ onBack, onDone }: Props) {
     bloqueia: false,
   })
   const [cnpjBuscando, setCnpjBuscando] = useState(false)
+  const [cnpjDados, setCnpjDados] = useState<{ socios: string[]; atividade: string; cnae: string } | null>(null)
+  const [classeIbge, setClasseIbge] = useState('')
   const cnpjDigitos = form.cnpj.replace(/\D/g, '')
   useEffect(() => {
+    setCnpjDados(null)
+    setClasseIbge('')
     if (cnpjDigitos.length !== 14) {
       setCnpjInfo({ texto: '', erro: false, bloqueia: false })
       setCnpjBuscando(false)
@@ -136,6 +140,10 @@ export function CadastroEmpresaScreen({ onBack, onDone }: Props) {
         })
         return
       }
+      setCnpjDados({ socios: res.socios, atividade: res.atividade, cnae: res.cnae })
+      void classificacaoCnae(res.cnae).then((c) => {
+        if (vivo) setClasseIbge(c)
+      })
       setForm((f) => ({
         ...f,
         razaoSocial: res.razaoSocial || f.razaoSocial,
@@ -165,6 +173,8 @@ export function CadastroEmpresaScreen({ onBack, onDone }: Props) {
       vivo = false
     }
   }, [cnpjDigitos])
+
+  const socioConfere = cnpjDados && form.responsavelNome.trim().split(/\s+/).length >= 2 ? responsavelEhSocio(form.responsavelNome, cnpjDados.socios) : undefined
 
   function problemaEmpresa() {
     return (
@@ -292,10 +302,11 @@ export function CadastroEmpresaScreen({ onBack, onDone }: Props) {
         numero: form.numero.trim(),
         cidade: form.cidade.trim(),
         estado: form.estado.trim().toUpperCase(),
-        ...coordenadaDaCidade(form.cidade, form.estado, [
-          ...state.empresas.map((empresa) => empresa.endereco),
-          ...state.profissionais.map((pessoa) => pessoa.endereco),
-        ]),
+        ...(cepStatus.coord ??
+          coordenadaDaCidade(form.cidade, form.estado, [
+            ...state.empresas.map((empresa) => empresa.endereco),
+            ...state.profissionais.map((pessoa) => pessoa.endereco),
+          ])),
       },
     }
     const documentos = documentosEnviados()
@@ -330,6 +341,12 @@ export function CadastroEmpresaScreen({ onBack, onDone }: Props) {
               <span>CNPJ</span>
               <input value={form.cnpj} onChange={(e) => set('cnpj', mascararCnpj(e.target.value))} inputMode="numeric" placeholder="00.000.000/0000-00" maxLength={18} required />
               {cnpjInfo.texto && <small className={cnpjInfo.erro ? 'error' : 'muted'}>{cnpjInfo.texto}</small>}
+              {cnpjDados?.atividade && (
+                <small className="muted">
+                  Atividade principal{cnpjDados.cnae ? ` (CNAE ${cnpjDados.cnae})` : ''}: {cnpjDados.atividade}
+                  {classeIbge ? ` · ${classeIbge}` : ''}
+                </small>
+              )}
             </label>
             <label className="field">
               <span>Razão social</span>
@@ -347,6 +364,13 @@ export function CadastroEmpresaScreen({ onBack, onDone }: Props) {
             <label className="field">
               <span>Nome do responsável</span>
               <input value={form.responsavelNome} onChange={(e) => set('responsavelNome', e.target.value)} required />
+              {socioConfere === true && <small className="docs-ok">Nome confere com o quadro de sócios da Receita.</small>}
+              {socioConfere === false && (
+                <small className="error">
+                  Esse nome não aparece no quadro de sócios do CNPJ. Pode continuar, mas a equipe vai conferir a procuração ou o vínculo.
+                </small>
+              )}
+              {socioConfere === null && <small className="muted">A Receita não informou sócios para conferir este CNPJ.</small>}
             </label>
             <label className="field">
               <span>CPF do responsável</span>
