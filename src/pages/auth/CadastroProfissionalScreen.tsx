@@ -10,6 +10,7 @@ import { coordenadaDaCidade } from '../../lib/coordenadaCidade'
 import { CERTIFICADOS_COMUNS, habilidadesDoTexto, mesclarCurriculo, nomeCertificado, semContato } from '../../lib/curriculo'
 import type { LeituraCurriculo } from '../../lib/lerCurriculo'
 import { validarChavePix } from '../../lib/pix'
+import { erroCpf, erroRg, erroTelefone, mascararCpf, mascararRg, mascararTelefone } from '../../lib/documentosPessoais'
 import { useStore } from '../../lib/store'
 import type { Certificado, Disponibilidade, Experiencia } from '../../lib/types'
 
@@ -224,6 +225,17 @@ export function CadastroProfissionalScreen({ onBack, onDone }: Props) {
 
   function next() {
     setError('')
+    if (step === PASSO.dados) {
+      const falhaDados =
+        (form.nome.trim().split(/\s+/).length < 2 ? 'Informe o nome completo (nome e sobrenome).' : '') ||
+        erroCpf(form.cpf) ||
+        erroRg(form.rg) ||
+        erroTelefone(form.telefone)
+      if (falhaDados) {
+        setError(falhaDados)
+        return
+      }
+    }
     if (step === PASSO.documentos && !documentosProntos()) {
       setError('Envie o documento e a selfie para continuar.')
       return
@@ -371,10 +383,11 @@ export function CadastroProfissionalScreen({ onBack, onDone }: Props) {
         {step === PASSO.dados && (
           <>
             <label className="field"><span>Nome completo</span><input value={form.nome} onChange={(e) => set('nome', e.target.value)} required /></label>
-            <label className="field"><span>CPF</span><input value={form.cpf} onChange={(e) => set('cpf', e.target.value)} required /></label>
-            <label className="field"><span>RG</span><input value={form.rg} onChange={(e) => set('rg', e.target.value)} required /></label>
+            <label className="field"><span>CPF</span><input value={form.cpf} onChange={(e) => set('cpf', mascararCpf(e.target.value))} inputMode="numeric" autoComplete="off" placeholder="000.000.000-00" maxLength={14} required /></label>
+            {form.cpf.replace(/\D/g, '').length === 11 && erroCpf(form.cpf) && <p className="portal-login__erro">{erroCpf(form.cpf)}</p>}
+            <label className="field"><span>RG</span><input value={form.rg} onChange={(e) => set('rg', mascararRg(e.target.value))} autoComplete="off" placeholder="00.000.000-0" maxLength={18} required /></label>
             <label className="field"><span>Nascimento</span><input type="date" value={form.nascimento} onChange={(e) => set('nascimento', e.target.value)} required /></label>
-            <label className="field"><span>Telefone</span><input value={form.telefone} onChange={(e) => set('telefone', e.target.value)} required /></label>
+            <label className="field"><span>Telefone</span><input type="tel" value={form.telefone} onChange={(e) => set('telefone', mascararTelefone(e.target.value))} inputMode="tel" autoComplete="tel-national" placeholder="(11) 91234-5678" maxLength={15} required /></label>
             {!completing && (
               <>
                 <label className="field"><span>E-mail</span><input type="email" value={form.email} onChange={(e) => set('email', e.target.value)} required /></label>
