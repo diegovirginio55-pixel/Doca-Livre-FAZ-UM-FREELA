@@ -15,9 +15,9 @@ const TERMOS: Record<TermoId, TermoPlataforma> = {
   termos_uso: {
     id: 'termos_uso',
     titulo: 'Termos de uso',
-    rotuloAceite: 'Li e concordo com os Termos de uso da Doca Livre Mão de Obra.',
+    rotuloAceite: 'Li e concordo com os Termos de uso da fazumfreela.',
     paragrafos: [
-      'A Doca Livre Mão de Obra atua como empresa de trabalho temporário, na forma da Lei 6.019/1974. Ela contrata o trabalhador e o coloca à disposição da empresa tomadora pelo prazo e pelo motivo de cada missão.',
+      'A fazumfreela atua como empresa de trabalho temporário, na forma da Lei 6.019/1974. Ela contrata o trabalhador e o coloca à disposição da empresa tomadora pelo prazo e pelo motivo de cada missão.',
       'A empresa tomadora publica a vaga, informa o motivo da contratação temporária, o período, a jornada e a remuneração, e assina o contrato de prestação de serviços com a Mão de Obra.',
       'O trabalhador mantém o cadastro verdadeiro e atualizado, se candidata às vagas e assina o contrato individual de trabalho temporário antes de começar.',
       'Cada contratação gera documentos com número, data e registro de quem assinou. As assinaturas eletrônicas seguem a MP 2.200-2/2001 e a Lei 14.063/2020.',

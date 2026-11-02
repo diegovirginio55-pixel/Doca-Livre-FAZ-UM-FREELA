@@ -476,9 +476,9 @@ function TermosPlataforma() {
       </div>
       {open === 'termos' && (
         <div className="docs-legal">
-          <h4>Termos de uso — Doca Livre Mão de Obra</h4>
+          <h4>Termos de uso — fazumfreela</h4>
           <p>
-            A Doca Livre Mão de Obra, neste fluxo, atua como empresa de trabalho temporário: contrata o
+            A fazumfreela, neste fluxo, atua como empresa de trabalho temporário: contrata o
             trabalhador e o coloca à disposição da empresa tomadora. Os modelos de contrato exibidos
             aqui são minutas de controle e devem ser revisados por advogado trabalhista antes de
             contratação real.

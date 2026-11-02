@@ -103,11 +103,11 @@ function ContratoPreview({ contrato }: { contrato: ContratoServico }) {
   return (
     <div className="contrato-preview">
       <p className="contrato-preview-title">
-        CONTRATO DE PRESTAÇÃO DE SERVIÇO VIA PLATAFORMA DOCA LIVRE MÃO DE OBRA — ID {contrato.numero}
+        CONTRATO DE PRESTAÇÃO DE SERVIÇO VIA PLATAFORMA FAZUMFREELA — ID {contrato.numero}
       </p>
       <p>
         A <strong>{PLATAFORMA_DOCA.razaoSocial}</strong> (CNPJ {PLATAFORMA_DOCA.cnpj}), doravante{' '}
-        <strong>DOCA LIVRE</strong>, intermedia o presente contrato entre:
+        <strong>FAZUMFREELA</strong>, intermedia o presente contrato entre:
       </p>
       <p>
         <strong>CONTRATANTE:</strong> {empresa.razaoSocial} — CNPJ {empresa.cnpj} —{' '}
@@ -123,7 +123,7 @@ function ContratoPreview({ contrato }: { contrato: ContratoServico }) {
         Valor {formatMoneyBr(contrato.valor)}
       </p>
       <p>
-        O contrato poderá ser rescindido de boa-fé pela plataforma Doca Livre. Rescisão antecipada
+        O contrato poderá ser rescindido de boa-fé pela plataforma fazumfreela. Rescisão antecipada
         imotivada pela CONTRATANTE implica multa de uma diária. Assinaturas eletrônicas são válidas
         nos termos da MP 2.200-2/2001 e da Lei 14.063/2020.
       </p>
@@ -191,7 +191,7 @@ export function ContratosList({ empresaId, profissionalId, onOpen }: ListProps) 
         <strong>Nenhum contrato gerado ainda</strong>
         <p className="muted">
           Ao aceitar um candidato em um contrato/demanda, o documento é gerado automaticamente no
-          modelo Doca Livre.
+          modelo fazumfreela.
         </p>
       </div>
     )

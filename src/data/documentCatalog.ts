@@ -1,5 +1,5 @@
 /**
- * Catálogo documental Doca Livre Mão de Obra
+ * Catálogo documental fazumfreela
  * Base: briefing operacional + contrato de prestação + práticas de logística/RH.
  */
 
@@ -241,7 +241,7 @@ export const DOCS_OPERACAO: DocumentDef[] = [
     id: 'contrato_prestacao',
     label: 'Contrato de prestação de serviço',
     categoria: 'operacao',
-    descricao: 'Gerado pela plataforma ao confirmar o prestador (modelo Doca Livre).',
+    descricao: 'Gerado pela plataforma ao confirmar o prestador (modelo fazumfreela).',
     temValidade: false,
     obrigatorio: 'demanda',
   },
@@ -339,7 +339,7 @@ export const DOCS_PLATAFORMA: DocumentDef[] = [
     id: 'termos_uso',
     label: 'Termos de uso',
     categoria: 'plataforma',
-    descricao: 'Condições gerais de uso da Doca Livre Mão de Obra.',
+    descricao: 'Condições gerais de uso da fazumfreela.',
     temValidade: false,
     obrigatorio: 'todos',
   },

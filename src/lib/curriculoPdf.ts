@@ -89,7 +89,7 @@ class Folha {
     this.ret(0, 748, 595, 94, PRETO)
     this.ret(0, 748, 595, 5, AMARELO)
     this.texto(40, 818, 'CURRÍCULO', 11, 'F2', AMARELO)
-    this.texto(430, 818, 'Doca Livre', 11, 'F2', AMARELO)
+    this.texto(430, 818, 'fazumfreela', 11, 'F2', AMARELO)
     const nome = quebrar(profissional.nome, 36).slice(0, 2)
     nome.forEach((linha, indice) => {
       this.texto(40, 794 - indice * 22, linha, 20, 'F2', BRANCO)
@@ -141,7 +141,7 @@ class Folha {
 
   rodape() {
     this.ret(40, 46, 515, 0.6, [0.86, 0.88, 0.9])
-    this.texto(40, 30, 'Doca Livre Mão de Obra', 9, 'F1', CINZA)
+    this.texto(40, 30, 'fazumfreela', 9, 'F1', CINZA)
   }
 
   bytes() {

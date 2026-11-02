@@ -52,7 +52,7 @@ export function EmpresaApp({ onLogout }: { onLogout: () => void }) {
     <div className="px-shell">
       <header className="px-topbar">
         <div className="px-topbar-left">
-          <img src={LOGO_DOCA_LIVRE_SRC} alt="Doca Livre" className="px-topbar-logo" />
+          <img src={LOGO_DOCA_LIVRE_SRC} alt="fazumfreela" className="px-topbar-logo" />
           <div>
             <strong className="px-topbar-brand">Painel Mão de Obra</strong>
             <p className="px-topbar-sub">{empresa.nomeFantasia}</p>
@@ -126,7 +126,7 @@ export function EmpresaApp({ onLogout }: { onLogout: () => void }) {
               <h1 className="px-title">Documentos contratuais</h1>
               <p className="muted">
                 Modelo adaptado do contrato de prestação de serviço via plataforma, com a marca
-                Doca Livre Mão de Obra. Gerado automaticamente ao confirmar um prestador.
+                fazumfreela. Gerado automaticamente ao confirmar um prestador.
               </p>
               <ContratosList empresaId={empresa.id} onOpen={setContratoAberto} />
             </div>

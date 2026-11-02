@@ -81,7 +81,7 @@ export function ProfissionalApp({ onLogout }: { onLogout: () => void }) {
             <span className="cf-topbar-menu-icon" aria-hidden />
           </button>
           <div className="cf-topbar-brand">
-            <img src={LOGO_DOCA_LIVRE_SRC} alt="Doca Livre" className="cf-topbar-logo" />
+            <img src={LOGO_DOCA_LIVRE_SRC} alt="fazumfreela" className="cf-topbar-logo" />
             <span className="cf-product">{BRAND_PRODUCT_NAME}</span>
           </div>
         </div>

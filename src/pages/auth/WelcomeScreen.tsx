@@ -10,7 +10,7 @@ export function WelcomeScreen({ onLogin, onRegister, onDemoEmpresa }: Props) {
   return (
     <div className="auth-screen">
       <div className="auth-card auth-card--wide">
-        <img src={LOGO_DOCA_LIVRE_SRC} alt="Doca Livre" className="auth-logo" />
+        <img src={LOGO_DOCA_LIVRE_SRC} alt="fazumfreela" className="auth-logo" />
         <h1 className="auth-title">Mão de Obra</h1>
         <p className="auth-slogan">{BRAND_SLOGAN}</p>
         <button type="button" className="demo-login-btn demo-login-btn--primary" onClick={onDemoEmpresa}>

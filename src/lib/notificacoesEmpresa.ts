@@ -69,7 +69,7 @@ export function montarAvisosEmpresa(input: {
       id: `contrato:${peca.id}`,
       tipo: 'contrato',
       quando: peca.criadoEm,
-      nome: 'Doca Livre Mão de Obra',
+      nome: 'fazumfreela',
       texto: `Contrato para assinar com a Mão de Obra: vaga de ${cargoLabel(demanda.cargo)}.`,
       extra: `${demanda.endereco.cidade}/${demanda.endereco.estado} · ${peca.numero}`,
       aba: 'vagas',

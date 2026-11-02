@@ -11,7 +11,7 @@ export function PortalSelectScreen({ onEmpresa, onProfissional, onAdmin }: Props
   return (
     <div className="portal-select">
       <div className="portal-select__inner">
-        <img src={LOGO_DOCA_LIVRE_SRC} alt="Doca Livre" className="portal-select__logo" />
+        <img src={LOGO_DOCA_LIVRE_SRC} alt="fazumfreela" className="portal-select__logo" />
         <h1 className="portal-select__brand">Mão de Obra</h1>
         <p className="portal-select__slogan">{BRAND_SLOGAN}</p>
 

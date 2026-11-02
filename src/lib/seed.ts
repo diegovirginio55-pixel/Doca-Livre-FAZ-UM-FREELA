@@ -551,7 +551,7 @@ export function createSeedState(): AppState {
     pecas: [],
     cadastroEtt: {
       razaoSocial: 'DOCA LIVRE MÃO DE OBRA LTDA',
-      nomeFantasia: 'Doca Livre Mão de Obra',
+      nomeFantasia: 'fazumfreela',
       cnpj: '',
       juntaComercial: '',
       socios: '',

@@ -11,15 +11,15 @@ export function montarEmailCodigo(finalidade, codigo) {
       : 'redefinir sua senha no portal'
   const assunto =
     finalidade === 'cadastro'
-      ? 'Doca Livre Mão de Obra — código de confirmação de e-mail'
-      : 'Doca Livre Mão de Obra — código para trocar a senha'
+      ? 'fazumfreela — código de confirmação de e-mail'
+      : 'fazumfreela — código para trocar a senha'
   const texto =
-    `Seu código Doca Livre Mão de Obra é: ${codigo}\n\n` +
+    `Seu código fazumfreela é: ${codigo}\n\n` +
     `Use este código para ${acao}.\n` +
     `Ele vale por ${OTP_MINUTOS} minutos.\n\n` +
     'Se você não solicitou, ignore este e-mail.'
   const html =
-    '<p>Seu código Doca Livre Mão de Obra é:</p>' +
+    '<p>Seu código fazumfreela é:</p>' +
     `<p style="font-size:28px;font-weight:700;letter-spacing:4px">${codigo}</p>` +
     `<p>Use este código para ${acao}. Vale por ${OTP_MINUTOS} minutos.</p>` +
     '<p style="color:#64748b;font-size:13px">Se você não solicitou, ignore este e-mail.</p>'
@@ -50,7 +50,7 @@ export async function enviarCodigoEmail({ email, codigo, finalidade, env }) {
   const from =
     String(config.RESEND_FROM || '').trim() ||
     String(config.SMTP_FROM || '').trim() ||
-    'Doca Livre Mão de Obra <onboarding@resend.dev>'
+    'fazumfreela <onboarding@resend.dev>'
   const { assunto, texto, html } = montarEmailCodigo(tipo, digitos)
 
   try {
