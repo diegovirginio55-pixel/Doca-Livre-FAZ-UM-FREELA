@@ -155,6 +155,7 @@ export async function analisarDocumentoCadastro(input: {
   tipo?: string
   cnpj?: string
   cidade?: string
+  cpf?: string
 }): Promise<{ ok: true; aceito: boolean; motivo: string; cnh: string } | { ok: false; erro: string }> {
   const cfg = await loadSupabaseConfig()
   const tentativas: { url: string; headers: Record<string, string> }[] = []

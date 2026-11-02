@@ -5,12 +5,12 @@ import { AvailabilityToggle } from '../../components/AvailabilityToggle'
 import { AceiteCadastro, todosAceitos } from '../../components/AceiteTermos'
 import { AnexoCurriculo, CamposSobre, ListaExperiencias, conferirExperiencias } from '../../components/CurriculoCampos'
 import type { TermoId } from '../../lib/termos'
-import { ACCEPT_DOCUMENTO_CADASTRO, lerArquivoCadastro, type FotoDocumento, type PapelDocumento } from '../../lib/analisarDocumentoCadastro'
+import { ACCEPT_DOCUMENTO_CADASTRO, analisarDocumentoCadastro, lerArquivoCadastro, type FotoDocumento, type PapelDocumento } from '../../lib/analisarDocumentoCadastro'
 import { coordenadaDaCidade } from '../../lib/coordenadaCidade'
 import { CERTIFICADOS_COMUNS, habilidadesDoTexto, mesclarCurriculo, nomeCertificado, semContato } from '../../lib/curriculo'
 import type { LeituraCurriculo } from '../../lib/lerCurriculo'
 import { validarChavePix } from '../../lib/pix'
-import { erroCpf, erroRg, erroTelefone, mascararCpf, mascararRg, mascararTelefone } from '../../lib/documentosPessoais'
+import { erroCpf, erroRg, erroTelefone, soDigitos, mascararCpf, mascararRg, mascararTelefone } from '../../lib/documentosPessoais'
 import { useStore } from '../../lib/store'
 import type { Certificado, Disponibilidade, Experiencia } from '../../lib/types'
 
@@ -19,11 +19,41 @@ type Props = {
   onDone: () => void
 }
 
+type StatusDoc = 'vazio' | 'analisando' | 'aceito' | 'recusado' | 'manual'
+
 type LinhaDoc = {
   arquivo: FotoDocumento | null
+  status: StatusDoc
+  motivo: string
 }
 
-const LINHA_VAZIA: LinhaDoc = { arquivo: null }
+const LINHA_VAZIA: LinhaDoc = { arquivo: null, status: 'vazio', motivo: '' }
+
+const NOME_PAPEL: Record<PapelDocumento, string> = {
+  documento: 'documento',
+  verso: 'verso do documento',
+  selfie: 'selfie',
+}
+
+function observacaoDoc(linha: LinhaDoc) {
+  if (linha.status === 'aceito') return `Conferido automaticamente${linha.motivo ? `: ${linha.motivo}` : '.'} Aguardando validação manual.`
+  return 'Aguardando validação manual.'
+}
+
+function abrirArquivo(foto: FotoDocumento) {
+  const binario = atob(foto.dados)
+  const bytes = new Uint8Array(binario.length)
+  for (let i = 0; i < binario.length; i += 1) bytes[i] = binario.charCodeAt(i)
+  const url = URL.createObjectURL(new Blob([bytes], { type: foto.mime }))
+  const a = document.createElement('a')
+  a.href = url
+  a.target = '_blank'
+  a.rel = 'noopener noreferrer'
+  document.body.appendChild(a)
+  a.click()
+  a.remove()
+  window.setTimeout(() => URL.revokeObjectURL(url), 120_000)
+}
 
 function copiaDocumento(foto: FotoDocumento) {
   return `data:${foto.mime};base64,${foto.dados}`
@@ -165,8 +195,26 @@ export function CadastroProfissionalScreen({ onBack, onDone }: Props) {
     set('raioKm', valor === '' || !Number.isFinite(numero) || numero <= 0 ? null : Math.min(500, Math.round(numero)))
   }
 
+  function problemaDocumentos() {
+    const papeis: PapelDocumento[] = ['documento', 'verso', 'selfie']
+    if (papeis.some((p) => linhas[p].status === 'analisando')) return 'Aguarde a conferência dos arquivos terminar.'
+    for (const p of papeis) {
+      if (linhas[p].status === 'recusado') {
+        return `O arquivo enviado como ${NOME_PAPEL[p]} não foi aceito: ${linhas[p].motivo || 'não deu para conferir'}. Envie outro arquivo.`
+      }
+    }
+    if (!linhas.documento.arquivo) return 'Envie o documento com foto (RG, CIN ou CNH).'
+    if (!linhas.selfie.arquivo) return 'Envie a selfie para continuar.'
+    if (form.cnhCategoria.trim()) {
+      if (!/^(A|B|C|D|E|AB|AC|AD|AE)$/.test(form.cnhCategoria.trim())) return 'Categoria da CNH inválida. Use B, C, D, E, AB, AC, AD ou AE.'
+      if (!form.cnhValidade) return 'Informe a validade da CNH.'
+      if (form.cnhValidade < new Date().toISOString().slice(0, 10)) return 'A CNH informada está vencida.'
+    }
+    return ''
+  }
+
   function documentosProntos() {
-    return Boolean(linhas.documento.arquivo && linhas.selfie.arquivo)
+    return !problemaDocumentos()
   }
 
   function documentosEnviados() {
@@ -178,7 +226,7 @@ export function CadastroProfissionalScreen({ onBack, onDone }: Props) {
       {
         tipoId: 'rg_cpf',
         arquivoNome: [frente.nome, costas?.nome].filter(Boolean).join(', '),
-        observacao: 'Aguardando validação manual.',
+        observacao: observacaoDoc(linhas.documento),
         arquivoDados: copiaDocumento(frente),
         versoNome: costas?.nome,
         versoDados: costas ? copiaDocumento(costas) : undefined,
@@ -186,7 +234,7 @@ export function CadastroProfissionalScreen({ onBack, onDone }: Props) {
       {
         tipoId: 'selfie',
         arquivoNome: face.nome,
-        observacao: 'Aguardando validação manual.',
+        observacao: observacaoDoc(linhas.selfie),
         arquivoDados: copiaDocumento(face),
       },
       ...(curriculo
@@ -215,7 +263,24 @@ export function CadastroProfissionalScreen({ onBack, onDone }: Props) {
     try {
       const foto = await lerArquivoCadastro(file)
       if (geracaoDoc.current[papel] !== vez) return
-      setLinhas((atual) => ({ ...atual, [papel]: { arquivo: foto } }))
+      setLinhas((atual) => ({ ...atual, [papel]: { arquivo: foto, status: 'analisando', motivo: '' } }))
+      const res = await analisarDocumentoCadastro({
+        nome: form.nome,
+        cpf: soDigitos(form.cpf),
+        contexto: 'trabalhador',
+        arquivos: [{ papel, mime: foto.mime, dados: foto.dados }],
+      })
+      if (geracaoDoc.current[papel] !== vez) return
+      if (res.ok) {
+        setLinhas((atual) => ({
+          ...atual,
+          [papel]: { arquivo: foto, status: res.aceito ? 'aceito' : 'recusado', motivo: res.motivo },
+        }))
+        if (res.aceito && res.cnh && !form.cnhCategoria.trim()) set('cnhCategoria', res.cnh)
+      } else {
+        // Conferência automática indisponível: segue para a validação manual no painel.
+        setLinhas((atual) => ({ ...atual, [papel]: { arquivo: foto, status: 'manual', motivo: '' } }))
+      }
     } catch (falha) {
       if (geracaoDoc.current[papel] !== vez) return
       setLinhas((atual) => ({ ...atual, [papel]: LINHA_VAZIA }))
@@ -237,7 +302,7 @@ export function CadastroProfissionalScreen({ onBack, onDone }: Props) {
       }
     }
     if (step === PASSO.documentos && !documentosProntos()) {
-      setError('Envie o documento e a selfie para continuar.')
+      setError(problemaDocumentos())
       return
     }
     if (step === PASSO.cargos && form.profissoes.length === 0) {
@@ -273,7 +338,7 @@ export function CadastroProfissionalScreen({ onBack, onDone }: Props) {
   function submit(e: FormEvent) {
     e.preventDefault()
     if (!documentosProntos()) {
-      setError('Envie o documento e a selfie antes de concluir.')
+      setError(problemaDocumentos())
       setStep(PASSO.documentos)
       return
     }
@@ -399,10 +464,10 @@ export function CadastroProfissionalScreen({ onBack, onDone }: Props) {
         )}
         {step === PASSO.documentos && (
           <div className="docs-mock">
-            <p>Envie o documento e a selfie. A validação é manual, um arquivo por vez, no painel administrativo.</p>
-            <CampoDoc titulo="Documento (RG, CIN, CNH ou CPF)" papel="documento" linha={linhas.documento} onEscolher={escolherFoto} />
-            <CampoDoc titulo="Verso, se tiver" papel="verso" linha={linhas.verso} onEscolher={escolherFoto} />
-            <CampoDoc titulo="Selfie" papel="selfie" linha={linhas.selfie} onEscolher={escolherFoto} />
+            <p>Anexe foto (JPG, PNG) ou PDF. Itens com * são obrigatórios. Cada arquivo é conferido na hora com o nome e o CPF que você informou, e depois passa pela validação manual no painel administrativo.</p>
+            <CampoDoc titulo="Documento com foto (RG, CIN ou CNH)" obrigatorio dica="Frente legível, com nome e CPF." papel="documento" linha={linhas.documento} onEscolher={escolherFoto} />
+            <CampoDoc titulo="Verso do documento" dica="Opcional. Envie se o CPF estiver no verso." papel="verso" linha={linhas.verso} onEscolher={escolherFoto} />
+            <CampoDoc titulo="Selfie" obrigatorio dica="Rosto visível, sem óculos escuros ou boné." papel="selfie" linha={linhas.selfie} onEscolher={escolherFoto} />
             <label className="field">
               <span>CNH (categoria, se aplicável)</span>
               <input
@@ -600,26 +665,57 @@ export function CadastroProfissionalScreen({ onBack, onDone }: Props) {
 
 function CampoDoc({
   titulo,
+  obrigatorio,
+  dica,
   papel,
   linha,
   onEscolher,
 }: {
   titulo: string
+  obrigatorio?: boolean
+  dica?: string
   papel: PapelDocumento
   linha: LinhaDoc
   onEscolher: (file: File | undefined, papel: PapelDocumento) => void
 }) {
   return (
     <div className="docs-item">
-      <label className="field">
-        <span>{titulo}</span>
-        <input
-          type="file"
-          accept={ACCEPT_DOCUMENTO_CADASTRO}
-          onChange={(e) => onEscolher(e.target.files?.[0], papel)}
-        />
+      <div className="field">
+        <span>
+          {titulo}
+          {obrigatorio ? <span className="error"> *</span> : null}
+        </span>
+        {dica && <small className="muted">{dica}</small>}
         {linha.arquivo && <small className="muted">{linha.arquivo.nome}</small>}
-      </label>
+        {linha.status === 'analisando' && <small className="muted">Conferindo o arquivo...</small>}
+        {linha.status === 'aceito' && <small style={{ color: '#15803d' }}>Arquivo conferido.</small>}
+        {linha.status === 'manual' && <small className="muted">Recebido. Será conferido na validação manual.</small>}
+        {linha.status === 'recusado' && <small className="error">Não aceito: {linha.motivo || 'não deu para conferir'}</small>}
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 6 }}>
+          {linha.arquivo && (
+            <>
+              <button type="button" className="btn btn-ghost" onClick={() => linha.arquivo && abrirArquivo(linha.arquivo)}>
+                Visualizar
+              </button>
+              <button type="button" className="btn btn-ghost" onClick={() => onEscolher(undefined, papel)}>
+                Excluir
+              </button>
+            </>
+          )}
+          <label className="btn btn-ghost">
+            {linha.arquivo ? 'Trocar' : 'Anexar'}
+            <input
+              type="file"
+              hidden
+              accept={ACCEPT_DOCUMENTO_CADASTRO}
+              onChange={(e) => {
+                onEscolher(e.target.files?.[0], papel)
+                e.target.value = ''
+              }}
+            />
+          </label>
+        </div>
+      </div>
     </div>
   )
 }

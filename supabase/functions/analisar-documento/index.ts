@@ -24,6 +24,7 @@ Deno.serve(async (req) => {
     tipo?: string
     cnpj?: string
     cidade?: string
+    cpf?: string
   }
   try {
     data = await req.json()
@@ -38,6 +39,7 @@ Deno.serve(async (req) => {
     tipo: data.tipo,
     cnpj: data.cnpj,
     cidade: data.cidade,
+    cpf: data.cpf,
     env: {
       GEMINI_API_KEY: Deno.env.get('GEMINI_API_KEY') ?? '',
       VITE_GEMINI_API_KEY: Deno.env.get('VITE_GEMINI_API_KEY') ?? '',
