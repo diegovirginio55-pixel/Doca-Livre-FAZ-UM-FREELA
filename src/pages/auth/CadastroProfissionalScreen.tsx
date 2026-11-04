@@ -279,7 +279,7 @@ export function CadastroProfissionalScreen({ onBack, onDone }: Props) {
     if (rosto?.status === 'comparando') return 'Aguarde a comparação do rosto terminar.'
     if (rosto?.status === 'sem_rosto_selfie') return textoRosto()
     if (form.cnhCategoria.trim()) {
-      if (!/^(A|B|C|D|E|AB|AC|AD|AE)$/.test(form.cnhCategoria.trim())) return 'Categoria da CNH inválida. Use B, C, D, E, AB, AC, AD ou AE.'
+      if (!/^(ACC|A|B|C|D|E|AB|AC|AD|AE)$/.test(form.cnhCategoria.trim())) return 'Categoria da CNH inválida. Use ACC, A, B, C, D, E, AB, AC, AD ou AE.'
       if (!form.cnhValidade) return 'Informe a validade da CNH.'
       if (form.cnhValidade < new Date().toISOString().slice(0, 10)) return 'A CNH informada está vencida.'
     }
@@ -368,7 +368,10 @@ export function CadastroProfissionalScreen({ onBack, onDone }: Props) {
         (form.nome.trim().split(/\s+/).length < 2 ? 'Informe o nome completo (nome e sobrenome).' : '') ||
         erroCpf(form.cpf) ||
         erroRg(form.rg) ||
-        erroTelefone(form.telefone)
+        erroTelefone(form.telefone) ||
+        (!completing && state.users.some((u) => u.email.trim().toLowerCase() === form.email.trim().toLowerCase())
+          ? 'Este e-mail já tem uma conta. Use outro e-mail ou entre com ele na tela de login.'
+          : '')
       if (falhaDados) {
         setError(falhaDados)
         return
@@ -388,6 +391,10 @@ export function CadastroProfissionalScreen({ onBack, onDone }: Props) {
         setError(falha)
         return
       }
+    }
+    if (step === PASSO.disponibilidade && !Object.values(form.disponibilidade).some(Boolean)) {
+      setError('Marque pelo menos uma opção de disponibilidade.')
+      return
     }
     if (step === PASSO.raio) {
       if (!form.cidade.trim() || !form.estado.trim()) {
@@ -509,8 +516,9 @@ export function CadastroProfissionalScreen({ onBack, onDone }: Props) {
         {step === PASSO.curriculo && (
           <>
             <p>
-              Tem currículo pronto? Anexe aqui e a gente preenche o cadastro com as informações dele. Você confere
-              tudo nas próximas etapas.
+              <strong>Como funciona:</strong> clique no quadro abaixo e escolha seu currículo em PDF ou Word. A gente lê o
+              arquivo e já preenche nome, experiências, cursos e cidade nas próximas etapas. Depois é só conferir e corrigir
+              o que precisar.
             </p>
             <AnexoCurriculo onLido={aplicarCurriculo} arquivoAtual={curriculo?.nome} />
             <p className="cv-nota">
@@ -552,7 +560,7 @@ export function CadastroProfissionalScreen({ onBack, onDone }: Props) {
               <input
                 value={form.cnhCategoria}
                 onChange={(e) => set('cnhCategoria', e.target.value.toUpperCase())}
-                placeholder="Ex: B, C, D, E"
+                placeholder="Ex: ACC, A, B, C, D, E"
               />
             </label>
             {form.cnhCategoria.trim() && (

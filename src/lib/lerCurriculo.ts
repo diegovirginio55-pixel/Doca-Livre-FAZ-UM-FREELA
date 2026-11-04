@@ -202,9 +202,9 @@ export async function lerCurriculo(file: File): Promise<LeituraCurriculo> {
 
   let conteudo = ''
   try {
-    if (tipo === 'pdf') conteudo = await textoPdf(buffer)
-    else if (tipo === 'docx') conteudo = await textoDocx(new Uint8Array(buffer))
-    else conteudo = textoDocAntigo(new Uint8Array(buffer))
+    if (tipo === 'pdf') conteudo = await textoPdf(buffer.slice(0))
+    else if (tipo === 'docx') conteudo = await textoDocx(new Uint8Array(buffer.slice(0)))
+    else conteudo = textoDocAntigo(new Uint8Array(buffer.slice(0)))
   } catch (falha) {
     const msg = falha instanceof Error ? falha.message : ''
     if (tipo === 'pdf' && /password/i.test(msg)) throw new Error('O PDF tem senha. Envie uma cópia sem senha.')

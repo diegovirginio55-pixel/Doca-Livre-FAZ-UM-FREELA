@@ -18,15 +18,15 @@ function montarEmail(finalidade: string, codigo: string) {
       : 'redefinir sua senha no portal'
   const assunto =
     finalidade === 'cadastro'
-      ? 'Doca Livre Mão de Obra — código de confirmação de e-mail'
-      : 'Doca Livre Mão de Obra — código para trocar a senha'
+      ? 'Doca Livre fazumfreela — código de confirmação de e-mail'
+      : 'Doca Livre fazumfreela — código para trocar a senha'
   const texto =
-    `Seu código Doca Livre Mão de Obra é: ${codigo}\n\n` +
+    `Seu código Doca Livre fazumfreela é: ${codigo}\n\n` +
     `Use este código para ${acao}.\n` +
     'Ele vale por 10 minutos.\n\n' +
     'Se você não solicitou, ignore este e-mail.'
   const html =
-    '<p>Seu código Doca Livre Mão de Obra é:</p>' +
+    '<p>Seu código Doca Livre fazumfreela é:</p>' +
     `<p style="font-size:28px;font-weight:700;letter-spacing:4px">${codigo}</p>` +
     `<p>Use este código para ${acao}. Vale por 10 minutos.</p>` +
     '<p style="color:#64748b;font-size:13px">Se você não solicitou, ignore este e-mail.</p>'
@@ -65,7 +65,7 @@ Deno.serve(async (req) => {
   const from =
     Deno.env.get('RESEND_FROM')?.trim() ||
     Deno.env.get('SMTP_FROM')?.trim() ||
-    'Doca Livre Mão de Obra <onboarding@resend.dev>'
+    'Doca Livre fazumfreela <onboarding@resend.dev>'
   const { assunto, texto, html } = montarEmail(tipo, digitos)
 
   try {
