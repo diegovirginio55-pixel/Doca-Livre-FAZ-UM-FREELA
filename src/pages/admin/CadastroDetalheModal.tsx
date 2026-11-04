@@ -37,7 +37,11 @@ function abrirUrl(url: string, nome?: string) {
     a.href = blobUrl
     a.target = '_blank'
     a.rel = 'noopener noreferrer'
-    if (nome) a.download = nome
+    if (nome) {
+      // a foto do documento pode ser a 1a pagina do PDF convertida em imagem: salva com a extensao certa
+      const ext = mime.startsWith('image/') ? '.' + (mime.split('/')[1] === 'jpeg' ? 'jpg' : mime.split('/')[1]) : ''
+      a.download = ext ? nome.replace(/\.[^.]+$/, '') + ext : nome
+    }
     document.body.appendChild(a)
     a.click()
     a.remove()
