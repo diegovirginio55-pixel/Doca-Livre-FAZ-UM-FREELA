@@ -37,13 +37,33 @@ function imagem(dataUrl: string) {
   })
 }
 
+/** Reduz a foto (celular manda 4000px+) e gira, já que muita selfie chega deitada. */
+function preparar(img: HTMLImageElement, graus: number) {
+  const max = 800
+  const escala = Math.min(1, max / Math.max(img.naturalWidth, img.naturalHeight))
+  const w = Math.round(img.naturalWidth * escala)
+  const h = Math.round(img.naturalHeight * escala)
+  const deitado = graus === 90 || graus === 270
+  const canvas = document.createElement('canvas')
+  canvas.width = deitado ? h : w
+  canvas.height = deitado ? w : h
+  const ctx = canvas.getContext('2d')!
+  ctx.translate(canvas.width / 2, canvas.height / 2)
+  ctx.rotate((graus * Math.PI) / 180)
+  ctx.drawImage(img, -w / 2, -h / 2, w, h)
+  return canvas
+}
+
 async function descritor(faceapi: FaceApi, dataUrl: string) {
   const img = await imagem(dataUrl)
-  const achou = await faceapi
-    .detectSingleFace(img, new faceapi.SsdMobilenetv1Options({ minConfidence: 0.3 }))
-    .withFaceLandmarks()
-    .withFaceDescriptor()
-  return achou?.descriptor ?? null
+  for (const graus of [0, 90, 270, 180]) {
+    const achou = await faceapi
+      .detectSingleFace(preparar(img, graus), new faceapi.SsdMobilenetv1Options({ minConfidence: 0.2 }))
+      .withFaceLandmarks()
+      .withFaceDescriptor()
+    if (achou) return achou.descriptor
+  }
+  return null
 }
 
 export async function compararRostos(documentoDataUrl: string, selfieDataUrl: string): Promise<ResultadoRosto> {
