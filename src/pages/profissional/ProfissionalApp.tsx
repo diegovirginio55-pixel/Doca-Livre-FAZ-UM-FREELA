@@ -1446,7 +1446,8 @@ function periodo(inicio: string, fim: string) {
   return `${mesAno(inicio)} a ${fim ? mesAno(fim) : 'atual'}`
 }
 
-function rotuloStatus(status: 'pendente' | 'aprovado' | 'bloqueado') {
+function rotuloStatus(status: 'pendente' | 'aprovado' | 'bloqueado' | 'recusado') {
+  if (status === 'recusado') return 'Recusado'
   if (status === 'aprovado') return 'Aprovado'
   if (status === 'bloqueado') return 'Bloqueado'
   return 'Em análise'

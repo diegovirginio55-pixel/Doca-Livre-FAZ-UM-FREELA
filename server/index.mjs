@@ -3,6 +3,7 @@ import { createServer } from 'node:http'
 import { extname, join, normalize, resolve, sep } from 'node:path'
 import { analisarDocumentoCadastro } from './analisarDocumentoCadastro.mjs'
 import { enviarCodigoEmail } from './enviarCodigoEmail.mjs'
+import { notificarCadastro } from './notificarCadastro.mjs'
 import { lerCurriculo } from './lerCurriculo.mjs'
 
 const root = resolve(process.cwd(), 'dist')
@@ -103,6 +104,28 @@ const server = createServer(async (req, res) => {
     return
   }
 
+
+  if (url.pathname === '/api/portal/notificar-cadastro' && req.method === 'POST') {
+    try {
+      const bruto = await lerCorpo(req, 8000)
+      const data = JSON.parse(bruto || '{}')
+      const result = await notificarCadastro({
+        email: data.email,
+        nome: data.nome,
+        tipo: data.tipo,
+        decisao: data.decisao,
+        motivo: data.motivo,
+      })
+      res.writeHead(result.status || (result.ok ? 200 : 503), {
+        'Content-Type': 'application/json; charset=utf-8',
+      })
+      res.end(JSON.stringify(result.ok ? { ok: true } : { ok: false, erro: result.erro }))
+    } catch {
+      res.writeHead(400, { 'Content-Type': 'application/json; charset=utf-8' })
+      res.end(JSON.stringify({ ok: false, erro: 'Não foi possível enviar o e-mail.' }))
+    }
+    return
+  }
   if (url.pathname === '/api/cadastro/analisar-documento' && req.method === 'POST') {
     try {
       const bruto = await lerCorpo(req, 8_000_000)

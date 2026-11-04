@@ -86,7 +86,9 @@ export type Empresa = {
   responsavelCargo: string
   telefone: string
   endereco: Endereco
-  status: 'pendente' | 'aprovada' | 'bloqueada'
+  status: 'pendente' | 'aprovada' | 'bloqueada' | 'recusada'
+  /** Motivo quando status = recusada. */
+  motivoRecusa?: string
   avaliacaoMedia: number
   favoritos: string[]
   bloqueados: string[]
@@ -207,7 +209,9 @@ export type Profissional = {
   /** Quando falso, a aba Vagas mostra só publicações dos cargos do perfil. */
   verTodasVagas?: boolean
   banco?: string
-  status: 'pendente' | 'aprovado' | 'bloqueado'
+  status: 'pendente' | 'aprovado' | 'bloqueado' | 'recusado'
+  /** Motivo quando status = recusado. */
+  motivoRecusa?: string
   consentimentoPrivacidade?: {
     politicaEm?: string
     curriculoEm?: string

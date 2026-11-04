@@ -31,8 +31,6 @@ import {
   mesclarCloudNoEstado,
   pullCloudBundle,
   resolveEmailCloud,
-  setStatusEmpresaCloud,
-  setStatusProfissionalCloud,
   supabaseConfigured,
   upsertConta,
   upsertDocumentos,
@@ -72,6 +70,9 @@ export function avisoAcessoEmpresa(status: Empresa['status']): string | null {
   if (status === 'bloqueada') {
     return 'Esta empresa está bloqueada. O acesso ao painel não está liberado.'
   }
+  if (status === 'recusada') {
+    return 'O cadastro da empresa foi recusado. Veja o e-mail com o motivo ou fale com o suporte.'
+  }
   return 'Sua empresa ainda aguarda aprovação. O login libera quando o administrador validar o cadastro.'
 }
 
@@ -79,6 +80,9 @@ export function avisoAcessoProfissional(status: Profissional['status']): string 
   if (status === 'aprovado') return null
   if (status === 'bloqueado') {
     return 'Este cadastro está bloqueado. O acesso ao painel não está liberado.'
+  }
+  if (status === 'recusado') {
+    return 'Seu cadastro foi recusado. Veja o e-mail com o motivo ou fale com o suporte.'
   }
   return 'Seu cadastro ainda aguarda aprovação. O login libera quando o administrador validar o colaborador.'
 }
@@ -216,9 +220,9 @@ type StoreApi = {
   ) => { ok: true; chave: string; rotulo: string } | { ok: false; error: string }
   toggleFavorito: (empresaId: string, profissionalId: string) => void
   toggleBloqueado: (empresaId: string, profissionalId: string) => void
-  setEmpresaStatus: (id: string, status: Empresa['status']) => Promise<void>
+  setEmpresaStatus: (id: string, status: Empresa['status'], opts?: { motivoRecusa?: string }) => Promise<void>
   patchState: (fn: (s: AppState) => AppState) => void
-  setProfissionalStatus: (id: string, status: Profissional['status']) => Promise<void>
+  setProfissionalStatus: (id: string, status: Profissional['status'], opts?: { motivoRecusa?: string }) => Promise<void>
   enviarDocumento: (data: {
     tipoId: string
     donoTipo: 'profissional' | 'empresa' | 'ett'
@@ -1557,19 +1561,35 @@ async portalResetSenha(email, novaSenha) {
       update(fn)
     },
 
-async setEmpresaStatus(id, status) {
+async setEmpresaStatus(id, status, opts) {
+      const atual = state.empresas.find((e) => e.id === id)
+      if (!atual) return
+      const next = {
+        ...atual,
+        status,
+        motivoRecusa:
+          status === 'recusada' ? String(opts?.motivoRecusa || '').trim() || atual.motivoRecusa : undefined,
+      }
       update((s) => ({
         ...s,
-        empresas: s.empresas.map((e) => (e.id === id ? { ...e, status } : e)),
+        empresas: s.empresas.map((e) => (e.id === id ? next : e)),
       }))
-      if (await supabaseConfigured()) await setStatusEmpresaCloud(id, status)
+      if (await supabaseConfigured()) await upsertEmpresa(next)
     },
-async setProfissionalStatus(id, status) {
+async setProfissionalStatus(id, status, opts) {
+      const atual = state.profissionais.find((p) => p.id === id)
+      if (!atual) return
+      const next = {
+        ...atual,
+        status,
+        motivoRecusa:
+          status === 'recusado' ? String(opts?.motivoRecusa || '').trim() || atual.motivoRecusa : undefined,
+      }
       update((s) => ({
         ...s,
-        profissionais: s.profissionais.map((p) => (p.id === id ? { ...p, status } : p)),
+        profissionais: s.profissionais.map((p) => (p.id === id ? next : p)),
       }))
-      if (await supabaseConfigured()) await setStatusProfissionalCloud(id, status)
+      if (await supabaseConfigured()) await upsertProfissional(next)
     },
     finishDemanda(demandaId) {
       update((s) => finishDemandaState(s, demandaId))

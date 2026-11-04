@@ -6,6 +6,7 @@ import { cargoLabel } from '../../data/categories'
 import { LOGO_DOCA_LIVRE_SRC } from '../../lib/brandAssets'
 import { useStore } from '../../lib/store'
 import { AdminDashboard } from './AdminDashboard'
+import { CadastroEmpresaDetalhe, CadastroProfissionalDetalhe } from './CadastroDetalheModal'
 import '../empresa/empresa-px.css'
 import './admin.css'
 
@@ -218,8 +219,12 @@ function ordemAprovacao(status: string) {
 
 function EmpresasAdmin() {
   const { state, setEmpresaStatus, excluirUsuario, currentUser } = useStore()
+  const [detalheId, setDetalheId] = useState<string | null>(null)
   const empresas = [...state.empresas].sort((a, b) => ordemAprovacao(a.status) - ordemAprovacao(b.status))
   const pendentes = empresas.filter((empresa) => empresa.status === 'pendente').length
+  const detalhe = detalheId ? empresas.find((e) => e.id === detalheId) : undefined
+  const contaDetalhe = detalhe ? state.users.find((u) => u.id === detalhe.userId) : undefined
+  const docsDetalhe = detalhe ? state.documentos.filter((d) => d.donoId === detalhe.id) : []
 
   async function excluirEmpresa(e: (typeof empresas)[number]) {
     const conta = state.users.find((u) => u.id === e.userId)
@@ -233,6 +238,7 @@ function EmpresasAdmin() {
     }
     const res = await excluirUsuario(e.userId)
     if (!res.ok) window.alert(res.error || 'Não foi possível excluir.')
+    if (detalheId === e.id) setDetalheId(null)
   }
 
   return (
@@ -251,18 +257,20 @@ function EmpresasAdmin() {
               <div>
                 <strong>{e.nomeFantasia}</strong>
                 {e.status === 'pendente' && <span className="ad-pendente-tag">Aguardando aprovação</span>}
+                {e.status === 'recusada' && e.motivoRecusa && (
+                  <p className="muted">Motivo da recusa: {e.motivoRecusa}</p>
+                )}
                 <p className="muted">
                   {e.cnpj} · {e.tipo} · {e.plano} · {e.endereco.cidade}
                 </p>
               </div>
               <div className="px-row-actions">
                 <span className={`px-status px-status--${e.status}`}>{e.status}</span>
-                {e.status !== 'aprovada' && (
-                  <button
-                    type="button"
-                    className="px-btn px-btn-primary"
-                    onClick={() => void setEmpresaStatus(e.id, 'aprovada')}
-                  >
+                <button type="button" className="px-btn px-btn-ghost" onClick={() => setDetalheId(e.id)}>
+                  Ver cadastro
+                </button>
+                {e.status === 'pendente' && (
+                  <button type="button" className="px-btn px-btn-primary" onClick={() => setDetalheId(e.id)}>
                     Aprovar
                   </button>
                 )}
@@ -285,16 +293,34 @@ function EmpresasAdmin() {
           )
         })}
       </ul>
+      {detalhe && (
+        <CadastroEmpresaDetalhe
+          empresa={detalhe}
+          conta={contaDetalhe}
+          documentos={docsDetalhe}
+          onClose={() => setDetalheId(null)}
+          onAprovar={async () => {
+            await setEmpresaStatus(detalhe.id, 'aprovada')
+          }}
+          onRecusar={async (motivo) => {
+            await setEmpresaStatus(detalhe.id, 'recusada', { motivoRecusa: motivo })
+          }}
+        />
+      )}
     </div>
   )
 }
 
 function ProfissionaisAdmin() {
   const { state, setProfissionalStatus, excluirUsuario, currentUser } = useStore()
+  const [detalheId, setDetalheId] = useState<string | null>(null)
   const profissionais = [...state.profissionais].sort(
     (a, b) => ordemAprovacao(a.status) - ordemAprovacao(b.status),
   )
   const pendentes = profissionais.filter((pessoa) => pessoa.status === 'pendente').length
+  const detalhe = detalheId ? profissionais.find((p) => p.id === detalheId) : undefined
+  const contaDetalhe = detalhe ? state.users.find((u) => u.id === detalhe.userId) : undefined
+  const docsDetalhe = detalhe ? state.documentos.filter((d) => d.donoId === detalhe.id) : []
 
   async function excluirProfissional(p: (typeof profissionais)[number]) {
     const conta = state.users.find((u) => u.id === p.userId)
@@ -308,6 +334,7 @@ function ProfissionaisAdmin() {
     }
     const res = await excluirUsuario(p.userId)
     if (!res.ok) window.alert(res.error || 'Não foi possível excluir.')
+    if (detalheId === p.id) setDetalheId(null)
   }
 
   return (
@@ -328,6 +355,9 @@ function ProfissionaisAdmin() {
               <div>
                 <strong>{p.nome}</strong>
                 {p.status === 'pendente' && <span className="ad-pendente-tag">Aguardando aprovação</span>}
+                {p.status === 'recusado' && p.motivoRecusa && (
+                  <p className="muted">Motivo da recusa: {p.motivoRecusa}</p>
+                )}
                 <p className="muted">
                   {p.profissoes.map(cargoLabel).join(', ')} · {p.endereco.cidade} · ★ {p.avaliacaoMedia.toFixed(1)}
                 </p>
@@ -335,12 +365,11 @@ function ProfissionaisAdmin() {
               </div>
               <div className="px-row-actions">
                 <span className={`px-status px-status--${p.status}`}>{p.status}</span>
-                {p.status !== 'aprovado' && (
-                  <button
-                    type="button"
-                    className="px-btn px-btn-primary"
-                    onClick={() => void setProfissionalStatus(p.id, 'aprovado')}
-                  >
+                <button type="button" className="px-btn px-btn-ghost" onClick={() => setDetalheId(p.id)}>
+                  Ver cadastro
+                </button>
+                {p.status === 'pendente' && (
+                  <button type="button" className="px-btn px-btn-primary" onClick={() => setDetalheId(p.id)}>
                     Aprovar
                   </button>
                 )}
@@ -367,6 +396,20 @@ function ProfissionaisAdmin() {
           )
         })}
       </ul>
+      {detalhe && (
+        <CadastroProfissionalDetalhe
+          profissional={detalhe}
+          conta={contaDetalhe}
+          documentos={docsDetalhe}
+          onClose={() => setDetalheId(null)}
+          onAprovar={async () => {
+            await setProfissionalStatus(detalhe.id, 'aprovado')
+          }}
+          onRecusar={async (motivo) => {
+            await setProfissionalStatus(detalhe.id, 'recusado', { motivoRecusa: motivo })
+          }}
+        />
+      )}
     </div>
   )
 }

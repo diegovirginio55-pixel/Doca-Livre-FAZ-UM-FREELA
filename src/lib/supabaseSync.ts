@@ -49,21 +49,31 @@ function contaParaUser(row: Record<string, unknown>): User {
 
 function profissionalDaLinha(row: Record<string, unknown>): Profissional {
   const payload = (row.payload as Partial<Profissional>) || {}
+  const motivo =
+    (row.motivo_recusa ? String(row.motivo_recusa) : '') ||
+    (payload.motivoRecusa ? String(payload.motivoRecusa) : '') ||
+    undefined
   return {
     ...(payload as Profissional),
     id: String(row.id),
     userId: String(row.user_id),
     status: row.status as Profissional['status'],
+    ...(motivo ? { motivoRecusa: motivo } : {}),
   }
 }
 
 function empresaDaLinha(row: Record<string, unknown>): Empresa {
   const payload = (row.payload as Partial<Empresa>) || {}
+  const motivo =
+    (row.motivo_recusa ? String(row.motivo_recusa) : '') ||
+    (payload.motivoRecusa ? String(payload.motivoRecusa) : '') ||
+    undefined
   return {
     ...(payload as Empresa),
     id: String(row.id),
     userId: String(row.user_id),
     status: row.status as Empresa['status'],
+    ...(motivo ? { motivoRecusa: motivo } : {}),
   }
 }
 
@@ -184,6 +194,7 @@ export async function upsertProfissional(
       id: profissional.id,
       user_id: profissional.userId,
       status: profissional.status,
+      motivo_recusa: profissional.motivoRecusa ?? null,
       payload: perfilSemIds(profissional),
       updated_at: new Date().toISOString(),
     },
@@ -201,6 +212,7 @@ export async function upsertEmpresa(empresa: Empresa): Promise<{ ok: true } | { 
       id: empresa.id,
       user_id: empresa.userId,
       status: empresa.status,
+      motivo_recusa: empresa.motivoRecusa ?? null,
       payload: empresaSemIds(empresa),
       updated_at: new Date().toISOString(),
     },

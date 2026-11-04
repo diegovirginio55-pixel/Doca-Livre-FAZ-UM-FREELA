@@ -40,6 +40,7 @@ Isso aplica, nesta ordem:
 1. `supabase/migrations/20260720200000_bootstrap_mao_de_obra.sql`
 2. `supabase/migrations/20260720201000_rls_hierarquia_niveis.sql`
 3. `supabase/migrations/20261104120000_cadastros_sincronizados.sql`
+4. `supabase/migrations/20261104150000_status_recusado.sql`
 
 A migration nova cria:
 
@@ -113,3 +114,16 @@ O bucket `mao-documentos` é criado pela migration. Confira em
   demandas/candidaturas históricas ligadas ao id.
 - Superusuários (Diego, Elder) e a conta logada **não** podem ser
   excluídos pelo Admin.
+
+## 3b. Edge Function `notificar-cadastro` (e-mail de aprovação/recusa)
+
+Depois de aplicar a migration `20261104150000_status_recusado.sql`, publique a função:
+
+```bash
+npx supabase functions deploy notificar-cadastro --no-verify-jwt --yes
+```
+
+Usa as mesmas secrets `RESEND_API_KEY` e `RESEND_FROM` da `enviar-codigo`. Em desenvolvimento local, o servidor Node atende `POST /api/portal/notificar-cadastro` via `server/notificarCadastro.mjs`.
+
+No admin, **Ver cadastro** / **Aprovar** abre o detalhe com documentos. Aprovar ou recusar (com motivo) salva o status e tenta enviar o e-mail; se o e-mail falhar, o status mesmo assim fica gravado.
+
