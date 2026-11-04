@@ -41,8 +41,8 @@ export function LoginScreen({ onBack, onSuccess }: Props) {
   const [senha, setSenha] = useState('')
   const [error, setError] = useState('')
 
-  function doLogin(em: string, pass: string) {
-    const res = login(em.trim(), pass)
+  async function doLogin(em: string, pass: string) {
+    const res = await login(em.trim(), pass)
     if (!res.ok) {
       setError(res.error ?? 'Falha no login')
       return

@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { CentralDocumentacaoAdmin } from '../../components/DocumentacaoPanel'
 import { BibliotecaDocumental } from '../../components/BibliotecaDocumental'
 import { LevelBadge } from '../../components/LevelBadge'
@@ -29,8 +29,14 @@ export function AdminApp({
   const store = useStore()
   const [section, setSection] = useState('dashboard')
 
-  function irParaEmpresaDemo() {
-    const res = store.login('empresa@logexpress.com', 'demo123')
+  useEffect(() => {
+    void store.refreshFromCloud()
+    const id = window.setInterval(() => void store.refreshFromCloud(), 20_000)
+    return () => window.clearInterval(id)
+  }, [store])
+
+  async function irParaEmpresaDemo() {
+    const res = await store.login('empresa@logexpress.com', 'demo123')
     if (!res.ok) {
       onLogout()
       return
@@ -211,9 +217,24 @@ function ordemAprovacao(status: string) {
 }
 
 function EmpresasAdmin() {
-  const { state, setEmpresaStatus } = useStore()
+  const { state, setEmpresaStatus, excluirUsuario, currentUser } = useStore()
   const empresas = [...state.empresas].sort((a, b) => ordemAprovacao(a.status) - ordemAprovacao(b.status))
   const pendentes = empresas.filter((empresa) => empresa.status === 'pendente').length
+
+  async function excluirEmpresa(e: (typeof empresas)[number]) {
+    const conta = state.users.find((u) => u.id === e.userId)
+    const rotulo = conta?.usuario || conta?.email || e.nomeFantasia
+    if (
+      !window.confirm(
+        `Excluir a empresa "${e.nomeFantasia}" e a conta ${rotulo}? Esta ação não tem volta.`,
+      )
+    ) {
+      return
+    }
+    const res = await excluirUsuario(e.userId)
+    if (!res.ok) window.alert(res.error || 'Não foi possível excluir.')
+  }
+
   return (
     <div className="px-page">
       <h1 className="px-title">Empresas</h1>
@@ -223,39 +244,72 @@ function EmpresasAdmin() {
         </p>
       )}
       <ul className="px-list">
-        {empresas.map((e) => (
-          <li key={e.id} className={`px-list-card${e.status === 'pendente' ? ' px-list-card--pendente' : ''}`}>
-            <div>
-              <strong>{e.nomeFantasia}</strong>
-              {e.status === 'pendente' && <span className="ad-pendente-tag">Aguardando aprovação</span>}
-              <p className="muted">{e.cnpj} · {e.tipo} · {e.plano} · {e.endereco.cidade}</p>
-            </div>
-            <div className="px-row-actions">
-              <span className={`px-status px-status--${e.status}`}>{e.status}</span>
-              {e.status !== 'aprovada' && (
-                <button type="button" className="px-btn px-btn-primary" onClick={() => setEmpresaStatus(e.id, 'aprovada')}>
-                  Aprovar
-                </button>
-              )}
-              {e.status !== 'bloqueada' && (
-                <button type="button" className="px-btn px-btn-ghost" onClick={() => setEmpresaStatus(e.id, 'bloqueada')}>
-                  Bloquear
-                </button>
-              )}
-            </div>
-          </li>
-        ))}
+        {empresas.map((e) => {
+          const podeExcluir = e.userId !== currentUser?.id
+          return (
+            <li key={e.id} className={`px-list-card${e.status === 'pendente' ? ' px-list-card--pendente' : ''}`}>
+              <div>
+                <strong>{e.nomeFantasia}</strong>
+                {e.status === 'pendente' && <span className="ad-pendente-tag">Aguardando aprovação</span>}
+                <p className="muted">
+                  {e.cnpj} · {e.tipo} · {e.plano} · {e.endereco.cidade}
+                </p>
+              </div>
+              <div className="px-row-actions">
+                <span className={`px-status px-status--${e.status}`}>{e.status}</span>
+                {e.status !== 'aprovada' && (
+                  <button
+                    type="button"
+                    className="px-btn px-btn-primary"
+                    onClick={() => void setEmpresaStatus(e.id, 'aprovada')}
+                  >
+                    Aprovar
+                  </button>
+                )}
+                {e.status !== 'bloqueada' && (
+                  <button
+                    type="button"
+                    className="px-btn px-btn-ghost"
+                    onClick={() => void setEmpresaStatus(e.id, 'bloqueada')}
+                  >
+                    Bloquear
+                  </button>
+                )}
+                {podeExcluir && (
+                  <button type="button" className="px-btn px-btn-ghost" onClick={() => void excluirEmpresa(e)}>
+                    Excluir
+                  </button>
+                )}
+              </div>
+            </li>
+          )
+        })}
       </ul>
     </div>
   )
 }
 
 function ProfissionaisAdmin() {
-  const { state, setProfissionalStatus } = useStore()
+  const { state, setProfissionalStatus, excluirUsuario, currentUser } = useStore()
   const profissionais = [...state.profissionais].sort(
     (a, b) => ordemAprovacao(a.status) - ordemAprovacao(b.status),
   )
   const pendentes = profissionais.filter((pessoa) => pessoa.status === 'pendente').length
+
+  async function excluirProfissional(p: (typeof profissionais)[number]) {
+    const conta = state.users.find((u) => u.id === p.userId)
+    const rotulo = conta?.usuario || conta?.email || p.nome
+    if (
+      !window.confirm(
+        `Excluir o colaborador "${p.nome}" e a conta ${rotulo}? Esta ação não tem volta.`,
+      )
+    ) {
+      return
+    }
+    const res = await excluirUsuario(p.userId)
+    if (!res.ok) window.alert(res.error || 'Não foi possível excluir.')
+  }
+
   return (
     <div className="px-page">
       <h1 className="px-title">Profissionais</h1>
@@ -267,31 +321,51 @@ function ProfissionaisAdmin() {
         </p>
       )}
       <ul className="px-list">
-        {profissionais.map((p) => (
-          <li key={p.id} className={`px-list-card${p.status === 'pendente' ? ' px-list-card--pendente' : ''}`}>
-            <div>
-              <strong>{p.nome}</strong>
-              {p.status === 'pendente' && <span className="ad-pendente-tag">Aguardando aprovação</span>}
-              <p className="muted">
-                {p.profissoes.map(cargoLabel).join(', ')} · {p.endereco.cidade} · ★ {p.avaliacaoMedia.toFixed(1)}
-              </p>
-              <LevelBadge nivel={p.nivel} />
-            </div>
-            <div className="px-row-actions">
-              <span className={`px-status px-status--${p.status}`}>{p.status}</span>
-              {p.status !== 'aprovado' && (
-                <button type="button" className="px-btn px-btn-primary" onClick={() => setProfissionalStatus(p.id, 'aprovado')}>
-                  Aprovar
-                </button>
-              )}
-              {p.status !== 'bloqueado' && (
-                <button type="button" className="px-btn px-btn-ghost" onClick={() => setProfissionalStatus(p.id, 'bloqueado')}>
-                  Bloquear
-                </button>
-              )}
-            </div>
-          </li>
-        ))}
+        {profissionais.map((p) => {
+          const podeExcluir = p.userId !== currentUser?.id
+          return (
+            <li key={p.id} className={`px-list-card${p.status === 'pendente' ? ' px-list-card--pendente' : ''}`}>
+              <div>
+                <strong>{p.nome}</strong>
+                {p.status === 'pendente' && <span className="ad-pendente-tag">Aguardando aprovação</span>}
+                <p className="muted">
+                  {p.profissoes.map(cargoLabel).join(', ')} · {p.endereco.cidade} · ★ {p.avaliacaoMedia.toFixed(1)}
+                </p>
+                <LevelBadge nivel={p.nivel} />
+              </div>
+              <div className="px-row-actions">
+                <span className={`px-status px-status--${p.status}`}>{p.status}</span>
+                {p.status !== 'aprovado' && (
+                  <button
+                    type="button"
+                    className="px-btn px-btn-primary"
+                    onClick={() => void setProfissionalStatus(p.id, 'aprovado')}
+                  >
+                    Aprovar
+                  </button>
+                )}
+                {p.status !== 'bloqueado' && (
+                  <button
+                    type="button"
+                    className="px-btn px-btn-ghost"
+                    onClick={() => void setProfissionalStatus(p.id, 'bloqueado')}
+                  >
+                    Bloquear
+                  </button>
+                )}
+                {podeExcluir && (
+                  <button
+                    type="button"
+                    className="px-btn px-btn-ghost"
+                    onClick={() => void excluirProfissional(p)}
+                  >
+                    Excluir
+                  </button>
+                )}
+              </div>
+            </li>
+          )
+        })}
       </ul>
     </div>
   )

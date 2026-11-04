@@ -14,6 +14,7 @@ import type { LeituraCurriculo } from '../../lib/lerCurriculo'
 import { validarChavePix } from '../../lib/pix'
 import { erroCpf, erroRg, erroTelefone, soDigitos, mascararCpf, mascararRg, mascararTelefone } from '../../lib/documentosPessoais'
 import { useStore } from '../../lib/store'
+import { emailExisteNaNuvem } from '../../lib/supabaseSync'
 import type { Certificado, Disponibilidade, Experiencia } from '../../lib/types'
 
 type Props = {
@@ -361,7 +362,7 @@ export function CadastroProfissionalScreen({ onBack, onDone }: Props) {
     }
   }
 
-  function next() {
+  async function next() {
     setError('')
     if (step === PASSO.dados) {
       const falhaDados =
@@ -372,6 +373,13 @@ export function CadastroProfissionalScreen({ onBack, onDone }: Props) {
         (!completing && state.users.some((u) => u.email.trim().toLowerCase() === form.email.trim().toLowerCase())
           ? 'Este e-mail já tem uma conta. Use outro e-mail ou entre com ele na tela de login.'
           : '')
+      if (!falhaDados && !completing) {
+        const existeNuvem = await emailExisteNaNuvem(form.email.trim().toLowerCase())
+        if (existeNuvem) {
+          setError('Este e-mail já tem uma conta. Use outro e-mail ou entre com ele na tela de login.')
+          return
+        }
+      }
       if (falhaDados) {
         setError(falhaDados)
         return
@@ -415,7 +423,7 @@ export function CadastroProfissionalScreen({ onBack, onDone }: Props) {
     else setStep((s) => s - 1)
   }
 
-  function submit(e: FormEvent) {
+  async function submit(e: FormEvent) {
     e.preventDefault()
     if (!documentosProntos()) {
       setError(problemaDocumentos())
@@ -488,9 +496,9 @@ export function CadastroProfissionalScreen({ onBack, onDone }: Props) {
       banco: form.banco.trim() || undefined,
     }
     const documentos = documentosEnviados()
-    const res = completing
+    const res = await (completing
       ? completeProfissionalPerfil(profissionalPayload, documentos)
-      : registerProfissional({ email: form.email, senha: form.senha }, profissionalPayload, documentos)
+      : registerProfissional({ email: form.email, senha: form.senha }, profissionalPayload, documentos))
     if (!res.ok) {
       setError(res.error ?? 'Erro no cadastro')
       return

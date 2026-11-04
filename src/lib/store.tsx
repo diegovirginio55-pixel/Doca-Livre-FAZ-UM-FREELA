@@ -24,6 +24,21 @@ import { mediaDaAvaliacao, nivelPelaMedia } from './classificacao'
 import { semContato } from './curriculo'
 import { validarChavePix } from './pix'
 import { loadState, resetState, saveState, STORAGE_KEY } from './storage'
+import {
+  atualizarSenhaConta,
+  buscarContaLogin,
+  excluirContaCloud,
+  mesclarCloudNoEstado,
+  pullCloudBundle,
+  resolveEmailCloud,
+  setStatusEmpresaCloud,
+  setStatusProfissionalCloud,
+  supabaseConfigured,
+  upsertConta,
+  upsertDocumentos,
+  upsertEmpresa,
+  upsertProfissional,
+} from './supabaseSync'
 import { VERSAO_TERMOS } from './termos'
 import type {
   AceiteTermo,
@@ -104,12 +119,12 @@ type StoreApi = {
   currentUser: User | null
   currentEmpresa: Empresa | null
   currentProfissional: Profissional | null
-  login: (email: string, senha: string) => { ok: boolean; error?: string; role?: UserRole }
+  login: (email: string, senha: string) => Promise<{ ok: boolean; error?: string; role?: UserRole }>
   loginPortal: (
     usuarioOuEmail: string,
     senha: string,
     portal: 'empresa' | 'profissional' | 'admin',
-  ) => {
+  ) => Promise<{
     ok: boolean
     error?: string
     aviso?: boolean
@@ -118,20 +133,22 @@ type StoreApi = {
     isSuperuser?: boolean
     precisaConfig?: boolean
     precisaPerfil?: boolean
-  }
+  }>
   logout: () => void
-  resolveEmailByIdentificador: (id: string) => string | null
+  refreshFromCloud: () => Promise<void>
+  excluirUsuario: (userId: string) => Promise<{ ok: boolean; error?: string }>
+  resolveEmailByIdentificador: (id: string) => Promise<string | null>
   portalRegisterUser: (data: {
     email: string
     usuario: string
     senha: string
     role: 'empresa' | 'profissional'
-  }) => { ok: boolean; error?: string }
-  portalResetSenha: (email: string, novaSenha: string) => { ok: boolean; error?: string }
-  registerEmpresa: (user: Omit<User, 'id' | 'role' | 'ativo' | 'createdAt'>, empresa: Omit<Empresa, 'id' | 'userId' | 'status' | 'avaliacaoMedia' | 'favoritos' | 'bloqueados' | 'docsOk' | 'saldo' | 'limitePosPago' | 'diasTaxaZero' | 'metaTaxaZero' | 'diasAgenciados' | 'rankingDias' | 'economiaTotal'>, documentos?: DocumentoCadastro[]) => { ok: boolean; error?: string }
-  registerProfissional: (user: Omit<User, 'id' | 'role' | 'ativo' | 'createdAt'>, profissional: Omit<Profissional, 'id' | 'userId' | 'status' | 'nivel' | 'avaliacaoMedia' | 'taxaComparecimento' | 'faltas' | 'tempoRespostaMin' | 'ganhosMes' | 'saldo'>, documentos?: DocumentoCadastro[]) => { ok: boolean; error?: string }
-  completeEmpresaPerfil: (empresa: Omit<Empresa, 'id' | 'userId' | 'status' | 'avaliacaoMedia' | 'favoritos' | 'bloqueados' | 'docsOk' | 'saldo' | 'limitePosPago' | 'diasTaxaZero' | 'metaTaxaZero' | 'diasAgenciados' | 'rankingDias' | 'economiaTotal'>, documentos?: DocumentoCadastro[]) => { ok: boolean; error?: string }
-  completeProfissionalPerfil: (profissional: Omit<Profissional, 'id' | 'userId' | 'status' | 'nivel' | 'avaliacaoMedia' | 'taxaComparecimento' | 'faltas' | 'tempoRespostaMin' | 'ganhosMes' | 'saldo'>, documentos?: DocumentoCadastro[]) => { ok: boolean; error?: string }
+  }) => Promise<{ ok: boolean; error?: string }>
+  portalResetSenha: (email: string, novaSenha: string) => Promise<{ ok: boolean; error?: string }>
+  registerEmpresa: (user: Omit<User, 'id' | 'role' | 'ativo' | 'createdAt'>, empresa: Omit<Empresa, 'id' | 'userId' | 'status' | 'avaliacaoMedia' | 'favoritos' | 'bloqueados' | 'docsOk' | 'saldo' | 'limitePosPago' | 'diasTaxaZero' | 'metaTaxaZero' | 'diasAgenciados' | 'rankingDias' | 'economiaTotal'>, documentos?: DocumentoCadastro[]) => Promise<{ ok: boolean; error?: string }>
+  registerProfissional: (user: Omit<User, 'id' | 'role' | 'ativo' | 'createdAt'>, profissional: Omit<Profissional, 'id' | 'userId' | 'status' | 'nivel' | 'avaliacaoMedia' | 'taxaComparecimento' | 'faltas' | 'tempoRespostaMin' | 'ganhosMes' | 'saldo'>, documentos?: DocumentoCadastro[]) => Promise<{ ok: boolean; error?: string }>
+  completeEmpresaPerfil: (empresa: Omit<Empresa, 'id' | 'userId' | 'status' | 'avaliacaoMedia' | 'favoritos' | 'bloqueados' | 'docsOk' | 'saldo' | 'limitePosPago' | 'diasTaxaZero' | 'metaTaxaZero' | 'diasAgenciados' | 'rankingDias' | 'economiaTotal'>, documentos?: DocumentoCadastro[]) => Promise<{ ok: boolean; error?: string }>
+  completeProfissionalPerfil: (profissional: Omit<Profissional, 'id' | 'userId' | 'status' | 'nivel' | 'avaliacaoMedia' | 'taxaComparecimento' | 'faltas' | 'tempoRespostaMin' | 'ganhosMes' | 'saldo'>, documentos?: DocumentoCadastro[]) => Promise<{ ok: boolean; error?: string }>
   createDemanda: (data: Omit<Demanda, 'id' | 'createdAt' | 'status' | 'categoria'>) => Demanda
   publicarVaga: (data: Omit<Demanda, 'id' | 'createdAt' | 'status' | 'categoria'>) => Demanda
   candidatar: (demandaId: string, profissionalId: string) => { ok: boolean; error?: string }
@@ -199,9 +216,9 @@ type StoreApi = {
   ) => { ok: true; chave: string; rotulo: string } | { ok: false; error: string }
   toggleFavorito: (empresaId: string, profissionalId: string) => void
   toggleBloqueado: (empresaId: string, profissionalId: string) => void
-  setEmpresaStatus: (id: string, status: Empresa['status']) => void
+  setEmpresaStatus: (id: string, status: Empresa['status']) => Promise<void>
   patchState: (fn: (s: AppState) => AppState) => void
-  setProfissionalStatus: (id: string, status: Profissional['status']) => void
+  setProfissionalStatus: (id: string, status: Profissional['status']) => Promise<void>
   enviarDocumento: (data: {
     tipoId: string
     donoTipo: 'profissional' | 'empresa' | 'ett'
@@ -311,6 +328,22 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     return () => window.removeEventListener('storage', aoStorage)
   }, [])
 
+  const refreshFromCloud = useCallback(async () => {
+    if (!(await supabaseConfigured())) return
+    const cloud = await pullCloudBundle()
+    if (!cloud) return
+    setState((prev) => persist(mesclarCloudNoEstado(prev, cloud)))
+  }, [])
+
+  useEffect(() => {
+    void refreshFromCloud()
+    const id = window.setInterval(() => {
+      void refreshFromCloud()
+    }, 30_000)
+    return () => window.clearInterval(id)
+  }, [refreshFromCloud])
+
+
   const update = useCallback((fn: (s: AppState) => AppState) => {
     setState((prev) => persist(fn(prev)))
   }, [])
@@ -355,20 +388,40 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     currentEmpresa,
     currentProfissional,
 
-    login(email, senha) {
-      const user = state.users.find(
+async login(email, senha) {
+      let user = state.users.find(
         (u) =>
           (u.email.toLowerCase() === email.toLowerCase() ||
             (u.usuario || '').toLowerCase() === email.toLowerCase()) &&
           u.senha === senha &&
           u.ativo,
       )
+      if (!user && (await supabaseConfigured())) {
+        const remoto = await buscarContaLogin(email, senha)
+        if (remoto) {
+          update((s) => {
+            let next = {
+              ...s,
+              users: s.users.some((u) => u.id === remoto.user.id)
+                ? s.users.map((u) => (u.id === remoto.user.id ? { ...u, ...remoto.user } : u))
+                : [...s.users, remoto.user],
+            }
+            if (remoto.profissional && !next.profissionais.some((p) => p.id === remoto.profissional!.id)) {
+              next = { ...next, profissionais: [...next.profissionais, remoto.profissional] }
+            }
+            if (remoto.empresa && !next.empresas.some((e) => e.id === remoto.empresa!.id)) {
+              next = { ...next, empresas: [...next.empresas, remoto.empresa] }
+            }
+            return next
+          })
+          user = remoto.user
+        }
+      }
       if (!user) return { ok: false, error: 'E-mail ou senha inválidos.' }
-      update((s) => ({ ...s, sessionUserId: user.id }))
+      update((s) => ({ ...s, sessionUserId: user!.id }))
       return { ok: true, role: user.role }
     },
-
-    loginPortal(usuarioOuEmail, senha, portal) {
+async loginPortal(usuarioOuEmail, senha, portal) {
       const key = usuarioOuEmail.trim().toLowerCase()
       let user = state.users.find(
         (u) =>
@@ -376,7 +429,45 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           u.senha === senha &&
           (u.email.toLowerCase() === key || (u.usuario || '').toLowerCase() === key),
       )
+
+      if (!user && (await supabaseConfigured())) {
+        const remoto = await buscarContaLogin(usuarioOuEmail, senha)
+        if (remoto) {
+          update((s) => {
+            let next = {
+              ...s,
+              users: s.users.some((u) => u.id === remoto.user.id)
+                ? s.users.map((u) => (u.id === remoto.user.id ? { ...u, ...remoto.user } : u))
+                : [...s.users, remoto.user],
+            }
+            if (remoto.profissional) {
+              next = {
+                ...next,
+                profissionais: next.profissionais.some((p) => p.id === remoto.profissional!.id)
+                  ? next.profissionais.map((p) =>
+                      p.id === remoto.profissional!.id ? { ...p, ...remoto.profissional! } : p,
+                    )
+                  : [...next.profissionais, remoto.profissional],
+              }
+            }
+            if (remoto.empresa) {
+              next = {
+                ...next,
+                empresas: next.empresas.some((e) => e.id === remoto.empresa!.id)
+                  ? next.empresas.map((e) => (e.id === remoto.empresa!.id ? { ...e, ...remoto.empresa! } : e))
+                  : [...next.empresas, remoto.empresa],
+              }
+            }
+            return next
+          })
+          user = remoto.user
+        }
+      }
+
       if (!user) return { ok: false, error: 'Usuário ou senha inválidos.' }
+
+      const snap = loadState()
+      user = snap.users.find((u) => u.id === user!.id) || user
 
       const contaOperacional = user.role === 'profissional' || user.role === 'empresa'
       const isSuper =
@@ -403,33 +494,52 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       if ((user.role === 'super' || user.role === 'admin') && portal === 'profissional') {
         return {
           ok: false,
-          error: 'Esta conta não abre o perfil de um colaborador. Entre com o usuário criado no cadastro do profissional.',
+          error:
+            'Esta conta não abre o perfil de um colaborador. Entre com o usuário criado no cadastro do profissional.',
         }
       }
 
-      // A conta super ou admin, no portal da empresa, abre a Log Express de demonstração.
       if ((user.role === 'super' || user.role === 'admin') && portal === 'empresa') {
         const demo =
+          snap.users.find((u) => u.email === 'empresa@logexpress.com' && u.role === 'empresa') ||
+          snap.users.find((u) => u.role === 'empresa' && u.ativo) ||
           state.users.find((u) => u.email === 'empresa@logexpress.com' && u.role === 'empresa') ||
           state.users.find((u) => u.role === 'empresa' && u.ativo)
         if (demo) user = demo
       }
 
-      const hasPerfil =
+      let hasPerfil =
         user.role === 'profissional'
-          ? state.profissionais.some((p) => p.userId === user!.id)
+          ? snap.profissionais.some((p) => p.userId === user!.id) ||
+            state.profissionais.some((p) => p.userId === user!.id)
           : user.role === 'empresa'
-            ? state.empresas.some((e) => e.userId === user!.id)
+            ? snap.empresas.some((e) => e.userId === user!.id) ||
+              state.empresas.some((e) => e.userId === user!.id)
             : true
 
+      if (!hasPerfil && (user.role === 'empresa' || user.role === 'profissional') && (await supabaseConfigured())) {
+        await refreshFromCloud()
+        const after = loadState()
+        hasPerfil =
+          user.role === 'profissional'
+            ? after.profissionais.some((p) => p.userId === user!.id)
+            : after.empresas.some((e) => e.userId === user!.id)
+      }
+
+      const live = loadState()
+
       if (portal === 'empresa' && user.role === 'empresa' && !isSuper && hasPerfil) {
-        const empresa = state.empresas.find((item) => item.userId === user.id)
+        const empresa =
+          live.empresas.find((item) => item.userId === user!.id) ||
+          state.empresas.find((item) => item.userId === user!.id)
         const aviso = empresa ? avisoAcessoEmpresa(empresa.status) : null
         if (aviso) return { ok: false, error: aviso, aviso: true }
       }
 
       if (portal === 'profissional' && user.role === 'profissional' && !isSuper && hasPerfil) {
-        const profissional = state.profissionais.find((item) => item.userId === user.id)
+        const profissional =
+          live.profissionais.find((item) => item.userId === user!.id) ||
+          state.profissionais.find((item) => item.userId === user!.id)
         const aviso = profissional ? avisoAcessoProfissional(profissional.status) : null
         if (aviso) return { ok: false, error: aviso, aviso: true }
       }
@@ -446,16 +556,16 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           (user.perfilCompleto === false || !hasPerfil),
       }
     },
-
-    resolveEmailByIdentificador(id) {
+async resolveEmailByIdentificador(id) {
       const key = id.trim().toLowerCase()
       const user = state.users.find(
         (u) => u.email.toLowerCase() === key || (u.usuario || '').toLowerCase() === key,
       )
-      return user?.email ?? null
+      if (user?.email) return user.email
+      if (await supabaseConfigured()) return resolveEmailCloud(id)
+      return null
     },
-
-    portalRegisterUser({ email, usuario, senha, role }) {
+async portalRegisterUser({ email, usuario, senha, role }) {
       const em = email.trim().toLowerCase()
       const us = usuario.trim()
       if (state.users.some((u) => u.email.toLowerCase() === em)) {
@@ -491,25 +601,33 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           ...s.auditLogs,
         ],
       }))
+      if (await supabaseConfigured()) {
+        const remoto = await upsertConta(user)
+        if (!remoto.ok) return { ok: false, error: remoto.erro }
+      }
       return { ok: true }
     },
-
-    portalResetSenha(email, novaSenha) {
+async portalResetSenha(email, novaSenha) {
       const em = email.trim().toLowerCase()
       const user = state.users.find((u) => u.email.toLowerCase() === em)
-      if (!user) return { ok: false, error: 'Usuário não encontrado.' }
-      update((s) => ({
-        ...s,
-        users: s.users.map((u) => (u.email.toLowerCase() === em ? { ...u, senha: novaSenha } : u)),
-      }))
+      if (!user && !(await supabaseConfigured())) return { ok: false, error: 'Usuário não encontrado.' }
+      if (user) {
+        update((s) => ({
+          ...s,
+          users: s.users.map((u) => (u.email.toLowerCase() === em ? { ...u, senha: novaSenha } : u)),
+        }))
+      }
+      if (await supabaseConfigured()) {
+        const remoto = await atualizarSenhaConta(em, novaSenha)
+        if (!remoto.ok) return { ok: false, error: remoto.erro }
+      }
       return { ok: true }
     },
-
     logout() {
       update((s) => ({ ...s, sessionUserId: null }))
     },
 
-    registerEmpresa(userData, empresaData, documentos) {
+    async registerEmpresa(userData, empresaData, documentos) {
       if (state.users.some((u) => u.email.toLowerCase() === userData.email.toLowerCase())) {
         return { ok: false, error: 'Este e-mail já está sendo utilizado.' }
       }
@@ -551,10 +669,18 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           ...s.auditLogs,
         ],
       }))
+      if (await supabaseConfigured()) {
+        const conta = await upsertConta(user)
+        if (!conta.ok) return { ok: false, error: conta.erro }
+        const emp = await upsertEmpresa(empresa)
+        if (!emp.ok) return { ok: false, error: emp.erro }
+        const docs = documentosDeCadastro([], empresaId, documentos, 'empresa')
+        if (docs.length) await upsertDocumentos(docs)
+      }
       return { ok: true }
     },
 
-    registerProfissional(userData, profissionalData, documentos) {
+    async registerProfissional(userData, profissionalData, documentos) {
       if (state.users.some((u) => u.email.toLowerCase() === userData.email.toLowerCase())) {
         return { ok: false, error: 'Este e-mail já está sendo utilizado.' }
       }
@@ -592,10 +718,18 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           ...s.auditLogs,
         ],
       }))
+      if (await supabaseConfigured()) {
+        const conta = await upsertConta(user)
+        if (!conta.ok) return { ok: false, error: conta.erro }
+        const prof = await upsertProfissional(profissional)
+        if (!prof.ok) return { ok: false, error: prof.erro }
+        const docs = documentosDeCadastro([], profId, documentos)
+        if (docs.length) await upsertDocumentos(docs)
+      }
       return { ok: true }
     },
 
-    completeEmpresaPerfil(empresaData, documentos) {
+    async completeEmpresaPerfil(empresaData, documentos) {
       const user = state.users.find((u) => u.id === state.sessionUserId)
       if (!user || user.role !== 'empresa') {
         return { ok: false, error: 'Sessão de empresa inválida.' }
@@ -611,6 +745,16 @@ export function StoreProvider({ children }: { children: ReactNode }) {
               : s.documentos,
           }
         })
+        if (await supabaseConfigured()) {
+          await upsertConta({ ...user, perfilCompleto: true })
+          const depois = loadState()
+          const emp = depois.empresas.find((e) => e.userId === user.id)
+          if (emp) {
+            await upsertEmpresa(emp)
+            const docs = depois.documentos.filter((d) => d.donoTipo === 'empresa' && d.donoId === emp.id)
+            if (docs.length) await upsertDocumentos(docs)
+          }
+        }
         return { ok: true }
       }
       const empresa: Empresa = {
@@ -646,10 +790,16 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           ...s.auditLogs,
         ],
       }))
+      if (await supabaseConfigured()) {
+        await upsertConta({ ...user, perfilCompleto: true })
+        await upsertEmpresa(empresa)
+        const docs = documentosDeCadastro([], empresa.id, documentos, 'empresa')
+        if (docs.length) await upsertDocumentos(docs)
+      }
       return { ok: true }
     },
 
-    completeProfissionalPerfil(profissionalData, documentos) {
+    async completeProfissionalPerfil(profissionalData, documentos) {
       const user = state.users.find((u) => u.id === state.sessionUserId)
       if (!user || user.role !== 'profissional') {
         return { ok: false, error: 'Sessão de profissional inválida.' }
@@ -663,6 +813,16 @@ export function StoreProvider({ children }: { children: ReactNode }) {
             documentos: existente ? documentosDeCadastro(s.documentos, existente.id, documentos) : s.documentos,
           }
         })
+        if (await supabaseConfigured()) {
+          await upsertConta({ ...user, perfilCompleto: true })
+          const depois = loadState()
+          const prof = depois.profissionais.find((p) => p.userId === user.id)
+          if (prof) {
+            await upsertProfissional(prof)
+            const docs = depois.documentos.filter((d) => d.donoTipo === 'profissional' && d.donoId === prof.id)
+            if (docs.length) await upsertDocumentos(docs)
+          }
+        }
         return { ok: true }
       }
       const profissional: Profissional = {
@@ -694,6 +854,12 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           ...s.auditLogs,
         ],
       }))
+      if (await supabaseConfigured()) {
+        await upsertConta({ ...user, perfilCompleto: true })
+        await upsertProfissional(profissional)
+        const docs = documentosDeCadastro([], profissional.id, documentos)
+        if (docs.length) await upsertDocumentos(docs)
+      }
       return { ok: true }
     },
 
@@ -1391,20 +1557,20 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       update(fn)
     },
 
-    setEmpresaStatus(id, status) {
+async setEmpresaStatus(id, status) {
       update((s) => ({
         ...s,
         empresas: s.empresas.map((e) => (e.id === id ? { ...e, status } : e)),
       }))
+      if (await supabaseConfigured()) await setStatusEmpresaCloud(id, status)
     },
-
-    setProfissionalStatus(id, status) {
+async setProfissionalStatus(id, status) {
       update((s) => ({
         ...s,
         profissionais: s.profissionais.map((p) => (p.id === id ? { ...p, status } : p)),
       }))
+      if (await supabaseConfigured()) await setStatusProfissionalCloud(id, status)
     },
-
     finishDemanda(demandaId) {
       update((s) => finishDemandaState(s, demandaId))
     },
@@ -1425,6 +1591,58 @@ export function StoreProvider({ children }: { children: ReactNode }) {
 
     resetDemo() {
       setState(persist(resetState()))
+    },
+
+    async refreshFromCloud() {
+      await refreshFromCloud()
+    },
+
+    async excluirUsuario(userId) {
+      const alvo = state.users.find((u) => u.id === userId)
+      if (!alvo) return { ok: false, error: 'Usuário não encontrado.' }
+      if (state.sessionUserId === userId) {
+        return { ok: false, error: 'Você não pode excluir a conta em que está logado.' }
+      }
+      if (
+        alvo.role === 'super' ||
+        isLocalSuperUser(alvo.usuario || '') ||
+        isLocalSuperUser(alvo.email)
+      ) {
+        return { ok: false, error: 'Superusuários não podem ser excluídos.' }
+      }
+
+      const profIds = state.profissionais.filter((p) => p.userId === userId).map((p) => p.id)
+      const empIds = state.empresas.filter((e) => e.userId === userId).map((e) => e.id)
+
+      update((s) => ({
+        ...s,
+        users: s.users.filter((u) => u.id !== userId),
+        profissionais: s.profissionais.filter((p) => p.userId !== userId),
+        empresas: s.empresas.filter((e) => e.userId !== userId),
+        documentos: s.documentos.filter(
+          (d) =>
+            !(
+              (d.donoTipo === 'profissional' && profIds.includes(d.donoId)) ||
+              (d.donoTipo === 'empresa' && empIds.includes(d.donoId))
+            ),
+        ),
+        auditLogs: [
+          {
+            id: uid('log'),
+            at: nowIso(),
+            actorId: s.sessionUserId ?? 'system',
+            action: 'excluir_usuario',
+            detail: `${alvo.usuario || alvo.email} (${alvo.role})`,
+          },
+          ...s.auditLogs,
+        ],
+      }))
+
+      if (await supabaseConfigured()) {
+        const remoto = await excluirContaCloud(userId)
+        if (!remoto.ok) return { ok: false, error: remoto.erro }
+      }
+      return { ok: true }
     },
 
     audit,

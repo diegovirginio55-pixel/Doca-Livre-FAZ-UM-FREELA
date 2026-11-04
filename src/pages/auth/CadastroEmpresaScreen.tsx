@@ -258,7 +258,7 @@ export function CadastroEmpresaScreen({ onBack, onDone }: Props) {
     else setStep((s) => s - 1)
   }
 
-  function submit(e: FormEvent) {
+  async function submit(e: FormEvent) {
     e.preventDefault()
     const falhaEmpresa = problemaEmpresa()
     if (falhaEmpresa) {
@@ -310,9 +310,9 @@ export function CadastroEmpresaScreen({ onBack, onDone }: Props) {
       },
     }
     const documentos = documentosEnviados()
-    const res = completing
+    const res = await (completing
       ? completeEmpresaPerfil(empresaPayload, documentos)
-      : registerEmpresa({ email: form.email, senha: form.senha }, empresaPayload, documentos)
+      : registerEmpresa({ email: form.email, senha: form.senha }, empresaPayload, documentos))
     if (!res.ok) {
       setError(res.error ?? 'Erro no cadastro')
       return

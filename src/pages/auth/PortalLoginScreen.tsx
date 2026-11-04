@@ -129,7 +129,7 @@ export function PortalLoginScreen({ portal, avisoInicial, onSuccess, onBack }: P
     resetMessages()
     setLoading(true)
     try {
-      const result = store.loginPortal(usuario.trim(), senha, portal)
+      const result = await store.loginPortal(usuario.trim(), senha, portal)
       if (!result.ok) {
         if (result.aviso) setAviso(result.error || 'Seu cadastro ainda aguarda aprovação.')
         else {
@@ -213,7 +213,7 @@ export function PortalLoginScreen({ portal, avisoInicial, onSuccess, onBack }: P
     }
     setLoading(true)
     try {
-      const reg = store.portalRegisterUser({
+      const reg = await store.portalRegisterUser({
         email: peeked.email,
         usuario: usuario.trim(),
         senha,
@@ -223,7 +223,7 @@ export function PortalLoginScreen({ portal, avisoInicial, onSuccess, onBack }: P
         setErro(reg.error || 'Não foi possível cadastrar.')
         return
       }
-      portalConsumeCadastroToken(verifyToken)
+      await portalConsumeCadastroToken(verifyToken)
       onSuccess({
         usuario: usuario.trim(),
         role: peeked.portalRole,
@@ -289,12 +289,12 @@ export function PortalLoginScreen({ portal, avisoInicial, onSuccess, onBack }: P
     }
     setLoading(true)
     try {
-      const res = store.portalResetSenha(em, senha)
+      const res = await store.portalResetSenha(em, senha)
       if (!res.ok) {
         setErro(res.error || 'Não foi possível alterar a senha.')
         return
       }
-      portalConsumeSenhaToken(verifyToken)
+      await portalConsumeSenhaToken(verifyToken)
       setInfo('Senha alterada. Faça login.')
       goMode('login')
       setInfo('Senha alterada. Faça login.')

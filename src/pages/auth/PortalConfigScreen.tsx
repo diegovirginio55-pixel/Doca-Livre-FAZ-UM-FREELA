@@ -21,6 +21,7 @@ type Props = {
 }
 
 type UserRow = {
+  userId: string
   usuario: string
   email: string
   role: string
@@ -61,6 +62,7 @@ export function PortalConfigScreen({ onContinuar, onSair }: Props) {
         const usuario = u.usuario || u.email.split('@')[0]
         const h = hier.find((x) => x.usuario === usuario)
         return {
+          userId: u.id,
           usuario,
           email: u.email,
           role: u.role,
@@ -96,6 +98,25 @@ export function PortalConfigScreen({ onContinuar, onSair }: Props) {
     const t = window.setTimeout(() => setOkMsg(null), 3500)
     return () => window.clearTimeout(t)
   }, [okMsg])
+
+  async function excluirContaSelecionada() {
+    if (!current) return
+    if (
+      !window.confirm(
+        `Excluir a conta "${current.usuario}" (${current.email})? Perfil, documentos e acesso serão removidos. Esta ação não tem volta.`,
+      )
+    ) {
+      return
+    }
+    const res = await store.excluirUsuario(current.userId)
+    if (!res.ok) {
+      window.alert(res.error || 'Não foi possível excluir.')
+      return
+    }
+    setSelected('')
+    setOkMsg('Conta excluída.')
+    setTick((x) => x + 1)
+  }
 
   function saveHier() {
     if (!current) return
@@ -237,7 +258,10 @@ export function PortalConfigScreen({ onContinuar, onSair }: Props) {
                 onClick={() => setSelected(u.usuario)}
               >
                 <strong>{u.usuario}</strong>
-                <span>{u.email}</span>
+                <span>
+                  {u.nivel} · {u.role}
+                </span>
+                <span className="muted">{u.email}</span>
               </button>
             ))}
           </div>
@@ -282,6 +306,16 @@ export function PortalConfigScreen({ onContinuar, onSair }: Props) {
               <button type="button" className="pconfig-btn pconfig-btn--primary" onClick={saveHier}>
                 Salvar hierarquia
               </button>
+              {current.userId !== store.currentUser?.id && (
+                <button
+                  type="button"
+                  className="pconfig-btn pconfig-btn--ghost"
+                  onClick={() => void excluirContaSelecionada()}
+                  style={{ marginLeft: 8, color: '#b91c1c' }}
+                >
+                  Excluir conta
+                </button>
+              )}
 
               <h3 className="pconfig-subtitle">Árvore</h3>
               <div className="pconfig-tree">{renderTree(treeRoots)}</div>

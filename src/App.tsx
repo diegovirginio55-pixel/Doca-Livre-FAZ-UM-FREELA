@@ -88,11 +88,12 @@ function AppRoutes() {
         setGate('cadastro_empresa')
         return
       }
-      const res = login('empresa@logexpress.com', 'demo123')
-      if (!res.ok) {
-        logout()
-        setGate('select')
-      }
+      void login('empresa@logexpress.com', 'demo123').then((res) => {
+        if (!res.ok) {
+          logout()
+          setGate('select')
+        }
+      })
     }
   }, [gate, portal, currentUser, currentProfissional, currentEmpresa, login, logout])
 

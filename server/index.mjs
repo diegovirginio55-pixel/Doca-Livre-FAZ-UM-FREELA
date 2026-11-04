@@ -80,11 +80,22 @@ const server = createServer(async (req, res) => {
         email: data.email,
         codigo: data.codigo,
         finalidade: data.finalidade,
+        acao: data.acao,
+        portalRole: data.portalRole,
+        verify_token: data.verify_token,
       })
       res.writeHead(result.status || (result.ok ? 200 : 503), {
         'Content-Type': 'application/json; charset=utf-8',
       })
-      res.end(JSON.stringify(result.ok ? { ok: true } : { ok: false, erro: result.erro }))
+      const corpo = result.ok
+        ? {
+            ok: true,
+            ...(result.verify_token ? { verify_token: result.verify_token } : {}),
+            ...(result.portalRole ? { portalRole: result.portalRole } : {}),
+            ...(result.email ? { email: result.email } : {}),
+          }
+        : { ok: false, erro: result.erro }
+      res.end(JSON.stringify(corpo))
     } catch {
       res.writeHead(400, { 'Content-Type': 'application/json; charset=utf-8' })
       res.end(JSON.stringify({ ok: false, erro: 'Não foi possível enviar o e-mail.' }))
