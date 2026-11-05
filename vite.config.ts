@@ -132,6 +132,12 @@ function portalApiDev(): Plugin {
 // https://vite.dev/config/
 export default defineConfig({
   plugins: [react(), portalApiDev()],
+  server: {
+    allowedHosts: true,
+  },
+  preview: {
+    allowedHosts: true,
+  },
   build: {
     // Evita um único JS grande (~560KB) que em alguns deploys do Render
     // sumiu do CDN (HTML 200 + assets/*.js 404).

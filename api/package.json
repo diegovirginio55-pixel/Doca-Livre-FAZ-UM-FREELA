@@ -1,0 +1,16 @@
+{
+  "name": "fazumfreela-api",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "start": "node start.mjs"
+  },
+  "dependencies": {
+    "@azure/identity": "^4.13.1",
+    "@azure/storage-blob": "^12.31.0",
+    "pg": "^8.16.3"
+  }
+}

@@ -1,18 +1,18 @@
 {
-  "geradoEm": "2026-10-07T15:54:42.574Z",
+  "geradoEm": "2026-11-05T04:51:19.542Z",
   "arquivos": [
     {
       "caminho": "index.html",
-      "bytes": 981,
+      "bytes": 1000,
       "linhas": 23,
-      "tokens": 245,
+      "tokens": 250,
       "importa": []
     },
     {
       "caminho": "package.json",
-      "bytes": 849,
-      "linhas": 33,
-      "tokens": 213,
+      "bytes": 945,
+      "linhas": 36,
+      "tokens": 237,
       "importa": []
     },
     {
@@ -47,20 +47,36 @@
     },
     {
       "caminho": "server/enviarCodigoEmail.mjs",
-      "bytes": 2845,
-      "linhas": 85,
-      "tokens": 703,
+      "bytes": 6479,
+      "linhas": 194,
+      "tokens": 1610,
       "importa": []
     },
     {
       "caminho": "server/index.mjs",
-      "bytes": 4219,
-      "linhas": 137,
-      "tokens": 1054,
+      "bytes": 6364,
+      "linhas": 191,
+      "tokens": 1589,
       "importa": [
         "server/analisarDocumentoCadastro.mjs",
-        "server/enviarCodigoEmail.mjs"
+        "server/enviarCodigoEmail.mjs",
+        "server/lerCurriculo.mjs",
+        "server/notificarCadastro.mjs"
       ]
+    },
+    {
+      "caminho": "server/lerCurriculo.mjs",
+      "bytes": 10074,
+      "linhas": 247,
+      "tokens": 2503,
+      "importa": []
+    },
+    {
+      "caminho": "server/notificarCadastro.mjs",
+      "bytes": 4530,
+      "linhas": 119,
+      "tokens": 1124,
+      "importa": []
     },
     {
       "caminho": "src/App.css",
@@ -71,9 +87,9 @@
     },
     {
       "caminho": "src/App.tsx",
-      "bytes": 7360,
-      "linhas": 264,
-      "tokens": 1838,
+      "bytes": 7386,
+      "linhas": 265,
+      "tokens": 1844,
       "importa": [
         "src/App.css",
         "src/components/IntroSplash.tsx",
@@ -91,9 +107,9 @@
     },
     {
       "caminho": "src/components/AceiteTermos.tsx",
-      "bytes": 3618,
+      "bytes": 3725,
       "linhas": 109,
-      "tokens": 904,
+      "tokens": 931,
       "importa": [
         "src/components/termos.css",
         "src/lib/store.tsx",
@@ -144,9 +160,9 @@
     },
     {
       "caminho": "src/components/ContratoViewer.tsx",
-      "bytes": 7640,
+      "bytes": 7864,
       "linhas": 226,
-      "tokens": 1898,
+      "tokens": 1954,
       "importa": [
         "src/data/categories.ts",
         "src/lib/contratoTemplate.ts",
@@ -156,10 +172,29 @@
       ]
     },
     {
+      "caminho": "src/components/curriculo.css",
+      "bytes": 2934,
+      "linhas": 209,
+      "tokens": 734,
+      "importa": []
+    },
+    {
+      "caminho": "src/components/CurriculoCampos.tsx",
+      "bytes": 8486,
+      "linhas": 238,
+      "tokens": 2112,
+      "importa": [
+        "src/components/curriculo.css",
+        "src/lib/curriculo.ts",
+        "src/lib/lerCurriculo.ts",
+        "src/lib/types.ts"
+      ]
+    },
+    {
       "caminho": "src/components/DocumentacaoPanel.tsx",
-      "bytes": 17709,
-      "linhas": 488,
-      "tokens": 4412,
+      "bytes": 19168,
+      "linhas": 508,
+      "tokens": 4775,
       "importa": [
         "src/data/documentCatalog.ts",
         "src/lib/documentos.ts",
@@ -242,9 +277,9 @@
     },
     {
       "caminho": "src/data/documentCatalog.ts",
-      "bytes": 11533,
-      "linhas": 399,
-      "tokens": 2851,
+      "bytes": 12774,
+      "linhas": 423,
+      "tokens": 3160,
       "importa": []
     },
     {
@@ -256,30 +291,38 @@
     },
     {
       "caminho": "src/lib/analisarDocumentoCadastro.ts",
-      "bytes": 7661,
-      "linhas": 206,
-      "tokens": 1912,
+      "bytes": 7676,
+      "linhas": 207,
+      "tokens": 1916,
       "importa": [
         "src/lib/supabaseConfig.ts"
       ]
     },
     {
       "caminho": "src/lib/analiseCurriculo.ts",
-      "bytes": 20116,
-      "linhas": 516,
-      "tokens": 4994,
+      "bytes": 29685,
+      "linhas": 794,
+      "tokens": 7380,
       "importa": [
         "src/data/categories.ts",
+        "src/lib/curriculo.ts",
         "src/lib/documentos.ts",
         "src/lib/modalidadeContratacao.ts",
         "src/lib/types.ts"
       ]
     },
     {
+      "caminho": "src/lib/apisPublicas.ts",
+      "bytes": 14070,
+      "linhas": 373,
+      "tokens": 3510,
+      "importa": []
+    },
+    {
       "caminho": "src/lib/brandAssets.ts",
-      "bytes": 324,
+      "bytes": 328,
       "linhas": 6,
-      "tokens": 81,
+      "tokens": 82,
       "importa": []
     },
     {
@@ -292,10 +335,17 @@
       ]
     },
     {
+      "caminho": "src/lib/compararRostos.ts",
+      "bytes": 3371,
+      "linhas": 87,
+      "tokens": 842,
+      "importa": []
+    },
+    {
       "caminho": "src/lib/contratoTemplate.ts",
-      "bytes": 13880,
+      "bytes": 14171,
       "linhas": 298,
-      "tokens": 3420,
+      "tokens": 3494,
       "importa": [
         "src/data/categories.ts",
         "src/lib/modalidadeContratacao.ts",
@@ -311,10 +361,20 @@
       "importa": []
     },
     {
+      "caminho": "src/lib/curriculo.ts",
+      "bytes": 6774,
+      "linhas": 230,
+      "tokens": 1691,
+      "importa": [
+        "src/data/categories.ts",
+        "src/lib/types.ts"
+      ]
+    },
+    {
       "caminho": "src/lib/curriculoPdf.ts",
-      "bytes": 9249,
-      "linhas": 284,
-      "tokens": 2309,
+      "bytes": 10419,
+      "linhas": 309,
+      "tokens": 2601,
       "importa": [
         "src/data/categories.ts",
         "src/lib/types.ts"
@@ -322,23 +382,56 @@
     },
     {
       "caminho": "src/lib/documentos.ts",
-      "bytes": 4650,
-      "linhas": 143,
-      "tokens": 1161,
+      "bytes": 5860,
+      "linhas": 180,
+      "tokens": 1463,
       "importa": [
         "src/data/documentCatalog.ts",
+        "src/lib/curriculo.ts",
         "src/lib/types.ts"
       ]
     },
     {
+      "caminho": "src/lib/documentosPessoais.ts",
+      "bytes": 2500,
+      "linhas": 70,
+      "tokens": 623,
+      "importa": [
+        "src/lib/apisPublicas.ts",
+        "src/lib/pix.ts"
+      ]
+    },
+    {
+      "caminho": "src/lib/documentoUrl.ts",
+      "bytes": 692,
+      "linhas": 19,
+      "tokens": 173,
+      "importa": [
+        "src/lib/supabaseClient.ts"
+      ]
+    },
+    {
       "caminho": "src/lib/dossieTemporario.ts",
-      "bytes": 18503,
+      "bytes": 18976,
       "linhas": 475,
-      "tokens": 4578,
+      "tokens": 4696,
       "importa": [
         "src/data/categories.ts",
         "src/lib/documentos.ts",
         "src/lib/seed.ts",
+        "src/lib/types.ts"
+      ]
+    },
+    {
+      "caminho": "src/lib/extrairCurriculo.ts",
+      "bytes": 21038,
+      "linhas": 485,
+      "tokens": 5232,
+      "importa": [
+        "src/data/categories.ts",
+        "src/data/cidades.ts",
+        "src/lib/curriculo.ts",
+        "src/lib/pix.ts",
         "src/lib/types.ts"
       ]
     },
@@ -348,6 +441,20 @@
       "linhas": 30,
       "tokens": 205,
       "importa": []
+    },
+    {
+      "caminho": "src/lib/lerCurriculo.ts",
+      "bytes": 8987,
+      "linhas": 238,
+      "tokens": 2244,
+      "importa": [
+        "src/data/categories.ts",
+        "src/lib/analisarDocumentoCadastro.ts",
+        "src/lib/curriculo.ts",
+        "src/lib/extrairCurriculo.ts",
+        "src/lib/textoWord.ts",
+        "src/lib/types.ts"
+      ]
     },
     {
       "caminho": "src/lib/matching.ts",
@@ -361,16 +468,16 @@
     },
     {
       "caminho": "src/lib/modalidadeContratacao.ts",
-      "bytes": 10177,
+      "bytes": 10421,
       "linhas": 246,
-      "tokens": 2509,
+      "tokens": 2570,
       "importa": []
     },
     {
       "caminho": "src/lib/notificacoesEmpresa.ts",
-      "bytes": 5549,
+      "bytes": 5717,
       "linhas": 171,
-      "tokens": 1387,
+      "tokens": 1429,
       "importa": [
         "src/data/categories.ts",
         "src/lib/types.ts"
@@ -389,6 +496,15 @@
       ]
     },
     {
+      "caminho": "src/lib/notificarCadastro.ts",
+      "bytes": 2152,
+      "linhas": 70,
+      "tokens": 537,
+      "importa": [
+        "src/lib/supabaseConfig.ts"
+      ]
+    },
+    {
       "caminho": "src/lib/periodoMissao.ts",
       "bytes": 1504,
       "linhas": 38,
@@ -397,16 +513,16 @@
     },
     {
       "caminho": "src/lib/pix.ts",
-      "bytes": 5086,
+      "bytes": 5100,
       "linhas": 134,
-      "tokens": 1269,
+      "tokens": 1272,
       "importa": []
     },
     {
       "caminho": "src/lib/portalAuth.ts",
-      "bytes": 7838,
-      "linhas": 263,
-      "tokens": 1956,
+      "bytes": 14294,
+      "linhas": 457,
+      "tokens": 3566,
       "importa": [
         "src/lib/portalPermissoes.ts",
         "src/lib/supabaseConfig.ts"
@@ -421,9 +537,9 @@
     },
     {
       "caminho": "src/lib/seed.ts",
-      "bytes": 26608,
+      "bytes": 27386,
       "linhas": 780,
-      "tokens": 6640,
+      "tokens": 6835,
       "importa": [
         "src/lib/matching.ts",
         "src/lib/types.ts"
@@ -443,19 +559,21 @@
     },
     {
       "caminho": "src/lib/store.tsx",
-      "bytes": 47634,
-      "linhas": 1427,
-      "tokens": 11894,
+      "bytes": 58008,
+      "linhas": 1679,
+      "tokens": 14486,
       "importa": [
         "src/data/categories.ts",
         "src/lib/classificacao.ts",
         "src/lib/contratoTemplate.ts",
+        "src/lib/curriculo.ts",
         "src/lib/dossieTemporario.ts",
         "src/lib/matching.ts",
         "src/lib/pix.ts",
         "src/lib/portalPermissoes.ts",
         "src/lib/seed.ts",
         "src/lib/storage.ts",
+        "src/lib/supabaseSync.ts",
         "src/lib/termos.ts",
         "src/lib/types.ts"
       ]
@@ -471,25 +589,43 @@
     },
     {
       "caminho": "src/lib/supabaseConfig.ts",
-      "bytes": 1030,
-      "linhas": 38,
-      "tokens": 258,
+      "bytes": 1359,
+      "linhas": 48,
+      "tokens": 340,
       "importa": []
     },
     {
+      "caminho": "src/lib/supabaseSync.ts",
+      "bytes": 16369,
+      "linhas": 476,
+      "tokens": 4092,
+      "importa": [
+        "src/lib/supabaseClient.ts",
+        "src/lib/supabaseConfig.ts",
+        "src/lib/types.ts"
+      ]
+    },
+    {
       "caminho": "src/lib/termos.ts",
-      "bytes": 3895,
+      "bytes": 3960,
       "linhas": 71,
-      "tokens": 954,
+      "tokens": 972,
       "importa": [
         "src/lib/types.ts"
       ]
     },
     {
+      "caminho": "src/lib/textoWord.ts",
+      "bytes": 5556,
+      "linhas": 144,
+      "tokens": 1387,
+      "importa": []
+    },
+    {
       "caminho": "src/lib/types.ts",
-      "bytes": 8671,
-      "linhas": 421,
-      "tokens": 2165,
+      "bytes": 8984,
+      "linhas": 429,
+      "tokens": 2243,
       "importa": []
     },
     {
@@ -513,16 +649,16 @@
     },
     {
       "caminho": "src/pages/admin/admin.css",
-      "bytes": 4649,
-      "linhas": 298,
-      "tokens": 1163,
+      "bytes": 6515,
+      "linhas": 426,
+      "tokens": 1629,
       "importa": []
     },
     {
       "caminho": "src/pages/admin/AdminApp.tsx",
-      "bytes": 13571,
-      "linhas": 375,
-      "tokens": 3385,
+      "bytes": 18507,
+      "linhas": 492,
+      "tokens": 4617,
       "importa": [
         "src/components/BibliotecaDocumental.tsx",
         "src/components/DocumentacaoPanel.tsx",
@@ -531,6 +667,7 @@
         "src/lib/brandAssets.ts",
         "src/lib/store.tsx",
         "src/pages/admin/AdminDashboard.tsx",
+        "src/pages/admin/CadastroDetalheModal.tsx",
         "src/pages/admin/admin.css",
         "src/pages/empresa/empresa-px.css"
       ]
@@ -547,15 +684,30 @@
       ]
     },
     {
+      "caminho": "src/pages/admin/CadastroDetalheModal.tsx",
+      "bytes": 19034,
+      "linhas": 579,
+      "tokens": 4736,
+      "importa": [
+        "src/data/categories.ts",
+        "src/data/documentCatalog.ts",
+        "src/lib/documentoUrl.ts",
+        "src/lib/notificarCadastro.ts",
+        "src/lib/types.ts"
+      ]
+    },
+    {
       "caminho": "src/pages/auth/CadastroEmpresaScreen.tsx",
-      "bytes": 14029,
-      "linhas": 404,
-      "tokens": 3492,
+      "bytes": 19966,
+      "linhas": 541,
+      "tokens": 4971,
       "importa": [
         "src/components/AceiteTermos.tsx",
         "src/data/cidades.ts",
         "src/lib/analisarDocumentoCadastro.ts",
+        "src/lib/apisPublicas.ts",
         "src/lib/coordenadaCidade.ts",
+        "src/lib/documentosPessoais.ts",
         "src/lib/store.tsx",
         "src/lib/termos.ts",
         "src/lib/types.ts"
@@ -563,27 +715,34 @@
     },
     {
       "caminho": "src/pages/auth/CadastroProfissionalScreen.tsx",
-      "bytes": 16548,
-      "linhas": 469,
-      "tokens": 4129,
+      "bytes": 33877,
+      "linhas": 840,
+      "tokens": 8444,
       "importa": [
         "src/components/AceiteTermos.tsx",
         "src/components/AvailabilityToggle.tsx",
+        "src/components/CurriculoCampos.tsx",
         "src/data/categories.ts",
         "src/data/cidades.ts",
         "src/lib/analisarDocumentoCadastro.ts",
+        "src/lib/apisPublicas.ts",
+        "src/lib/compararRostos.ts",
         "src/lib/coordenadaCidade.ts",
+        "src/lib/curriculo.ts",
+        "src/lib/documentosPessoais.ts",
+        "src/lib/lerCurriculo.ts",
         "src/lib/pix.ts",
         "src/lib/store.tsx",
+        "src/lib/supabaseSync.ts",
         "src/lib/termos.ts",
         "src/lib/types.ts"
       ]
     },
     {
       "caminho": "src/pages/auth/LoginScreen.tsx",
-      "bytes": 3226,
+      "bytes": 3238,
       "linhas": 116,
-      "tokens": 805,
+      "tokens": 808,
       "importa": [
         "src/lib/brandAssets.ts",
         "src/lib/store.tsx"
@@ -598,9 +757,9 @@
     },
     {
       "caminho": "src/pages/auth/PortalConfigScreen.tsx",
-      "bytes": 11115,
-      "linhas": 338,
-      "tokens": 2774,
+      "bytes": 12182,
+      "linhas": 372,
+      "tokens": 3038,
       "importa": [
         "src/lib/portalPermissoes.ts",
         "src/lib/store.tsx",
@@ -616,9 +775,9 @@
     },
     {
       "caminho": "src/pages/auth/PortalLoginScreen.tsx",
-      "bytes": 18275,
+      "bytes": 18876,
       "linhas": 548,
-      "tokens": 4552,
+      "tokens": 4703,
       "importa": [
         "src/lib/brandAssets.ts",
         "src/lib/portalAuth.ts",
@@ -635,9 +794,9 @@
     },
     {
       "caminho": "src/pages/auth/PortalSelectScreen.tsx",
-      "bytes": 1653,
+      "bytes": 1692,
       "linhas": 42,
-      "tokens": 413,
+      "tokens": 423,
       "importa": [
         "src/lib/brandAssets.ts",
         "src/pages/auth/PortalSelectScreen.css"
@@ -659,9 +818,9 @@
     },
     {
       "caminho": "src/pages/auth/WelcomeScreen.tsx",
-      "bytes": 1128,
+      "bytes": 1158,
       "linhas": 32,
-      "tokens": 282,
+      "tokens": 289,
       "importa": [
         "src/lib/brandAssets.ts"
       ]
@@ -678,16 +837,16 @@
     },
     {
       "caminho": "src/pages/empresa/contratar.css",
-      "bytes": 36141,
-      "linhas": 2342,
-      "tokens": 9036,
+      "bytes": 39539,
+      "linhas": 2532,
+      "tokens": 9885,
       "importa": []
     },
     {
       "caminho": "src/pages/empresa/ContratarFreelancer.tsx",
-      "bytes": 89506,
-      "linhas": 2311,
-      "tokens": 22319,
+      "bytes": 103662,
+      "linhas": 2619,
+      "tokens": 25849,
       "importa": [
         "src/components/AceiteTermos.tsx",
         "src/components/BibliotecaDocumental.tsx",
@@ -695,6 +854,7 @@
         "src/data/categories.ts",
         "src/data/cidades.ts",
         "src/lib/analiseCurriculo.ts",
+        "src/lib/apisPublicas.ts",
         "src/lib/brandAssets.ts",
         "src/lib/curriculoPdf.ts",
         "src/lib/documentos.ts",
@@ -719,9 +879,9 @@
     },
     {
       "caminho": "src/pages/empresa/EmpresaApp.tsx",
-      "bytes": 50512,
+      "bytes": 51651,
       "linhas": 1143,
-      "tokens": 12565,
+      "tokens": 12851,
       "importa": [
         "src/components/ContratoViewer.tsx",
         "src/components/DocumentacaoPanel.tsx",
@@ -744,7 +904,7 @@
     },
     {
       "caminho": "src/pages/empresa/MapaMaoDeObra.tsx",
-      "bytes": 15676,
+      "bytes": 15675,
       "linhas": 433,
       "tokens": 3915,
       "importa": [
@@ -758,16 +918,16 @@
     },
     {
       "caminho": "src/pages/empresa/perfilColaborador.css",
-      "bytes": 2268,
-      "linhas": 157,
-      "tokens": 567,
+      "bytes": 2357,
+      "linhas": 164,
+      "tokens": 590,
       "importa": []
     },
     {
       "caminho": "src/pages/empresa/PerfilColaborador.tsx",
-      "bytes": 6105,
-      "linhas": 175,
-      "tokens": 1523,
+      "bytes": 6695,
+      "linhas": 192,
+      "tokens": 1671,
       "importa": [
         "src/components/LevelBadge.tsx",
         "src/data/categories.ts",
@@ -797,6 +957,38 @@
       ]
     },
     {
+      "caminho": "src/pages/mapaTokens/Desenho3D.tsx",
+      "bytes": 16200,
+      "linhas": 419,
+      "tokens": 4048,
+      "importa": [
+        "src/pages/mapaTokens/montarArvore.ts",
+        "src/pages/mapaTokens/tipos.ts"
+      ]
+    },
+    {
+      "caminho": "src/pages/mapaTokens/DesenhoPastas.tsx",
+      "bytes": 3795,
+      "linhas": 102,
+      "tokens": 947,
+      "importa": [
+        "src/pages/mapaTokens/montarArvore.ts",
+        "src/pages/mapaTokens/montarGrafo.ts",
+        "src/pages/mapaTokens/tipos.ts"
+      ]
+    },
+    {
+      "caminho": "src/pages/mapaTokens/ExplicaTokens.tsx",
+      "bytes": 7955,
+      "linhas": 206,
+      "tokens": 1981,
+      "importa": [
+        "src/pages/mapaTokens/montarArvore.ts",
+        "src/pages/mapaTokens/simularConversa.ts",
+        "src/pages/mapaTokens/tipos.ts"
+      ]
+    },
+    {
       "caminho": "src/pages/mapaTokens/ItemArvore.tsx",
       "bytes": 1331,
       "linhas": 47,
@@ -808,59 +1000,97 @@
     },
     {
       "caminho": "src/pages/mapaTokens/mapaTokens.css",
-      "bytes": 6033,
-      "linhas": 372,
-      "tokens": 1509,
+      "bytes": 16592,
+      "linhas": 1017,
+      "tokens": 4148,
       "importa": []
     },
     {
       "caminho": "src/pages/mapaTokens/montarArvore.ts",
-      "bytes": 2480,
+      "bytes": 2560,
       "linhas": 82,
-      "tokens": 620,
+      "tokens": 640,
       "importa": [
+        "src/pages/mapaTokens/tipos.ts"
+      ]
+    },
+    {
+      "caminho": "src/pages/mapaTokens/montarGrafo.ts",
+      "bytes": 2671,
+      "linhas": 83,
+      "tokens": 668,
+      "importa": [
+        "src/pages/mapaTokens/montarArvore.ts",
         "src/pages/mapaTokens/tipos.ts"
       ]
     },
     {
       "caminho": "src/pages/mapaTokens/PainelDetalhe.tsx",
-      "bytes": 3663,
-      "linhas": 102,
-      "tokens": 913,
+      "bytes": 3929,
+      "linhas": 108,
+      "tokens": 979,
       "importa": [
         "src/pages/mapaTokens/montarArvore.ts",
         "src/pages/mapaTokens/tipos.ts"
       ]
     },
     {
-      "caminho": "src/pages/mapaTokens/TelaMapaTokens.tsx",
-      "bytes": 1956,
-      "linhas": 51,
-      "tokens": 489,
+      "caminho": "src/pages/mapaTokens/PainelPasta.tsx",
+      "bytes": 2822,
+      "linhas": 84,
+      "tokens": 701,
       "importa": [
+        "src/pages/mapaTokens/montarArvore.ts",
+        "src/pages/mapaTokens/tipos.ts"
+      ]
+    },
+    {
+      "caminho": "src/pages/mapaTokens/simularConversa.ts",
+      "bytes": 1201,
+      "linhas": 39,
+      "tokens": 301,
+      "importa": []
+    },
+    {
+      "caminho": "src/pages/mapaTokens/TelaMapaTokens.tsx",
+      "bytes": 5721,
+      "linhas": 134,
+      "tokens": 1426,
+      "importa": [
+        "src/lib/brandAssets.ts",
         "src/pages/mapaTokens/ArvorePastas.tsx",
+        "src/pages/mapaTokens/Desenho3D.tsx",
+        "src/pages/mapaTokens/DesenhoPastas.tsx",
+        "src/pages/mapaTokens/ExplicaTokens.tsx",
         "src/pages/mapaTokens/PainelDetalhe.tsx",
+        "src/pages/mapaTokens/PainelPasta.tsx",
         "src/pages/mapaTokens/mapaTokens.css",
         "src/pages/mapaTokens/montarArvore.ts",
+        "src/pages/mapaTokens/montarGrafo.ts",
         "src/pages/mapaTokens/tipos.ts"
       ]
     },
     {
       "caminho": "src/pages/mapaTokens/tipos.ts",
-      "bytes": 358,
-      "linhas": 22,
-      "tokens": 90,
+      "bytes": 625,
+      "linhas": 40,
+      "tokens": 157,
       "importa": []
     },
     {
       "caminho": "src/pages/profissional/EditorPerfil.tsx",
-      "bytes": 17313,
-      "linhas": 515,
-      "tokens": 4323,
+      "bytes": 18794,
+      "linhas": 546,
+      "tokens": 4693,
       "importa": [
+        "src/components/CurriculoCampos.tsx",
         "src/data/categories.ts",
         "src/data/cidades.ts",
+        "src/lib/apisPublicas.ts",
         "src/lib/coordenadaCidade.ts",
+        "src/lib/curriculo.ts",
+        "src/lib/documentosPessoais.ts",
+        "src/lib/lerCurriculo.ts",
         "src/lib/pix.ts",
         "src/lib/store.tsx",
         "src/lib/types.ts"
@@ -884,9 +1114,9 @@
     },
     {
       "caminho": "src/pages/profissional/ProfissionalApp.tsx",
-      "bytes": 55522,
-      "linhas": 1453,
-      "tokens": 13840,
+      "bytes": 57837,
+      "linhas": 1476,
+      "tokens": 14418,
       "importa": [
         "src/components/AceiteTermos.tsx",
         "src/components/AvailabilityToggle.tsx",
@@ -938,7 +1168,7 @@
     },
     {
       "caminho": "src/pwa/PwaInstallBanner.tsx",
-      "bytes": 2131,
+      "bytes": 2130,
       "linhas": 54,
       "tokens": 526,
       "importa": [
@@ -955,25 +1185,32 @@
     },
     {
       "caminho": "supabase/functions/_shared/analisarDocumentoCadastro.mjs",
-      "bytes": 11828,
-      "linhas": 282,
-      "tokens": 2939,
+      "bytes": 16921,
+      "linhas": 395,
+      "tokens": 4209,
       "importa": []
     },
     {
       "caminho": "supabase/functions/analisar-documento/index.ts",
-      "bytes": 1552,
-      "linhas": 50,
-      "tokens": 387,
+      "bytes": 1866,
+      "linhas": 56,
+      "tokens": 466,
       "importa": [
         "supabase/functions/_shared/analisarDocumentoCadastro.mjs"
       ]
     },
     {
       "caminho": "supabase/functions/enviar-codigo/index.ts",
-      "bytes": 3636,
-      "linhas": 98,
-      "tokens": 899,
+      "bytes": 8723,
+      "linhas": 256,
+      "tokens": 2167,
+      "importa": []
+    },
+    {
+      "caminho": "supabase/functions/notificar-cadastro/index.ts",
+      "bytes": 5686,
+      "linhas": 135,
+      "tokens": 1410,
       "importa": []
     },
     {
@@ -988,6 +1225,20 @@
       "bytes": 325,
       "linhas": 12,
       "tokens": 82,
+      "importa": []
+    },
+    {
+      "caminho": "supabase/migrations/20261104120000_cadastros_sincronizados.sql",
+      "bytes": 5159,
+      "linhas": 129,
+      "tokens": 1289,
+      "importa": []
+    },
+    {
+      "caminho": "supabase/migrations/20261104150000_status_recusado.sql",
+      "bytes": 838,
+      "linhas": 22,
+      "tokens": 210,
       "importa": []
     },
     {
@@ -1006,12 +1257,13 @@
     },
     {
       "caminho": "vite.config.ts",
-      "bytes": 4177,
-      "linhas": 110,
-      "tokens": 1042,
+      "bytes": 5639,
+      "linhas": 158,
+      "tokens": 1406,
       "importa": [
         "server/analisarDocumentoCadastro.mjs",
-        "server/enviarCodigoEmail.mjs"
+        "server/enviarCodigoEmail.mjs",
+        "server/lerCurriculo.mjs"
       ]
     }
   ]
