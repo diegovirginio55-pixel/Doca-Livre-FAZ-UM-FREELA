@@ -114,8 +114,8 @@ function ContratoPreview({ contrato }: { contrato: ContratoServico }) {
         {empresa.endereco.cidade}/{empresa.endereco.estado}
       </p>
       <p>
-        <strong>CONTRATADO:</strong> {profissional.nome} — CPF {profissional.cpf} — PIX{' '}
-        {profissional.pix || 'a informar'}
+        <strong>CONTRATADO:</strong> {profissional.nome} — CPF {profissional.cpf || 'registrado na fazumfreela'} — PIX{' '}
+        {profissional.pix || 'registrado na fazumfreela'}
       </p>
       <p>
         <strong>Serviço:</strong> {cargoLabel(demanda.cargo)} · Início{' '}

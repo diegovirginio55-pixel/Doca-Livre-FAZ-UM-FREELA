@@ -186,6 +186,8 @@ export type Profissional = {
   cpf: string
   rg: string
   nascimento: string
+  /** Idade calculada no servidor: a empresa recebe a idade, não a data de nascimento. */
+  idade?: number
   telefone: string
   foto?: string
   /** Aparece para a empresa tomadora. Sem telefone, e-mail, CPF ou endereço. */

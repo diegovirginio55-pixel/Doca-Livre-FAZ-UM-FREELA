@@ -88,7 +88,12 @@ function profissionalDaLinha(row: Record<string, unknown>): Profissional {
     undefined
   return {
     ...(payload as Profissional),
-    // Linha incompleta no banco não pode derrubar as telas que leem esses campos.
+    // Linha incompleta (ou da vitrine, sem dados pessoais) não pode derrubar as telas.
+    cpf: payload.cpf ?? '',
+    rg: payload.rg ?? '',
+    telefone: payload.telefone ?? '',
+    nascimento: payload.nascimento ?? '',
+    pix: payload.pix ?? '',
     profissoes: Array.isArray(payload.profissoes) ? payload.profissoes : [],
     experiencia: Array.isArray(payload.experiencia) ? payload.experiencia : [],
     certificados: Array.isArray(payload.certificados) ? payload.certificados : [],
@@ -158,14 +163,26 @@ export async function pullCloudBundle(): Promise<ResultadoPull> {
   if (!tokenAtual()) return null
   const sb = await getSupabase()
   if (!sb) return null
-  const [contas, profissionais, empresas, documentos, registros] = await Promise.all([
+  const [contas, profissionais, empresas, documentos, registros, vitProf, vitEmp, vitDocs] = await Promise.all([
     sb.from('mao_contas').select('*'),
     sb.from('mao_profissionais').select('*'),
     sb.from('mao_empresas').select('*'),
     sb.from('mao_documentos').select('*'),
     sb.from('mao_registros').select('colecao, id, empresa_id, profissional_id, publico, payload'),
+    // O que a conta pode ver dos outros (sem CPF, RG, telefone, endereço, PIX, arquivos).
+    sb.from('mao_profissionais_vitrine').select('*'),
+    sb.from('mao_empresas_vitrine').select('*'),
+    sb.from('mao_documentos_vitrine').select('*'),
   ])
-  const erro = contas.error || profissionais.error || empresas.error || documentos.error || registros.error
+  const erro =
+    contas.error ||
+    profissionais.error ||
+    empresas.error ||
+    documentos.error ||
+    registros.error ||
+    vitProf.error ||
+    vitEmp.error ||
+    vitDocs.error
   if (erro) {
     if (erro.code === 'PGRST301' || /jwt/i.test(erro.message || '')) return 'sessao_expirada'
     console.warn('[supabaseSync] falha ao puxar dados', erro.message)
@@ -173,11 +190,26 @@ export async function pullCloudBundle(): Promise<ResultadoPull> {
   }
   return {
     users: (contas.data || []).map((row) => contaParaUser(row as Record<string, unknown>)),
-    profissionais: (profissionais.data || []).map((row) => profissionalDaLinha(row as Record<string, unknown>)),
-    empresas: (empresas.data || []).map((row) => empresaDaLinha(row as Record<string, unknown>)),
-    documentos: (documentos.data || []).map((row) => documentoDaLinha(row as Record<string, unknown>)),
+    profissionais: juntarPorId(
+      (profissionais.data || []).map((row) => profissionalDaLinha(row as Record<string, unknown>)),
+      (vitProf.data || []).map((row) => profissionalDaLinha(row as Record<string, unknown>)),
+    ),
+    empresas: juntarPorId(
+      (empresas.data || []).map((row) => empresaDaLinha(row as Record<string, unknown>)),
+      (vitEmp.data || []).map((row) => empresaDaLinha(row as Record<string, unknown>)),
+    ),
+    documentos: juntarPorId(
+      (documentos.data || []).map((row) => documentoDaLinha(row as Record<string, unknown>)),
+      (vitDocs.data || []).map((row) => documentoDaLinha(row as Record<string, unknown>)),
+    ),
     registros: (registros.data || []) as RegistroNuvem[],
   }
+}
+
+/** Registro completo (dono/admin) tem prioridade sobre a versão da vitrine. */
+function juntarPorId<T extends { id: string }>(completos: T[], vitrine: T[]): T[] {
+  const ids = new Set(completos.map((x) => x.id))
+  return [...completos, ...vitrine.filter((x) => !ids.has(x.id))]
 }
 
 /** E-mail/usuário já cadastrados (a tabela de contas não é mais legível para quem não é dono). */

@@ -16,6 +16,9 @@ export const PLATAFORMA_DOCA = {
 
 export type { ContratoServico }
 
+/** A empresa não recebe CPF, endereço nem dados bancários do trabalhador (política de privacidade). */
+const REGISTRADO = 'registrado na fazumfreela'
+
 export function formatDateTimeBr(isoOrLocal: string) {
   const d = new Date(isoOrLocal.includes('T') ? isoOrLocal : isoOrLocal.replace(' ', 'T'))
   if (Number.isNaN(d.getTime())) return isoOrLocal
@@ -169,9 +172,8 @@ export function renderContratoHtml(params: {
 
   <p>
     E, do outro lado, <strong>${escapeHtml(profissional.nome)}</strong>,
-    inscrito(a) no CPF sob o nº <strong>${escapeHtml(profissional.cpf)}</strong>,
-    residente em ${escapeHtml(endProf.rua)}, nº ${escapeHtml(endProf.numero)},
-    ${escapeHtml(endProf.cidade)}/${escapeHtml(endProf.estado)}, CEP ${escapeHtml(endProf.cep)},
+    inscrito(a) no CPF sob o nº <strong>${escapeHtml(profissional.cpf || REGISTRADO)}</strong>,
+    residente em ${endProf.rua ? `${escapeHtml(endProf.rua)}, nº ${escapeHtml(endProf.numero)}, ` : ''}${escapeHtml(endProf.cidade)}/${escapeHtml(endProf.estado)}${endProf.cep ? `, CEP ${escapeHtml(endProf.cep)}` : ''},
     doravante denominado <strong>"CONTRATADO"</strong>;
   </p>
 
@@ -192,7 +194,7 @@ export function renderContratoHtml(params: {
   <p>
     O valor ofertado pela CONTRATANTE que será pago ao CONTRATADO mediante dedução dos créditos
     da CONTRATANTE na Plataforma Doca Livre, em conta/PIX indicado pelo CONTRATADO
-    (<strong>${escapeHtml(profissional.pix || 'a informar')}</strong>), é de:
+    (<strong>${escapeHtml(profissional.pix || REGISTRADO)}</strong>), é de:
     <strong>${formatMoneyBr(c.valor)}</strong>, podendo sofrer alterações caso haja acordo mútuo
     ou por força dos termos de uso da Doca Livre ou dos termos do serviço abaixo.
   </p>
@@ -276,7 +278,7 @@ export function renderContratoHtml(params: {
     <div class="assinatura">
       <strong>${escapeHtml(profissional.nome)}</strong><br />
       CONTRATADO<br />
-      CPF ${escapeHtml(profissional.cpf)}
+      CPF ${escapeHtml(profissional.cpf || REGISTRADO)}
     </div>
   </div>
 

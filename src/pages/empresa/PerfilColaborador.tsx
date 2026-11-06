@@ -28,7 +28,8 @@ export function PerfilColaborador({
   distancia?: number
   onFechar: () => void
 }) {
-  const idade = idadeDe(pessoa.nascimento)
+  // A empresa recebe só a idade (vem pronta do servidor); a data de nascimento fica com a fazumfreela.
+  const idade = pessoa.idade ?? idadeDe(pessoa.nascimento)
   const nota = pessoa.avaliacaoMedia.toLocaleString('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 1 })
   const turnos = TURNOS.filter((item) => pessoa.disponibilidade[item.key])
   const cargo = pessoa.profissoes[0] ? cargoLabel(pessoa.profissoes[0]) : 'Trabalhador'

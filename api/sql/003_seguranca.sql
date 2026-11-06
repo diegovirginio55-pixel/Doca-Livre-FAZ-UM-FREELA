@@ -280,3 +280,81 @@ end $$;
 drop trigger if exists fz_carimba_registro on mao_registros;
 create trigger fz_carimba_registro before insert or update on mao_registros
   for each row execute function fz_carimba_registro();
+
+-- ---------- O que cada lado vê do outro (LGPD) ----------
+-- A política de privacidade aceita no cadastro diz: "A empresa tomadora recebe do trabalhador
+-- o necessário para a missão: nome, idade, cidade, cargos, experiência, certificações, categoria
+-- da CNH, disponibilidade e avaliação. CPF, RG, telefone, endereço e dados bancários ficam com a
+-- fazumfreela." Antes a empresa lia o perfil inteiro (CPF, RG, telefone, endereço, PIX).
+-- Agora as tabelas completas só abrem para o dono e o admin; o resto passa pelas vitrines.
+
+create or replace function fz_tem_empresa() returns boolean
+language sql stable security definer set search_path = public as $$
+  select exists (
+    select 1 from mao_empresas e join mao_contas c on c.id = e.user_id
+    where e.user_id = fz_uid() and c.ativo
+  )
+$$;
+
+create or replace function fz_idade(nasc text) returns int
+language plpgsql stable as $$
+begin
+  if nasc is null or nasc !~ '^\d{4}-\d{2}-\d{2}' then return null; end if;
+  return date_part('year', age(current_date, substring(nasc from 1 for 10)::date))::int;
+exception when others then
+  return null;
+end $$;
+
+-- Coordenada com 2 casas (~1 km): dá para medir distância sem revelar onde a pessoa mora.
+create or replace function fz_coord(v jsonb) returns numeric
+language sql immutable as $$
+  select case when jsonb_typeof(v) = 'number' then round((v #>> '{}')::numeric, 2) end
+$$;
+
+drop policy if exists fz_prof_ver on mao_profissionais;
+create policy fz_prof_ver on mao_profissionais for select to web
+  using (fz_admin() or user_id = fz_uid());
+drop policy if exists fz_emp_ver on mao_empresas;
+create policy fz_emp_ver on mao_empresas for select to web
+  using (fz_admin() or user_id = fz_uid());
+
+-- Profissionais aprovados, para quem tem empresa: sem CPF, RG, telefone, nascimento (vai a
+-- idade), endereço (vão cidade/UF e coordenada aproximada), PIX, banco, saldo, foto.
+create or replace view mao_profissionais_vitrine with (security_barrier = true) as
+  select p.id, p.user_id, p.status,
+    (p.payload - 'cpf' - 'rg' - 'telefone' - 'nascimento' - 'pix' - 'banco' - 'saldo' - 'ganhosMes'
+      - 'consentimentoPrivacidade' - 'foto' - 'endereco' - 'motivoRecusa')
+      || jsonb_build_object(
+        'idade', fz_idade(p.payload ->> 'nascimento'),
+        'endereco', jsonb_build_object(
+          'cep', '', 'rua', '', 'numero', '',
+          'cidade', coalesce(p.payload -> 'endereco' ->> 'cidade', ''),
+          'estado', coalesce(p.payload -> 'endereco' ->> 'estado', ''),
+          'lat', fz_coord(p.payload -> 'endereco' -> 'lat'),
+          'lng', fz_coord(p.payload -> 'endereco' -> 'lng')
+        )
+      ) as payload,
+    p.updated_at
+  from mao_profissionais p
+  where p.status = 'aprovado' and fz_tem_empresa();
+
+-- Empresas aprovadas, para qualquer conta logada: sem CPF do responsável e sem dados
+-- financeiros/listas internas (favoritos e bloqueados).
+create or replace view mao_empresas_vitrine with (security_barrier = true) as
+  select e.id, e.user_id, e.status,
+    (e.payload - 'responsavelCpf' - 'saldo' - 'limitePosPago' - 'economiaTotal' - 'diasTaxaZero'
+      - 'metaTaxaZero' - 'diasAgenciados' - 'rankingDias' - 'favoritos' - 'bloqueados' - 'motivoRecusa'
+      - 'plano') as payload,
+    e.updated_at
+  from mao_empresas e
+  where e.status = 'aprovada' and fz_logado();
+
+-- Situação dos documentos dos profissionais aprovados (a busca da empresa confere CNH, NR35,
+-- ASO...). Só tipo, situação e validade: nada de arquivo, nome do arquivo ou observação.
+create or replace view mao_documentos_vitrine with (security_barrier = true) as
+  select d.id, d.tipo_id, d.dono_tipo, d.dono_id, d.status, d.validade, d.enviado_em
+  from mao_documentos d
+  join mao_profissionais p on d.dono_tipo = 'profissional' and p.id = d.dono_id
+  where p.status = 'aprovado' and fz_tem_empresa();
+
+grant select on mao_profissionais_vitrine, mao_empresas_vitrine, mao_documentos_vitrine to web;

@@ -15,7 +15,8 @@ O site local usa a API real (Azure). Para explorar sem tocar em dados reais, use
 
 ## Como funciona
 
-- **Login e senhas** ficam na API (`api/`): a senha é guardada em hash, o login devolve um token de sessão e o banco só mostra a cada pessoa o que é dela (empresa vê os profissionais aprovados; profissional vê as vagas; admin vê tudo).
+- **Login e senhas** ficam na API (`api/`): a senha é guardada em hash, o login devolve um token de sessão e o banco só mostra a cada pessoa o que é dela. Admin vê tudo.
+- **Privacidade (LGPD)**: a empresa vê dos profissionais aprovados só o que a política de privacidade promete — nome, idade, cidade, cargos, experiência, certificações, CNH, disponibilidade, avaliação e a situação dos documentos (sem o arquivo). CPF, RG, telefone, endereço, PIX e foto ficam com a fazumfreela. O profissional vê das empresas aprovadas os dados da empresa, sem CPF do responsável nem dados financeiros.
 - **Cadastro**: portal Empresa ou Profissional → *Criar conta* → código por e-mail → formulário → aprovação no Admin.
 - **Marketplace**: vagas, candidaturas, contratos, ponto, pagamentos e avaliações vão para o banco e aparecem em qualquer aparelho.
 - **Admin**: aprova/recusa cadastros (com e-mail), abre os documentos, gera senha provisória para quem perdeu o acesso.
