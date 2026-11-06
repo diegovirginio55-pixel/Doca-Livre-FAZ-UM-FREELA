@@ -11,6 +11,7 @@ import {
   portalSenhaVerificarCodigo,
   type PortalRole,
 } from '../../lib/portalAuth'
+import { emDemo } from '../../lib/modo'
 import { useStore } from '../../lib/store'
 import './PortalLoginScreen.css'
 
@@ -29,7 +30,10 @@ type Props = {
   onBack: () => void
 }
 
-type Mode = 'login' | 'cadastro' | 'senha'
+type Mode = 'login' | 'cadastro' | 'senha' | 'trocar'
+
+const REGRA_SENHA_FORTE = 'Pelo menos 10 caracteres, com letra maiúscula, minúscula e número.'
+const REGRA_SENHA = 'Pelo menos 8 caracteres, com letras e números.'
 type Step = 'form' | 'codigo' | 'dados'
 
 type PasswordFieldProps = Omit<InputHTMLAttributes<HTMLInputElement>, 'type'> & {
@@ -97,6 +101,9 @@ export function PortalLoginScreen({ portal, avisoInicial, onSuccess, onBack }: P
   const [identificador, setIdentificador] = useState('')
   const [codigo, setCodigo] = useState('')
   const [verifyToken, setVerifyToken] = useState('')
+  /** Senha provisória digitada no login, usada para confirmar a troca obrigatória. */
+  const [senhaProvisoria, setSenhaProvisoria] = useState('')
+  const [trocaForte, setTrocaForte] = useState(true)
 
   const [erro, setErro] = useState<string | null>(null)
   const [info, setInfo] = useState<string | null>(null)
@@ -130,22 +137,60 @@ export function PortalLoginScreen({ portal, avisoInicial, onSuccess, onBack }: P
     setLoading(true)
     try {
       const result = await store.loginPortal(usuario.trim(), senha, portal)
-      if (!result.ok) {
-        if (result.aviso) setAviso(result.error || 'Seu cadastro ainda aguarda aprovação.')
-        else {
-          setAviso(null)
-          setErro(result.error || 'Falha no login.')
-        }
+      if (result.ok && result.trocarSenha) {
+        // Senha provisória (conta criada pelo sistema ou redefinida pelo admin): troca antes de entrar.
+        setAviso(null)
+        setSenhaProvisoria(senha)
+        setTrocaForte(result.role === 'admin' || result.role === 'super')
+        setSenha('')
+        setConfirmarSenha('')
+        setMode('trocar')
+        setInfo('Por segurança, defina uma senha nova antes de continuar.')
         return
       }
-      setAviso(null)
-      onSuccess({
-        usuario: result.usuario || usuario.trim(),
-        role: result.role || portal,
-        isSuperuser: result.isSuperuser,
-        precisaConfig: result.precisaConfig,
-        precisaPerfil: result.precisaPerfil,
-      })
+      concluirLogin(result)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  function concluirLogin(result: Awaited<ReturnType<typeof store.loginPortal>>) {
+    if (!result.ok) {
+      if (result.aviso) {
+        setMode('login')
+        setAviso(result.error || 'Seu cadastro ainda aguarda aprovação.')
+      } else {
+        setAviso(null)
+        setErro(result.error || 'Falha no login.')
+      }
+      return
+    }
+    setAviso(null)
+    onSuccess({
+      usuario: result.usuario || usuario.trim(),
+      role: result.role || portal,
+      isSuperuser: result.isSuperuser,
+      precisaConfig: result.precisaConfig,
+      precisaPerfil: result.precisaPerfil,
+    })
+  }
+
+  async function handleTrocarSenha(e: FormEvent) {
+    e.preventDefault()
+    resetMessages()
+    if (senha !== confirmarSenha) {
+      setErro('As senhas não coincidem.')
+      return
+    }
+    setLoading(true)
+    try {
+      const result = await store.concluirTrocaSenha(senhaProvisoria, senha, portal)
+      if (!result.ok && !result.aviso) {
+        setErro(result.error || 'Não foi possível trocar a senha.')
+        return
+      }
+      setSenhaProvisoria('')
+      concluirLogin(result)
     } finally {
       setLoading(false)
     }
@@ -165,6 +210,7 @@ export function PortalLoginScreen({ portal, avisoInicial, onSuccess, onBack }: P
     }
     setLoading(true)
     try {
+      // O servidor recusa o envio se o e-mail já tiver conta (em qualquer aparelho).
       const result = await portalCadastroEnviarCodigo(email.trim(), portal)
       if (!result.ok) {
         setErro(result.erro)
@@ -218,6 +264,7 @@ export function PortalLoginScreen({ portal, avisoInicial, onSuccess, onBack }: P
         usuario: usuario.trim(),
         senha,
         role: peeked.portalRole,
+        verifyToken,
       })
       if (!reg.ok) {
         setErro(reg.error || 'Não foi possível cadastrar.')
@@ -289,7 +336,7 @@ export function PortalLoginScreen({ portal, avisoInicial, onSuccess, onBack }: P
     }
     setLoading(true)
     try {
-      const res = await store.portalResetSenha(em, senha)
+      const res = await store.portalResetSenha(em, senha, verifyToken)
       if (!res.ok) {
         setErro(res.error || 'Não foi possível alterar a senha.')
         return
@@ -308,7 +355,9 @@ export function PortalLoginScreen({ portal, avisoInicial, onSuccess, onBack }: P
       <div className="portal-login__card">
         <div className="portal-login__header">
           <img src={LOGO_DOCA_LIVRE_SRC} alt="Doca Livre" className="portal-login__logo" />
-          <h1 className="portal-login__title">{mode === 'cadastro' ? 'Cadastro' : PORTAL_TITLE[portal]}</h1>
+          <h1 className="portal-login__title">
+            {mode === 'cadastro' ? 'Cadastro' : mode === 'trocar' ? 'Defina sua senha' : PORTAL_TITLE[portal]}
+          </h1>
           <p className="portal-login__tagline">{PORTAL_TAG[portal]}</p>
         </div>
 
@@ -419,8 +468,9 @@ export function PortalLoginScreen({ portal, avisoInicial, onSuccess, onBack }: P
               onChange={(e) => setSenha(e.target.value)}
               autoComplete="new-password"
               required
-              minLength={6}
+              minLength={8}
             />
+            <p className="portal-login__hint">{REGRA_SENHA}</p>
             <label className="portal-login__label" htmlFor="pl-new-pass2">
               Confirmar senha
             </label>
@@ -430,7 +480,7 @@ export function PortalLoginScreen({ portal, avisoInicial, onSuccess, onBack }: P
               onChange={(e) => setConfirmarSenha(e.target.value)}
               autoComplete="new-password"
               required
-              minLength={6}
+              minLength={8}
             />
             {erro && <p className="portal-login__erro">{erro}</p>}
             <button type="submit" className="portal-login__submit" disabled={loading}>
@@ -494,9 +544,11 @@ export function PortalLoginScreen({ portal, avisoInicial, onSuccess, onBack }: P
               id="pl-np"
               value={senha}
               onChange={(e) => setSenha(e.target.value)}
+              autoComplete="new-password"
               required
-              minLength={6}
+              minLength={8}
             />
+            <p className="portal-login__hint">{REGRA_SENHA} Contas de gestão: {REGRA_SENHA_FORTE.toLowerCase()}</p>
             <label className="portal-login__label" htmlFor="pl-np2">
               Confirmar nova senha
             </label>
@@ -504,12 +556,46 @@ export function PortalLoginScreen({ portal, avisoInicial, onSuccess, onBack }: P
               id="pl-np2"
               value={confirmarSenha}
               onChange={(e) => setConfirmarSenha(e.target.value)}
+              autoComplete="new-password"
               required
-              minLength={6}
+              minLength={8}
             />
             {erro && <p className="portal-login__erro">{erro}</p>}
             <button type="submit" className="portal-login__submit" disabled={loading}>
               {loading ? 'Salvando…' : 'Redefinir senha'}
+            </button>
+          </form>
+        )}
+
+        {mode === 'trocar' && (
+          <form className="portal-login__form" onSubmit={handleTrocarSenha}>
+            {info && <p className="portal-login__info">{info}</p>}
+            <label className="portal-login__label" htmlFor="pl-troca">
+              Nova senha
+            </label>
+            <PasswordField
+              id="pl-troca"
+              value={senha}
+              onChange={(e) => setSenha(e.target.value)}
+              autoComplete="new-password"
+              required
+              minLength={trocaForte ? 10 : 8}
+            />
+            <p className="portal-login__hint">{trocaForte ? REGRA_SENHA_FORTE : REGRA_SENHA}</p>
+            <label className="portal-login__label" htmlFor="pl-troca2">
+              Confirmar nova senha
+            </label>
+            <PasswordField
+              id="pl-troca2"
+              value={confirmarSenha}
+              onChange={(e) => setConfirmarSenha(e.target.value)}
+              autoComplete="new-password"
+              required
+              minLength={trocaForte ? 10 : 8}
+            />
+            {erro && <p className="portal-login__erro">{erro}</p>}
+            <button type="submit" className="portal-login__submit" disabled={loading}>
+              {loading ? 'Salvando…' : 'Salvar senha e entrar'}
             </button>
           </form>
         )}
@@ -520,7 +606,8 @@ export function PortalLoginScreen({ portal, avisoInicial, onSuccess, onBack }: P
               Voltar ao login
             </button>
           )}
-          {mode === 'login' && portal !== 'admin' && portal !== 'empresa' && (
+          {/* Antes o portal Empresa não tinha este botão: nenhuma empresa conseguia se cadastrar. */}
+          {mode === 'login' && portal !== 'admin' && (
             <button type="button" className="portal-login__link" onClick={() => goMode('cadastro')}>
               Criar conta
             </button>
@@ -535,9 +622,10 @@ export function PortalLoginScreen({ portal, avisoInicial, onSuccess, onBack }: P
           </button>
         </div>
 
-        {mode === 'login' && (
+        {/* A senha de demonstração só aparece no modo demo (antes aparecia no site real). */}
+        {mode === 'login' && emDemo() && (
           <p className="portal-login__hint" style={{ marginTop: 16, textAlign: 'center' }}>
-            Superusuários: <strong>Diego</strong> / <strong>Elder</strong> — senha{' '}
+            Demonstração — superusuários: <strong>Diego</strong> / <strong>Elder</strong>, senha{' '}
             <code>demo123</code>
           </p>
         )}

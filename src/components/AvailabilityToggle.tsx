@@ -8,6 +8,9 @@ const OPTIONS: { key: keyof Disponibilidade; label: string }[] = [
   { key: 'noturno', label: 'Noturno' },
   { key: 'viagens', label: 'Viagens' },
   { key: 'temporario', label: 'Trabalho temporário' },
+  // Faltava aqui: o cadastro começa com freelancer ligado e, sem o botão, não dava para desligar —
+  // a pessoa seguia recebendo convites mesmo desmarcando tudo.
+  { key: 'freelancer', label: 'Freelancer (missões avulsas)' },
   { key: 'efetivo', label: 'Efetivo' },
 ]
 

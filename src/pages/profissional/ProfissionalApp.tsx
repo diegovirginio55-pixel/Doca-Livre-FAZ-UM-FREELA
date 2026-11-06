@@ -10,6 +10,7 @@ import { distanciaKm } from '../../lib/matching'
 import { formatarDistancia, rotuloPeriodo } from '../../lib/periodoMissao'
 import { checklistProfissional, resumoDocumental } from '../../lib/documentos'
 import { pendenciasParaIniciar } from '../../lib/dossieTemporario'
+import { diasComPresenca, diasEntre, hojeLocal, horasRegistradas, missaoNoDia, pontoDeHoje, pontosDe } from '../../lib/ponto'
 import { BRAND_PRODUCT_NAME, LOGO_DOCA_LIVRE_SRC } from '../../lib/brandAssets'
 import { validarChavePix } from '../../lib/pix'
 import { useStore } from '../../lib/store'
@@ -274,7 +275,12 @@ function HomeTab({ onIr }: { onIr: (aba: TabId) => void }) {
         const emp = dem ? state.empresas.find((e) => e.id === dem.empresaId) : null
         return { c, dem, emp }
       })
-      .filter((item) => item.dem && (item.c.status === 'confirmada' || item.dem.status === 'aberta'))
+      .filter(
+        (item) =>
+          item.dem &&
+          ((item.c.status === 'confirmada' && item.dem.status !== 'cancelada' && item.dem.status !== 'finalizada') ||
+            item.dem.status === 'aberta'),
+      )
       .sort((a, b) => Number(a.c.status !== 'pendente') - Number(b.c.status !== 'pendente'))
       .slice(0, 3)
   }, [prof.id, state.candidaturas, state.demandas, state.empresas])
@@ -659,41 +665,114 @@ function semAcento(value: string) {
   return value.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase()
 }
 
+const CRITERIOS_EMPRESA = [
+  ['pontualidade', 'Pagamento e horários combinados'],
+  ['qualidade', 'Condições de trabalho'],
+  ['educacao', 'Respeito e tratamento'],
+  ['produtividade', 'Organização da operação'],
+] as const
+
+/** Avaliação da empresa com notas de verdade (antes gravava 5/5 fixo, sem formulário). */
+function AvaliarEmpresa({
+  demandaId,
+  deUserId,
+  paraUserId,
+  onFechar,
+}: {
+  demandaId: string
+  deUserId: string
+  paraUserId: string
+  onFechar: () => void
+}) {
+  const { addAvaliacao } = useStore()
+  const [notas, setNotas] = useState({ pontualidade: 5, qualidade: 5, educacao: 5, produtividade: 5 })
+  const [obs, setObs] = useState('')
+  return (
+    <div className="td-avaliar">
+      {CRITERIOS_EMPRESA.map(([campo, rotulo]) => (
+        <label key={campo} className="field">
+          <span>{rotulo}</span>
+          <select
+            value={notas[campo]}
+            onChange={(e) => setNotas((n) => ({ ...n, [campo]: Number(e.target.value) }))}
+          >
+            {[5, 4, 3, 2, 1].map((n) => (
+              <option key={n} value={n}>
+                {'★'.repeat(n)} ({n})
+              </option>
+            ))}
+          </select>
+        </label>
+      ))}
+      <label className="field">
+        <span>Comentário (opcional)</span>
+        <input value={obs} maxLength={300} onChange={(e) => setObs(e.target.value)} />
+      </label>
+      <div className="row-actions">
+        <button
+          type="button"
+          className="btn btn-accent"
+          onClick={() => {
+            addAvaliacao({
+              demandaId,
+              deUserId,
+              paraUserId,
+              deRole: 'profissional',
+              notas,
+              observacoes: obs.trim() || 'Missão encerrada',
+            })
+            onFechar()
+          }}
+        >
+          Enviar avaliação
+        </button>
+        <button type="button" className="btn btn-ghost" onClick={onFechar}>
+          Cancelar
+        </button>
+      </div>
+    </div>
+  )
+}
+
 function AgendaTab() {
-  const { currentProfissional, state, doCheckIn, doCheckOut, addAvaliacao, currentUser, registrarEncerramento } = useStore()
+  const { currentProfissional, state, doCheckIn, doCheckOut, currentUser } = useStore()
   const prof = currentProfissional!
   const [pecaAberta, setPecaAberta] = useState<string | null>(null)
+  const [avaliando, setAvaliando] = useState<string | null>(null)
 
   const jobs = state.candidaturas
     .filter((c) => c.profissionalId === prof.id && c.status === 'confirmada')
     .map((c) => {
-      const dem = state.demandas.find((d) => d.id === c.demandaId)!
-      const emp = state.empresas.find((e) => e.id === dem.empresaId)
-      const check = state.checkIns.find(
-        (ch) => ch.demandaId === c.demandaId && ch.profissionalId === prof.id,
-      )
-      return { c, dem, emp, check }
+      const dem = state.demandas.find((d) => d.id === c.demandaId)
+      const emp = dem ? state.empresas.find((e) => e.id === dem.empresaId) : undefined
+      return { c, dem, emp }
     })
-    .filter((job) => job.dem)
+    .filter((job): job is typeof job & { dem: NonNullable<typeof job.dem> } => Boolean(job.dem))
 
   return (
     <div className="panel panel--mobile">
       <h2>Vagas aceitas</h2>
       <ul className="list">
-        {jobs.map(({ c, dem, emp, check }) => {
+        {jobs.map(({ c, dem, emp }) => {
           const encerrada = dem.status === 'finalizada'
-          const dias = dem.dataFim
-            ? Math.round(
-                (new Date(`${dem.dataFim}T12:00:00`).getTime() - new Date(`${dem.data}T12:00:00`).getTime()) /
-                  86400000,
-              ) + 1
-            : 1
+          const cancelada = dem.status === 'cancelada'
+          const ativa = !encerrada && !cancelada
+          const pontos = pontosDe(state.checkIns, dem.id, prof.id)
+          const hoje = pontoDeHoje(state.checkIns, dem.id, prof.id)
+          const aberto = pontos.find((p) => p.checkInAt && !p.checkOutAt)
+          const diasPresenca = diasComPresenca(state.checkIns, dem.id, prof.id)
+          const horas = horasRegistradas(state.checkIns, dem.id, prof.id)
+          const noPeriodo = missaoNoDia(dem)
+          const dias = diasEntre(dem.data, dem.dataFim || dem.data)
           const faltas = pendenciasParaIniciar({
             pecas: state.pecas ?? [],
             documentos: state.documentos,
             demandaId: dem.id,
             profissionalId: prof.id,
           })
+          const jaAvaliou = state.avaliacoes.some(
+            (a) => a.demandaId === dem.id && a.deUserId === currentUser?.id && a.deRole === 'profissional',
+          )
           const documentos = (state.pecas ?? [])
             .filter(
               (p) =>
@@ -707,16 +786,24 @@ function AgendaTab() {
               <strong>Missão {dem.id.replace('dem_', '#')}</strong>
               <p>{cargoLabel(dem.cargo)}</p>
               <p className="muted">
-                {emp?.nomeFantasia} · {rotuloPeriodo(dem.data, dem.dataFim)}
+                {emp?.nomeFantasia ?? 'Empresa tomadora'} · {rotuloPeriodo(dem.data, dem.dataFim)}
               </p>
-              <p>{encerrada ? 'Encerrada' : faltas.length ? 'Aguardando admissão' : 'Em andamento'}</p>
-              {faltas.length > 0 && !encerrada && (
+              <p>
+                {cancelada
+                  ? 'Cancelada pela empresa'
+                  : encerrada
+                    ? 'Encerrada'
+                    : faltas.length
+                      ? 'Aguardando admissão'
+                      : 'Em andamento'}
+              </p>
+              {faltas.length > 0 && ativa && (
                 <p className="muted">Entrada bloqueada até concluir: {faltas.join('; ')}.</p>
               )}
-              {encerrada && (
+              {(encerrada || diasPresenca > 0) && (
                 <p className="muted">
-                  Dias da missão: {dias}
-                  {check?.horasTrabalhadas ? ` · Horas registradas: ${check.horasTrabalhadas}h` : ''}
+                  Dias da missão: {dias} · Dias com presença: {diasPresenca}
+                  {horas ? ` · Horas registradas: ${horas}h` : ''}
                 </p>
               )}
               {documentos.length > 0 && (
@@ -740,59 +827,44 @@ function AgendaTab() {
                 </ul>
               )}
               <div className="row-actions">
-                {!encerrada && !check?.checkInAt && faltas.length === 0 && (
+                {ativa && !hoje && !aberto && faltas.length === 0 && noPeriodo && (
                   <button type="button" className="btn btn-accent" onClick={() => doCheckIn(dem.id, prof.id)}>
-                    Registrar entrada
+                    Registrar entrada de hoje
                   </button>
                 )}
-                {!encerrada && check?.checkInAt && !check.checkOutAt && (
+                {ativa && !noPeriodo && !hoje && faltas.length === 0 && (
+                  <span className="muted">
+                    {hojeLocal() < dem.data ? 'A entrada abre no primeiro dia da missão.' : 'O período da missão terminou.'}
+                  </span>
+                )}
+                {ativa && aberto && (
                   <button type="button" className="btn btn-primary" onClick={() => doCheckOut(dem.id, prof.id)}>
                     Registrar saída
                   </button>
                 )}
-                {check?.checkInAt && (
+                {hoje?.checkInAt && (
                   <span className="muted">
-                    Entrada {new Date(check.checkInAt).toLocaleTimeString()}
-                    {check.checkOutAt ? ` · Saída ${new Date(check.checkOutAt).toLocaleTimeString()}` : ''}
+                    Hoje: entrada {new Date(hoje.checkInAt).toLocaleTimeString('pt-BR')}
+                    {hoje.checkOutAt ? ` · saída ${new Date(hoje.checkOutAt).toLocaleTimeString('pt-BR')}` : ''}
                   </span>
                 )}
-                {!encerrada && check?.checkOutAt && (
-                  <button
-                    type="button"
-                    className="btn btn-ghost"
-                    onClick={() =>
-                      registrarEncerramento({
-                        demandaId: dem.id,
-                        dataEfetiva: new Date().toISOString().slice(0, 10),
-                        motivo: 'término no prazo',
-                        responsavel: 'ett',
-                        observacoes: 'Encerramento ao fim da jornada registrada.',
-                        profissionalId: prof.id,
-                      })
-                    }
-                  >
-                    Encerrar missão
-                  </button>
-                )}
-                {check?.checkOutAt && (
-                  <button
-                    type="button"
-                    className="btn btn-ghost"
-                    onClick={() =>
-                      addAvaliacao({
-                        demandaId: dem.id,
-                        deUserId: currentUser!.id,
-                        paraUserId: emp!.userId,
-                        deRole: 'profissional',
-                        notas: { pontualidade: 5, qualidade: 5, educacao: 5, produtividade: 5 },
-                        observacoes: 'Missão encerrada',
-                      })
-                    }
-                  >
+                {/* O encerramento (e o pagamento) é da empresa: antes o trabalhador encerrava a
+                    missão de todos e "pagava" o período inteiro com um clique. */}
+                {encerrada && emp && !jaAvaliou && avaliando !== dem.id && (
+                  <button type="button" className="btn btn-ghost" onClick={() => setAvaliando(dem.id)}>
                     Avaliar empresa
                   </button>
                 )}
+                {jaAvaliou && <span className="muted">Empresa avaliada. Obrigado!</span>}
               </div>
+              {avaliando === dem.id && emp && currentUser && (
+                <AvaliarEmpresa
+                  demandaId={dem.id}
+                  deUserId={currentUser.id}
+                  paraUserId={emp.userId}
+                  onFechar={() => setAvaliando(null)}
+                />
+              )}
             </li>
           )
         })}
@@ -838,7 +910,9 @@ function FinanceiroTab() {
       .filter((candidatura) => candidatura.profissionalId === prof.id && candidatura.status === 'confirmada')
       .flatMap((candidatura) => {
         const demanda = state.demandas.find((item) => item.id === candidatura.demandaId)
-        if (!demanda || demanda.status === 'finalizada' || demandasPagas.has(demanda.id)) return []
+        if (!demanda || demanda.status === 'finalizada' || demanda.status === 'cancelada' || demandasPagas.has(demanda.id)) {
+          return []
+        }
         const empresa = state.empresas.find((item) => item.id === demanda.empresaId)
         const dias = diasDaMissao(demanda.data, demanda.dataFim)
         return [

@@ -1,4 +1,5 @@
 import { LOGO_DOCA_LIVRE_SRC, BRAND_SLOGAN } from '../../lib/brandAssets'
+import { emDemo, trocarModo } from '../../lib/modo'
 import './PortalSelectScreen.css'
 
 type Props = {
@@ -35,6 +36,16 @@ export function PortalSelectScreen({ onEmpresa, onProfissional, onAdmin }: Props
         <button type="button" className="portal-select__admin" onClick={onAdmin}>
           Acesso Admin / Superusuário
         </button>
+
+        {emDemo() ? (
+          <button type="button" className="portal-select__demo" onClick={() => trocarModo('real')}>
+            Sair da demonstração e voltar ao sistema real
+          </button>
+        ) : (
+          <button type="button" className="portal-select__demo" onClick={() => trocarModo('demo')}>
+            Ver demonstração (dados fictícios, só neste aparelho)
+          </button>
+        )}
       </div>
     </div>
   )

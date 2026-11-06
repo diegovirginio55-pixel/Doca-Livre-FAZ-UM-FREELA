@@ -1,5 +1,9 @@
-import workerUrl from 'pdfjs-dist/build/pdf.worker.min.mjs?url'
+// Build legacy: a moderna usa Promise.withResolvers, Map.getOrInsertComputed e Math.sumPrecise sem
+// polyfill — em iPhone abaixo do iOS 17.4 e navegadores antigos o PDF não abria.
+import workerUrl from 'pdfjs-dist/legacy/build/pdf.worker.min.mjs?url'
 import { allCargos } from '../data/categories'
+import { chamarApi } from './api'
+import { emDemo } from './modo'
 import { lerArquivoCadastro } from './analisarDocumentoCadastro'
 import {
   ESCOLARIDADES,
@@ -47,7 +51,7 @@ function tipoDe(file: File): Tipo | null {
 type ItemPdf = { str: string; transform: number[]; width: number; height: number; hasEOL?: boolean }
 
 async function textoPdf(buffer: ArrayBuffer) {
-  const { getDocument, GlobalWorkerOptions } = await import('pdfjs-dist')
+  const { getDocument, GlobalWorkerOptions } = await import('pdfjs-dist/legacy/build/pdf.mjs')
   GlobalWorkerOptions.workerSrc = workerUrl
   const pdf = await getDocument({ data: new Uint8Array(buffer) }).promise
   const linhas: string[] = []
@@ -151,21 +155,14 @@ function normalizarIa(cru: unknown): CurriculoLido {
 }
 
 async function organizarComIa(corpo: { texto?: string; imagem?: { mime: string; dados: string } }) {
-  try {
-    const resposta = await fetch('/api/cadastro/ler-curriculo', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        ...corpo,
-        cargos: allCargos().map((cargo) => ({ id: cargo.id, label: cargo.label })),
-      }),
-    })
-    const data = (await resposta.json()) as { ok?: boolean; curriculo?: unknown }
-    if (!resposta.ok || !data.ok || !data.curriculo) return null
-    return normalizarIa(data.curriculo)
-  } catch {
-    return null
-  }
+  // Na demonstração fica só a leitura local. No real, só com login (a IA tem cota).
+  if (emDemo()) return null
+  const r = await chamarApi<{ curriculo?: unknown }>('/api/cadastro/ler-curriculo', {
+    ...corpo,
+    cargos: allCargos().map((cargo) => ({ id: cargo.id, label: cargo.label })),
+  })
+  if (!r.ok || !r.curriculo) return null
+  return normalizarIa(r.curriculo)
 }
 
 function juntar(ia: CurriculoLido, local: CurriculoLido): CurriculoLido {

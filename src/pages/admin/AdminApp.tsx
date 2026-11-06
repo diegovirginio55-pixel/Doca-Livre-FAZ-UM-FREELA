@@ -4,7 +4,34 @@ import { BibliotecaDocumental } from '../../components/BibliotecaDocumental'
 import { LevelBadge } from '../../components/LevelBadge'
 import { cargoLabel } from '../../data/categories'
 import { LOGO_DOCA_LIVRE_SRC } from '../../lib/brandAssets'
+import { emDemo } from '../../lib/modo'
 import { useStore } from '../../lib/store'
+
+/**
+ * Gera uma senha provisória (a pessoa troca no primeiro login). O sistema não guarda senhas,
+ * então é assim que o admin devolve o acesso a quem esqueceu e não recebe o e-mail.
+ */
+function BotaoSenhaProvisoria({ userId, rotulo }: { userId: string; rotulo: string }) {
+  const { adminRedefinirSenha } = useStore()
+  if (emDemo()) return null
+  async function gerar() {
+    if (!window.confirm(`Gerar uma senha provisória para ${rotulo}? A senha atual deixa de valer.`)) return
+    const r = await adminRedefinirSenha(userId)
+    if (!r.ok) {
+      window.alert(r.error)
+      return
+    }
+    window.prompt(
+      `Senha provisória de ${rotulo} (copie e passe para a pessoa; no primeiro login ela define a própria senha):`,
+      r.senha,
+    )
+  }
+  return (
+    <button type="button" className="px-btn px-btn-ghost" onClick={() => void gerar()}>
+      Senha provisória
+    </button>
+  )
+}
 import { AdminDashboard } from './AdminDashboard'
 import { CadastroEmpresaDetalhe, CadastroProfissionalDetalhe } from './CadastroDetalheModal'
 import '../empresa/empresa-px.css'
@@ -28,13 +55,16 @@ export function AdminApp({
   onOpenConfig?: () => void
 }) {
   const store = useStore()
+  const { refreshFromCloud } = store
   const [section, setSection] = useState('dashboard')
 
+  // Dependia de `store`, que é um objeto novo a cada render: cada atualização disparava outra
+  // busca do banco inteiro, em loop, enquanto o admin ficava aberto.
   useEffect(() => {
-    void store.refreshFromCloud()
-    const id = window.setInterval(() => void store.refreshFromCloud(), 20_000)
+    void refreshFromCloud()
+    const id = window.setInterval(() => void refreshFromCloud(), 20_000)
     return () => window.clearInterval(id)
-  }, [store])
+  }, [refreshFromCloud])
 
   async function irParaEmpresaDemo() {
     const res = await store.login('empresa@logexpress.com', 'demo123')
@@ -61,15 +91,17 @@ export function AdminApp({
 
   return (
     <div className="px-shell px-shell--admin">
-      <div className="px-banner-switch">
-        <span>
-          Este é o <strong>Admin</strong>. O painel estilo PX (Contratos, Prestadores, Campanhas) fica no login de
-          Empresa.
-        </span>
-        <button type="button" className="px-btn px-btn-primary" onClick={irParaEmpresaDemo}>
-          Abrir Painel Empresa agora
-        </button>
-      </div>
+      {emDemo() && (
+        <div className="px-banner-switch">
+          <span>
+            Este é o <strong>Admin</strong>. O painel estilo PX (Contratos, Prestadores, Campanhas) fica no login de
+            Empresa.
+          </span>
+          <button type="button" className="px-btn px-btn-primary" onClick={irParaEmpresaDemo}>
+            Abrir Painel Empresa agora
+          </button>
+        </div>
+      )}
       <header className="px-topbar">
         <div className="px-topbar-left">
           <img src={LOGO_DOCA_LIVRE_SRC} alt="Doca Livre" className="px-topbar-logo" />
@@ -278,11 +310,16 @@ function EmpresasAdmin() {
                   <button
                     type="button"
                     className="px-btn px-btn-ghost"
-                    onClick={() => void setEmpresaStatus(e.id, 'bloqueada')}
+                    onClick={() =>
+                      void setEmpresaStatus(e.id, 'bloqueada').then((res) => {
+                        if (!res.ok) window.alert(res.error || 'Não foi possível bloquear.')
+                      })
+                    }
                   >
                     Bloquear
                   </button>
                 )}
+                <BotaoSenhaProvisoria userId={e.userId} rotulo={e.nomeFantasia} />
                 {podeExcluir && (
                   <button type="button" className="px-btn px-btn-ghost" onClick={() => void excluirEmpresa(e)}>
                     Excluir
@@ -300,10 +337,12 @@ function EmpresasAdmin() {
           documentos={docsDetalhe}
           onClose={() => setDetalheId(null)}
           onAprovar={async () => {
-            await setEmpresaStatus(detalhe.id, 'aprovada')
+            const res = await setEmpresaStatus(detalhe.id, 'aprovada')
+            if (!res.ok) throw new Error(res.error || 'Não foi possível aprovar.')
           }}
           onRecusar={async (motivo) => {
-            await setEmpresaStatus(detalhe.id, 'recusada', { motivoRecusa: motivo })
+            const res = await setEmpresaStatus(detalhe.id, 'recusada', { motivoRecusa: motivo })
+            if (!res.ok) throw new Error(res.error || 'Não foi possível recusar.')
           }}
         />
       )}
@@ -377,11 +416,16 @@ function ProfissionaisAdmin() {
                   <button
                     type="button"
                     className="px-btn px-btn-ghost"
-                    onClick={() => void setProfissionalStatus(p.id, 'bloqueado')}
+                    onClick={() =>
+                      void setProfissionalStatus(p.id, 'bloqueado').then((res) => {
+                        if (!res.ok) window.alert(res.error || 'Não foi possível bloquear.')
+                      })
+                    }
                   >
                     Bloquear
                   </button>
                 )}
+                <BotaoSenhaProvisoria userId={p.userId} rotulo={p.nome} />
                 {podeExcluir && (
                   <button
                     type="button"
@@ -403,10 +447,12 @@ function ProfissionaisAdmin() {
           documentos={docsDetalhe}
           onClose={() => setDetalheId(null)}
           onAprovar={async () => {
-            await setProfissionalStatus(detalhe.id, 'aprovado')
+            const res = await setProfissionalStatus(detalhe.id, 'aprovado')
+            if (!res.ok) throw new Error(res.error || 'Não foi possível aprovar.')
           }}
           onRecusar={async (motivo) => {
-            await setProfissionalStatus(detalhe.id, 'recusado', { motivoRecusa: motivo })
+            const res = await setProfissionalStatus(detalhe.id, 'recusado', { motivoRecusa: motivo })
+            if (!res.ok) throw new Error(res.error || 'Não foi possível recusar.')
           }}
         />
       )}

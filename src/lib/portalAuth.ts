@@ -1,210 +1,122 @@
+/**
+ * Código de confirmação por e-mail (cadastro e "esqueci a senha").
+ *
+ * Modo real: tudo no servidor (o código fica no banco, só em hash, com limite de tentativas).
+ * Antes havia a ação "enviar_legado", em que o próprio navegador escolhia o código — dava para
+ * confirmar qualquer e-mail e trocar a senha de qualquer conta.
+ * Modo demo: o código é gerado aqui e mostrado na tela; nada sai do navegador.
+ */
+import { chamarApi } from './api'
+import { emDemo } from './modo'
 import { isLocalSuperUser } from './portalPermissoes'
-import { isSupabaseConfigured, loadSupabaseConfig } from './supabaseConfig'
 
-const OTP_META_KEY = 'mao-portal-otp-meta-v2'
-const OTP_LOCAL_KEY = 'mao-portal-otp-v1'
+const OTP_META_KEY = 'mao-portal-otp-meta-v3'
+const OTP_DEMO_KEY = 'mao-portal-otp-demo-v1'
 const TOKEN_TTL_MS = 15 * 60 * 1000
 const CODE_TTL_MS = 10 * 60 * 1000
 const COOLDOWN_MS = 60 * 1000
 
+export type PortalRole = 'empresa' | 'profissional'
+
+/** O que este navegador lembra entre os passos (e-mail e papel ligados ao token confirmado). */
 type OtpMeta = {
   finalidade: 'cadastro' | 'senha'
   email: string
   criadoEm: number
   verifyToken?: string
   tokenExpira?: number
-  portalRole?: 'empresa' | 'profissional'
+  portalRole?: PortalRole
+  /** Só no demo. */
+  codigo?: string
+  expiraEm?: number
 }
 
-type OtpMetaStore = { records: OtpMeta[] }
+type OtpStore = { records: OtpMeta[] }
 
-type OtpLocalRecord = {
-  finalidade: 'cadastro' | 'senha'
-  email: string
-  codigo: string
-  expiraEm: number
-  criadoEm: number
-  usado: boolean
-  verifyToken?: string
-  tokenExpira?: number
-  portalRole?: 'empresa' | 'profissional'
+function chave() {
+  return emDemo() ? OTP_DEMO_KEY : OTP_META_KEY
 }
 
-type OtpLocalStore = { records: OtpLocalRecord[] }
-
-export type PortalRole = 'empresa' | 'profissional'
-
-function loadMeta(): OtpMetaStore {
+function carregar(): OtpStore {
   try {
-    const raw = localStorage.getItem(OTP_META_KEY)
-    if (!raw) return { records: [] }
-    return JSON.parse(raw) as OtpMetaStore
+    const raw = localStorage.getItem(chave())
+    return raw ? (JSON.parse(raw) as OtpStore) : { records: [] }
   } catch {
     return { records: [] }
   }
 }
 
-function saveMeta(store: OtpMetaStore) {
-  localStorage.setItem(OTP_META_KEY, JSON.stringify(store))
-}
-
-function loadLocal(): OtpLocalStore {
+function gravar(store: OtpStore) {
   try {
-    const raw = localStorage.getItem(OTP_LOCAL_KEY)
-    if (!raw) return { records: [] }
-    return JSON.parse(raw) as OtpLocalStore
+    localStorage.setItem(chave(), JSON.stringify({ records: store.records.slice(-20) }))
   } catch {
-    return { records: [] }
+    /* ignore */
   }
-}
-
-function saveLocal(store: OtpLocalStore) {
-  localStorage.setItem(OTP_LOCAL_KEY, JSON.stringify(store))
-}
-
-function genCode() {
-  return String(Math.floor(100000 + Math.random() * 900000))
-}
-
-function genToken() {
-  return `vt_${Math.random().toString(36).slice(2)}${Date.now().toString(36)}`
 }
 
 function normalizeEmail(email: string) {
   return email.trim().toLowerCase()
 }
 
-function emEsperaMeta(store: OtpMetaStore, finalidade: OtpMeta['finalidade'], email: string) {
+function aleatorio(n: number) {
+  const bytes = new Uint32Array(n)
+  crypto.getRandomValues(bytes)
+  return bytes
+}
+
+function codigoDemo() {
+  return String(100000 + (aleatorio(1)[0] % 900000))
+}
+
+function tokenDemo() {
+  return `vt_${Array.from(aleatorio(4), (n) => n.toString(36)).join('')}`
+}
+
+function emEspera(store: OtpStore, finalidade: OtpMeta['finalidade'], email: string) {
   return store.records.some(
-    (item) =>
-      item.finalidade === finalidade &&
-      item.email === email &&
-      Date.now() - (item.criadoEm || 0) < COOLDOWN_MS,
+    (item) => item.finalidade === finalidade && item.email === email && Date.now() - (item.criadoEm || 0) < COOLDOWN_MS,
   )
 }
 
-function emEsperaLocal(store: OtpLocalStore, finalidade: OtpLocalRecord['finalidade'], email: string) {
-  return store.records.some(
-    (item) =>
-      item.finalidade === finalidade &&
-      item.email === email &&
-      !item.usado &&
-      Date.now() - (item.criadoEm || 0) < COOLDOWN_MS,
-  )
+function lembrar(registro: OtpMeta) {
+  const store = carregar()
+  store.records = store.records.filter((r) => !(r.finalidade === registro.finalidade && r.email === registro.email))
+  store.records.push(registro)
+  gravar(store)
 }
 
-async function chamarFuncao(corpo: Record<string, unknown>): Promise<
-  | { ok: true; data: Record<string, unknown> }
-  | { ok: false; erro: string; status?: number }
-> {
-  const cfg = await loadSupabaseConfig()
-  const tentativas: { url: string; headers: Record<string, string> }[] = []
-  if (cfg.url && cfg.anonKey) {
-    tentativas.push({
-      url: `${cfg.url.replace(/\/$/, '')}/functions/v1/enviar-codigo`,
-      headers: {
-        'Content-Type': 'application/json',
-        apikey: cfg.anonKey,
-        Authorization: `Bearer ${cfg.anonKey}`,
-      },
-    })
+function marcarVerificado(finalidade: OtpMeta['finalidade'], email: string, token: string, portalRole?: PortalRole) {
+  const store = carregar()
+  const rec = store.records.find((r) => r.finalidade === finalidade && r.email === email)
+  if (rec) {
+    rec.verifyToken = token
+    rec.tokenExpira = Date.now() + TOKEN_TTL_MS
+    if (portalRole) rec.portalRole = portalRole
+  } else {
+    store.records.push({ finalidade, email, criadoEm: Date.now(), verifyToken: token, tokenExpira: Date.now() + TOKEN_TTL_MS, portalRole })
   }
-  tentativas.push({
-    url: '/api/portal/enviar-codigo',
-    headers: { 'Content-Type': 'application/json' },
-  })
-
-  let ultimo = 'Não foi possível processar o código. Tente de novo em instantes.'
-  for (const tentativa of tentativas) {
-    try {
-      const resposta = await fetch(tentativa.url, {
-        method: 'POST',
-        headers: tentativa.headers,
-        body: JSON.stringify(corpo),
-      })
-      const texto = await resposta.text()
-      let data: Record<string, unknown> | null = null
-      try {
-        data = JSON.parse(texto) as Record<string, unknown>
-      } catch {
-        data = null
-      }
-      if (!data) continue
-      if (resposta.ok && data.ok) return { ok: true, data }
-      if (typeof data.erro === 'string' && data.erro) {
-        ultimo = data.erro
-        if (resposta.status !== 404) return { ok: false, erro: data.erro, status: resposta.status }
-      }
-    } catch {
-      /* tenta o próximo caminho */
-    }
-  }
-  return { ok: false, erro: ultimo }
+  gravar(store)
 }
 
-async function enviarCodigoPorEmail(email: string, codigo: string, finalidade: 'cadastro' | 'senha') {
-  return chamarFuncao({ acao: 'enviar_legado', email, codigo, finalidade })
-}
+// ---------- Cadastro ----------
 
 export async function portalCadastroEnviarCodigo(
   email: string,
   portalRole: PortalRole,
 ): Promise<{ ok: true; mensagem: string } | { ok: false; erro: string }> {
   const em = normalizeEmail(email)
-  if (!em || !em.includes('@')) return { ok: false, erro: 'Informe um e-mail válido.' }
-
-  const cfg = await loadSupabaseConfig()
-  if (isSupabaseConfigured(cfg)) {
-    const store = loadMeta()
-    if (emEsperaMeta(store, 'cadastro', em)) {
-      return { ok: false, erro: 'Aguarde cerca de 1 minuto para pedir outro código.' }
-    }
-    const enviado = await chamarFuncao({
-      acao: 'enviar',
-      email: em,
-      finalidade: 'cadastro',
-      portalRole,
-    })
-    if (!enviado.ok) return { ok: false, erro: enviado.erro }
-    store.records = store.records.filter(
-      (item) => !(item.finalidade === 'cadastro' && item.email === em),
-    )
-    store.records.push({
-      finalidade: 'cadastro',
-      email: em,
-      criadoEm: Date.now(),
-      portalRole,
-    })
-    saveMeta(store)
-    return { ok: true, mensagem: 'Código enviado. Confira sua caixa de entrada.' }
-  }
-
-  // Fallback local (sem Supabase): código fica neste navegador
-  const store = loadLocal()
-  if (emEsperaLocal(store, 'cadastro', em)) {
+  if (!em || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(em)) return { ok: false, erro: 'Informe um e-mail válido.' }
+  if (emEspera(carregar(), 'cadastro', em)) {
     return { ok: false, erro: 'Aguarde cerca de 1 minuto para pedir outro código.' }
   }
-  const codigo = genCode()
-  const enviado = await enviarCodigoPorEmail(em, codigo, 'cadastro')
-  store.records = store.records.filter(
-    (item) => !(item.finalidade === 'cadastro' && item.email === em && !item.usado),
-  )
-  store.records.push({
-    finalidade: 'cadastro',
-    email: em,
-    codigo,
-    expiraEm: Date.now() + CODE_TTL_MS,
-    criadoEm: Date.now(),
-    usado: false,
-    portalRole,
-  })
-  saveLocal(store)
-  if (!enviado.ok) {
-    return {
-      ok: true,
-      mensagem: `Modo local: use o código ${codigo} (e-mail indisponível neste ambiente).`,
-    }
+  if (emDemo()) {
+    const codigo = codigoDemo()
+    lembrar({ finalidade: 'cadastro', email: em, criadoEm: Date.now(), portalRole, codigo, expiraEm: Date.now() + CODE_TTL_MS })
+    return { ok: true, mensagem: `Modo demonstração: use o código ${codigo}.` }
   }
+  const r = await chamarApi('/api/portal/enviar-codigo', { acao: 'enviar', email: em, finalidade: 'cadastro', portalRole })
+  if (!r.ok) return { ok: false, erro: r.erro }
+  lembrar({ finalidade: 'cadastro', email: em, criadoEm: Date.now(), portalRole })
   return { ok: true, mensagem: 'Código enviado. Confira sua caixa de entrada.' }
 }
 
@@ -213,151 +125,69 @@ export async function portalCadastroVerificarCodigo(
   codigo: string,
 ): Promise<{ ok: true; verify_token: string; mensagem: string } | { ok: false; erro: string }> {
   const em = normalizeEmail(email)
-  const cfg = await loadSupabaseConfig()
-
-  if (isSupabaseConfigured(cfg)) {
-    const verificado = await chamarFuncao({
-      acao: 'verificar',
-      email: em,
-      codigo: codigo.trim(),
-      finalidade: 'cadastro',
-    })
-    if (!verificado.ok) return { ok: false, erro: verificado.erro }
-    const token = String(verificado.data.verify_token || '')
-    if (!token) return { ok: false, erro: 'Código inválido ou expirado.' }
-
-    const store = loadMeta()
-    const rec = store.records.find((r) => r.finalidade === 'cadastro' && r.email === em)
-    if (rec) {
-      rec.verifyToken = token
-      rec.tokenExpira = Date.now() + TOKEN_TTL_MS
-      if (typeof verificado.data.portalRole === 'string') {
-        rec.portalRole = verificado.data.portalRole as PortalRole
-      }
-    } else {
-      store.records.push({
-        finalidade: 'cadastro',
-        email: em,
-        criadoEm: Date.now(),
-        verifyToken: token,
-        tokenExpira: Date.now() + TOKEN_TTL_MS,
-        portalRole: (verificado.data.portalRole as PortalRole) || undefined,
-      })
-    }
-    saveMeta(store)
-    return { ok: true, verify_token: token, mensagem: 'E-mail confirmado. Defina usuário e senha.' }
+  const mensagem = 'E-mail confirmado. Defina usuário e senha.'
+  if (emDemo()) {
+    const rec = carregar().records.find(
+      (r) => r.finalidade === 'cadastro' && r.email === em && r.codigo === codigo.trim() && (r.expiraEm ?? 0) > Date.now(),
+    )
+    if (!rec) return { ok: false, erro: 'Código inválido ou expirado.' }
+    const token = tokenDemo()
+    marcarVerificado('cadastro', em, token)
+    return { ok: true, verify_token: token, mensagem }
   }
-
-  const store = loadLocal()
-  const rec = store.records.find(
-    (r) =>
-      r.finalidade === 'cadastro' &&
-      r.email === em &&
-      !r.usado &&
-      r.codigo === codigo.trim() &&
-      r.expiraEm > Date.now(),
-  )
-  if (!rec) return { ok: false, erro: 'Código inválido ou expirado.' }
-  const token = genToken()
-  rec.verifyToken = token
-  rec.tokenExpira = Date.now() + TOKEN_TTL_MS
-  saveLocal(store)
-  return { ok: true, verify_token: token, mensagem: 'E-mail confirmado. Defina usuário e senha.' }
+  const r = await chamarApi<{ verify_token: string; portalRole?: PortalRole }>('/api/portal/enviar-codigo', {
+    acao: 'verificar',
+    email: em,
+    codigo: codigo.trim(),
+    finalidade: 'cadastro',
+  })
+  if (!r.ok) return { ok: false, erro: r.erro }
+  if (!r.verify_token) return { ok: false, erro: 'Código inválido ou expirado.' }
+  marcarVerificado('cadastro', em, r.verify_token, r.portalRole)
+  return { ok: true, verify_token: r.verify_token, mensagem }
 }
 
-export function portalPeekCadastroToken(verifyToken: string): {
-  email: string
-  portalRole: PortalRole
-} | null {
-  const meta = loadMeta().records.find(
-    (r) =>
-      r.finalidade === 'cadastro' &&
-      r.verifyToken === verifyToken &&
-      (r.tokenExpira ?? 0) > Date.now(),
+export function portalPeekCadastroToken(verifyToken: string): { email: string; portalRole: PortalRole } | null {
+  const rec = carregar().records.find(
+    (r) => r.finalidade === 'cadastro' && r.verifyToken === verifyToken && (r.tokenExpira ?? 0) > Date.now(),
   )
-  if (meta?.portalRole) return { email: meta.email, portalRole: meta.portalRole }
-
-  const local = loadLocal().records.find(
-    (r) =>
-      r.finalidade === 'cadastro' &&
-      r.verifyToken === verifyToken &&
-      (r.tokenExpira ?? 0) > Date.now() &&
-      !r.usado,
-  )
-  if (!local?.portalRole) return null
-  return { email: local.email, portalRole: local.portalRole }
+  return rec?.portalRole ? { email: rec.email, portalRole: rec.portalRole } : null
 }
 
+/** O servidor gasta o token ao criar a conta; aqui só esquecemos o registro local. */
 export async function portalConsumeCadastroToken(verifyToken: string): Promise<boolean> {
-  const cfg = await loadSupabaseConfig()
-  if (isSupabaseConfigured(cfg)) {
-    const consumido = await chamarFuncao({
-      acao: 'consumir',
-      verify_token: verifyToken,
-      finalidade: 'cadastro',
-    })
-    if (!consumido.ok) return false
-    const store = loadMeta()
-    store.records = store.records.filter((r) => r.verifyToken !== verifyToken)
-    saveMeta(store)
-    return true
-  }
-
-  const store = loadLocal()
-  const rec = store.records.find((r) => r.verifyToken === verifyToken)
-  if (!rec || (rec.tokenExpira ?? 0) <= Date.now()) return false
-  rec.usado = true
-  saveLocal(store)
+  const store = carregar()
+  store.records = store.records.filter((r) => r.verifyToken !== verifyToken)
+  gravar(store)
   return true
 }
+
+// ---------- Esqueci a senha ----------
 
 export async function portalSenhaEnviarCodigo(
   identificador: string,
   resolveEmail: (id: string) => string | null | Promise<string | null>,
 ): Promise<{ ok: true; mensagem: string; email: string } | { ok: false; erro: string }> {
-  const email = await resolveEmail(identificador.trim())
-  if (!email) return { ok: false, erro: 'Usuário ou e-mail não encontrado.' }
-  const em = normalizeEmail(email)
-  const cfg = await loadSupabaseConfig()
-
-  if (isSupabaseConfigured(cfg)) {
-    const store = loadMeta()
-    if (emEsperaMeta(store, 'senha', em)) {
-      return { ok: false, erro: 'Aguarde cerca de 1 minuto para pedir outro código.' }
-    }
-    const enviado = await chamarFuncao({ acao: 'enviar', email: em, finalidade: 'senha' })
-    if (!enviado.ok) return { ok: false, erro: enviado.erro }
-    store.records = store.records.filter((item) => !(item.finalidade === 'senha' && item.email === em))
-    store.records.push({ finalidade: 'senha', email: em, criadoEm: Date.now() })
-    saveMeta(store)
-    return { ok: true, email: em, mensagem: 'Código enviado. Confira sua caixa de entrada.' }
+  const id = identificador.trim()
+  if (!id) return { ok: false, erro: 'Informe usuário ou e-mail.' }
+  if (emDemo()) {
+    const email = await resolveEmail(id)
+    if (!email) return { ok: false, erro: 'Usuário ou e-mail não encontrado.' }
+    const em = normalizeEmail(email)
+    if (emEspera(carregar(), 'senha', em)) return { ok: false, erro: 'Aguarde cerca de 1 minuto para pedir outro código.' }
+    const codigo = codigoDemo()
+    lembrar({ finalidade: 'senha', email: em, criadoEm: Date.now(), codigo, expiraEm: Date.now() + CODE_TTL_MS })
+    return { ok: true, email: em, mensagem: `Modo demonstração: use o código ${codigo}.` }
   }
-
-  const store = loadLocal()
-  if (emEsperaLocal(store, 'senha', em)) {
-    return { ok: false, erro: 'Aguarde cerca de 1 minuto para pedir outro código.' }
-  }
-  const codigo = genCode()
-  const enviado = await enviarCodigoPorEmail(em, codigo, 'senha')
-  store.records = store.records.filter(
-    (item) => !(item.finalidade === 'senha' && item.email === em && !item.usado),
-  )
-  store.records.push({
+  // O servidor descobre o e-mail da conta pelo usuário (a lista de contas não fica mais no navegador).
+  const r = await chamarApi<{ email: string }>('/api/portal/enviar-codigo', {
+    acao: 'enviar',
+    identificador: id,
     finalidade: 'senha',
-    email: em,
-    codigo,
-    expiraEm: Date.now() + CODE_TTL_MS,
-    criadoEm: Date.now(),
-    usado: false,
   })
-  saveLocal(store)
-  if (!enviado.ok) {
-    return {
-      ok: true,
-      email: em,
-      mensagem: `Modo local: use o código ${codigo} (e-mail indisponível neste ambiente).`,
-    }
-  }
+  if (!r.ok) return { ok: false, erro: r.erro }
+  const em = normalizeEmail(r.email || '')
+  lembrar({ finalidade: 'senha', email: em, criadoEm: Date.now() })
   return { ok: true, email: em, mensagem: 'Código enviado. Confira sua caixa de entrada.' }
 }
 
@@ -366,91 +196,37 @@ export async function portalSenhaVerificarCodigo(
   codigo: string,
 ): Promise<{ ok: true; verify_token: string; mensagem: string } | { ok: false; erro: string }> {
   const em = normalizeEmail(email)
-  const cfg = await loadSupabaseConfig()
-
-  if (isSupabaseConfigured(cfg)) {
-    const verificado = await chamarFuncao({
-      acao: 'verificar',
-      email: em,
-      codigo: codigo.trim(),
-      finalidade: 'senha',
-    })
-    if (!verificado.ok) return { ok: false, erro: verificado.erro }
-    const token = String(verificado.data.verify_token || '')
-    if (!token) return { ok: false, erro: 'Código inválido ou expirado.' }
-    const store = loadMeta()
-    const rec = store.records.find((r) => r.finalidade === 'senha' && r.email === em)
-    if (rec) {
-      rec.verifyToken = token
-      rec.tokenExpira = Date.now() + TOKEN_TTL_MS
-    } else {
-      store.records.push({
-        finalidade: 'senha',
-        email: em,
-        criadoEm: Date.now(),
-        verifyToken: token,
-        tokenExpira: Date.now() + TOKEN_TTL_MS,
-      })
-    }
-    saveMeta(store)
-    return { ok: true, verify_token: token, mensagem: 'Código confirmado. Defina a nova senha.' }
+  const mensagem = 'Código confirmado. Defina a nova senha.'
+  if (emDemo()) {
+    const rec = carregar().records.find(
+      (r) => r.finalidade === 'senha' && r.email === em && r.codigo === codigo.trim() && (r.expiraEm ?? 0) > Date.now(),
+    )
+    if (!rec) return { ok: false, erro: 'Código inválido ou expirado.' }
+    const token = tokenDemo()
+    marcarVerificado('senha', em, token)
+    return { ok: true, verify_token: token, mensagem }
   }
-
-  const store = loadLocal()
-  const rec = store.records.find(
-    (r) =>
-      r.finalidade === 'senha' &&
-      r.email === em &&
-      !r.usado &&
-      r.codigo === codigo.trim() &&
-      r.expiraEm > Date.now(),
-  )
-  if (!rec) return { ok: false, erro: 'Código inválido ou expirado.' }
-  const token = genToken()
-  rec.verifyToken = token
-  rec.tokenExpira = Date.now() + TOKEN_TTL_MS
-  saveLocal(store)
-  return { ok: true, verify_token: token, mensagem: 'Código confirmado. Defina a nova senha.' }
+  const r = await chamarApi<{ verify_token: string }>('/api/portal/enviar-codigo', {
+    acao: 'verificar',
+    email: em,
+    codigo: codigo.trim(),
+    finalidade: 'senha',
+  })
+  if (!r.ok) return { ok: false, erro: r.erro }
+  if (!r.verify_token) return { ok: false, erro: 'Código inválido ou expirado.' }
+  marcarVerificado('senha', em, r.verify_token)
+  return { ok: true, verify_token: r.verify_token, mensagem }
 }
 
 export function portalPeekSenhaToken(verifyToken: string): string | null {
-  const meta = loadMeta().records.find(
-    (r) =>
-      r.finalidade === 'senha' &&
-      r.verifyToken === verifyToken &&
-      (r.tokenExpira ?? 0) > Date.now(),
+  const rec = carregar().records.find(
+    (r) => r.finalidade === 'senha' && r.verifyToken === verifyToken && (r.tokenExpira ?? 0) > Date.now(),
   )
-  if (meta) return meta.email
-  const local = loadLocal().records.find(
-    (r) =>
-      r.finalidade === 'senha' &&
-      r.verifyToken === verifyToken &&
-      (r.tokenExpira ?? 0) > Date.now() &&
-      !r.usado,
-  )
-  return local?.email ?? null
+  return rec?.email ?? null
 }
 
 export async function portalConsumeSenhaToken(verifyToken: string): Promise<boolean> {
-  const cfg = await loadSupabaseConfig()
-  if (isSupabaseConfigured(cfg)) {
-    const consumido = await chamarFuncao({
-      acao: 'consumir',
-      verify_token: verifyToken,
-      finalidade: 'senha',
-    })
-    if (!consumido.ok) return false
-    const store = loadMeta()
-    store.records = store.records.filter((r) => r.verifyToken !== verifyToken)
-    saveMeta(store)
-    return true
-  }
-  const store = loadLocal()
-  const rec = store.records.find((r) => r.verifyToken === verifyToken)
-  if (!rec || (rec.tokenExpira ?? 0) <= Date.now()) return false
-  rec.usado = true
-  saveLocal(store)
-  return true
+  return portalConsumeCadastroToken(verifyToken)
 }
 
 export { isLocalSuperUser }

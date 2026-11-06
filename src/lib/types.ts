@@ -258,12 +258,16 @@ export type Candidatura = {
   origem?: 'candidatura' | 'convite'
   /** Momento em que o trabalhador se candidatou ou aceitou o convite. */
   respondidoEm?: string
+  /** Quem recusou (status = recusada): a empresa ou o próprio trabalhador. */
+  recusadaPor?: 'empresa' | 'profissional'
 }
 
 export type CheckIn = {
   id: string
   demandaId: string
   profissionalId: string
+  /** Dia do ponto (AAAA-MM-DD, local). Uma missão de vários dias tem um registro por dia. */
+  data?: string
   checkInAt?: string
   checkOutAt?: string
   gpsOk: boolean

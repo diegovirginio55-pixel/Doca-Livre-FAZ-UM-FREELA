@@ -9,6 +9,7 @@ import type { TermoId } from '../../lib/termos'
 import { ACCEPT_DOCUMENTO_CADASTRO, analisarDocumentoCadastro, lerArquivoCadastro, type FotoDocumento, type PapelDocumento } from '../../lib/analisarDocumentoCadastro'
 import type { ResultadoRosto } from '../../lib/compararRostos'
 import { coordenadaDaCidade } from '../../lib/coordenadaCidade'
+import { hojeLocal } from '../../lib/ponto'
 import { CERTIFICADOS_COMUNS, habilidadesDoTexto, mesclarCurriculo, nomeCertificado, semContato } from '../../lib/curriculo'
 import type { LeituraCurriculo } from '../../lib/lerCurriculo'
 import { validarChavePix } from '../../lib/pix'
@@ -87,10 +88,13 @@ const PASSO = {
 } as const
 
 export function CadastroProfissionalScreen({ onBack, onDone }: Props) {
-  const { registerProfissional, completeProfissionalPerfil, aceitarTermos, currentUser, state } = useStore()
-  const completing = currentUser?.role === 'profissional' && currentUser.perfilCompleto === false
+  const { registerProfissional, completeProfissionalPerfil, currentUser, state } = useStore()
+  // Qualquer conta de profissional já logada completa o perfil (antes exigia perfilCompleto === false
+  // e uma conta "completa" sem perfil salvo caía no cadastro novo, que barrava o próprio e-mail).
+  const completing = currentUser?.role === 'profissional'
   const [step, setStep] = useState<number>(PASSO.curriculo)
   const [error, setError] = useState('')
+  const [enviando, setEnviando] = useState(false)
   const [aceites, setAceites] = useState<TermoId[]>([])
   const [curriculo, setCurriculo] = useState<{ nome: string; copia?: string } | null>(null)
   const [certNovo, setCertNovo] = useState('')
@@ -282,7 +286,7 @@ export function CadastroProfissionalScreen({ onBack, onDone }: Props) {
     if (form.cnhCategoria.trim()) {
       if (!/^(ACC|A|B|C|D|E|AB|AC|AD|AE)$/.test(form.cnhCategoria.trim())) return 'Categoria da CNH inválida. Use ACC, A, B, C, D, E, AB, AC, AD ou AE.'
       if (!form.cnhValidade) return 'Informe a validade da CNH.'
-      if (form.cnhValidade < new Date().toISOString().slice(0, 10)) return 'A CNH informada está vencida.'
+      if (form.cnhValidade < hojeLocal()) return 'A CNH informada está vencida.'
     }
     return ''
   }
@@ -368,7 +372,7 @@ export function CadastroProfissionalScreen({ onBack, onDone }: Props) {
       const falhaDados =
         (form.nome.trim().split(/\s+/).length < 2 ? 'Informe o nome completo (nome e sobrenome).' : '') ||
         erroCpf(form.cpf) ||
-        erroRg(form.rg) ||
+        erroRg(form.rg, form.estado) ||
         erroTelefone(form.telefone) ||
         (!completing && state.users.some((u) => u.email.trim().toLowerCase() === form.email.trim().toLowerCase())
           ? 'Este e-mail já tem uma conta. Use outro e-mail ou entre com ele na tela de login.'
@@ -451,7 +455,7 @@ export function CadastroProfissionalScreen({ onBack, onDone }: Props) {
       setError('Marque todos os termos e consentimentos para concluir o cadastro.')
       return
     }
-    const hoje = new Date().toISOString().slice(0, 10)
+    const hoje = hojeLocal()
     const habilidades = habilidadesDoTexto(form.habilidades)
     const cnh = form.cnhCategoria.trim()
     const profissionalPayload = {
@@ -496,15 +500,24 @@ export function CadastroProfissionalScreen({ onBack, onDone }: Props) {
       banco: form.banco.trim() || undefined,
     }
     const documentos = documentosEnviados()
-    const res = await (completing
-      ? completeProfissionalPerfil(profissionalPayload, documentos)
-      : registerProfissional({ email: form.email, senha: form.senha }, profissionalPayload, documentos))
-    if (!res.ok) {
-      setError(res.error ?? 'Erro no cadastro')
-      return
+    if (enviando) return
+    setEnviando(true)
+    try {
+      // Os termos vão junto para a conta no banco (antes ficavam só no navegador e o aviso de
+      // termos voltava a cada sincronização).
+      const res = await (completing
+        ? completeProfissionalPerfil(profissionalPayload, documentos, aceites)
+        : registerProfissional({ email: form.email, senha: form.senha }, profissionalPayload, documentos))
+      if (!res.ok) {
+        setError(res.error ?? 'Erro no cadastro')
+        return
+      }
+      onDone()
+    } catch {
+      setError('Não foi possível concluir o cadastro. Confira a internet e tente de novo.')
+    } finally {
+      setEnviando(false)
     }
-    aceitarTermos(aceites)
-    onDone()
   }
 
   return (
@@ -773,8 +786,8 @@ export function CadastroProfissionalScreen({ onBack, onDone }: Props) {
         )}
 
         {error && <p className="error">{error}</p>}
-        <button type="submit" className="btn btn-accent btn-block">
-          {step === ETAPAS.length ? 'Concluir cadastro' : 'Continuar'}
+        <button type="submit" className="btn btn-accent btn-block" disabled={enviando}>
+          {step === ETAPAS.length ? (enviando ? 'Enviando cadastro…' : 'Concluir cadastro') : 'Continuar'}
         </button>
       </form>
     </div>

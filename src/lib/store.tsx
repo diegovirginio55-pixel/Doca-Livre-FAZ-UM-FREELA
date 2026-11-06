@@ -4,6 +4,7 @@ import {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
   type ReactNode,
 } from 'react'
@@ -18,25 +19,29 @@ import {
   pecasDaContratacao,
 } from './dossieTemporario'
 import { distanciaKm, matchDemanda } from './matching'
+import { diaDoPonto, diasComPresenca, diasEntre, hojeLocal } from './ponto'
 import { canAccessSistema, isLocalSuperUser } from './portalPermissoes'
 import { nowIso, uid } from './seed'
 import { mediaDaAvaliacao, nivelPelaMedia } from './classificacao'
 import { semContato } from './curriculo'
 import { validarChavePix } from './pix'
-import { loadState, resetState, saveState, STORAGE_KEY } from './storage'
+import { estadoVazio, loadState, recalcularDerivados, resetState, saveState, STORAGE_KEY } from './storage'
+import { chamarApi } from './api'
+import { emDemo } from './modo'
+import { lerSessao, limparSessao, salvarSessao, tokenAtual } from './sessao'
+import { enviarMudancas, fotografarBase, mesclarNuvem, zerarBase } from './sincronizacao'
 import {
-  atualizarSenhaConta,
-  buscarContaLogin,
+  atualizarConta,
+  contaDaApi,
   excluirContaCloud,
-  mesclarCloudNoEstado,
   pullCloudBundle,
-  resolveEmailCloud,
   supabaseConfigured,
-  upsertConta,
   upsertDocumentos,
   upsertEmpresa,
   upsertProfissional,
 } from './supabaseSync'
+
+type RespostaSessao = { token: string; expira: number; conta: Record<string, unknown>; trocarSenha?: boolean }
 import { VERSAO_TERMOS } from './termos'
 import type {
   AceiteTermo,
@@ -118,41 +123,220 @@ function documentosDeCadastro(
   ]
 }
 
+/** Coloca os documentos novos no lugar dos de mesmo dono e tipo, sem duplicar. */
+function juntarDocumentos(existentes: DocumentoRegistro[], novos: DocumentoRegistro[]): DocumentoRegistro[] {
+  if (!novos.length) return existentes
+  const chave = (doc: DocumentoRegistro) => `${doc.donoTipo}:${doc.donoId}:${doc.tipoId}`
+  const trocados = new Set(novos.map(chave))
+  return [...novos, ...existentes.filter((doc) => !trocados.has(chave(doc)) && !novos.some((n) => n.id === doc.id))]
+}
+
+type EmpresaCadastro = Omit<
+  Empresa,
+  | 'id'
+  | 'userId'
+  | 'status'
+  | 'avaliacaoMedia'
+  | 'favoritos'
+  | 'bloqueados'
+  | 'docsOk'
+  | 'saldo'
+  | 'limitePosPago'
+  | 'diasTaxaZero'
+  | 'metaTaxaZero'
+  | 'diasAgenciados'
+  | 'rankingDias'
+  | 'economiaTotal'
+>
+
+function novaEmpresa(dados: EmpresaCadastro, id: string, userId: string): Empresa {
+  return {
+    ...dados,
+    id,
+    userId,
+    status: 'pendente',
+    avaliacaoMedia: 5,
+    favoritos: [],
+    bloqueados: [],
+    docsOk: true,
+    saldo: 0,
+    limitePosPago: 3000,
+    diasTaxaZero: 0,
+    metaTaxaZero: 300,
+    diasAgenciados: 0,
+    rankingDias: 999,
+    economiaTotal: 0,
+  }
+}
+
+type ProfissionalCadastro = Omit<
+  Profissional,
+  | 'id'
+  | 'userId'
+  | 'status'
+  | 'nivel'
+  | 'avaliacaoMedia'
+  | 'taxaComparecimento'
+  | 'faltas'
+  | 'tempoRespostaMin'
+  | 'ganhosMes'
+  | 'saldo'
+>
+
+function novoProfissional(dados: ProfissionalCadastro, id: string, userId: string): Profissional {
+  return {
+    ...dados,
+    id,
+    userId,
+    status: 'pendente',
+    nivel: 'bronze',
+    avaliacaoMedia: 5,
+    taxaComparecimento: 100,
+    faltas: 0,
+    tempoRespostaMin: 10,
+    ganhosMes: 0,
+    saldo: 0,
+  }
+}
+
+/** Grava o perfil e os documentos do cadastro; devolve os documentos com o caminho no Storage. */
+async function salvarPerfilNaNuvem(
+  tipo: 'empresa' | 'profissional',
+  perfil: Empresa | Profissional,
+  docs: DocumentoRegistro[],
+): Promise<{ ok: true; docs: DocumentoRegistro[] } | { ok: false; erro: string }> {
+  const salvo = tipo === 'empresa' ? await upsertEmpresa(perfil as Empresa) : await upsertProfissional(perfil as Profissional)
+  if (!salvo.ok) return salvo
+  if (!docs.length) return { ok: true, docs }
+  return upsertDocumentos(docs, { exigirArquivo: true })
+}
+
+/** Junta os termos aceitos agora aos aceites que a conta já tinha (mesma regra do aceitarTermos). */
+function aceitesComTermos(
+  atuais: AceiteTermo[] | undefined,
+  termos: AceiteTermo['documento'][] | undefined,
+): AceiteTermo[] | undefined {
+  if (!termos?.length) return atuais
+  const em = nowIso()
+  const outros = (atuais ?? []).filter(
+    (item) => !(item.versao === VERSAO_TERMOS && termos.includes(item.documento)),
+  )
+  return [...outros, ...termos.map((documento) => ({ documento, versao: VERSAO_TERMOS, em }))]
+}
+
+type PortalLogin = 'empresa' | 'profissional' | 'admin'
+
+export type ResultadoLogin = {
+  ok: boolean
+  error?: string
+  aviso?: boolean
+  role?: UserRole
+  usuario?: string
+  isSuperuser?: boolean
+  precisaConfig?: boolean
+  precisaPerfil?: boolean
+  /** Senha provisória: pedir uma senha forte antes de abrir o portal. */
+  trocarSenha?: boolean
+}
+
+function portalErrado(user: User, portal: PortalLogin): string | null {
+  if (portal === 'empresa' && user.role !== 'empresa') {
+    return 'Esta conta não é de Empresa. Use o login de Profissional ou Admin.'
+  }
+  if (portal === 'profissional' && user.role !== 'profissional') {
+    return 'Esta conta não é de Profissional. Use o login de Empresa ou Admin.'
+  }
+  if (portal === 'admin' && user.role !== 'admin' && user.role !== 'super') {
+    return 'Sem permissão para o Painel Admin.'
+  }
+  return null
+}
+
+/** Avisos de cadastro pendente/recusado/bloqueado e se ainda falta completar o perfil. */
+function avaliarPerfil(user: User, portal: PortalLogin, s: AppState): ResultadoLogin {
+  const isSuper = user.role === 'super'
+  if (!isSuper && user.role !== 'admin') {
+    const sistema = portal === 'admin' ? 'admin' : portal
+    if (!canAccessSistema(user.usuario || user.email, sistema, user.email, user.role)) {
+      return { ok: false, error: 'Acesso bloqueado pelas permissões do portal.' }
+    }
+  }
+  const empresa = user.role === 'empresa' ? s.empresas.find((e) => e.userId === user.id) : undefined
+  const profissional = user.role === 'profissional' ? s.profissionais.find((p) => p.userId === user.id) : undefined
+  const hasPerfil = user.role === 'empresa' ? Boolean(empresa) : user.role === 'profissional' ? Boolean(profissional) : true
+  const aviso = empresa ? avisoAcessoEmpresa(empresa.status) : profissional ? avisoAcessoProfissional(profissional.status) : null
+  if (aviso && hasPerfil && user.perfilCompleto !== false) return { ok: false, error: aviso, aviso: true }
+  return {
+    ok: true,
+    role: user.role,
+    usuario: user.usuario || user.email,
+    isSuperuser: isSuper,
+    precisaConfig: isSuper && portal === 'admin',
+    precisaPerfil: (user.role === 'empresa' || user.role === 'profissional') && (user.perfilCompleto === false || !hasPerfil),
+  }
+}
+
+/** Login do modo demonstração (dados fictícios deste navegador). */
+function avaliarEntradaDemo(
+  user: User,
+  portal: PortalLogin,
+  s: AppState,
+): { contaId?: string; resultado: ResultadoLogin } {
+  const gestao = user.role === 'super' || user.role === 'admin'
+  if (gestao && portal === 'profissional') {
+    return {
+      resultado: {
+        ok: false,
+        error: 'Esta conta não abre o perfil de um colaborador. Entre com o usuário criado no cadastro do profissional.',
+      },
+    }
+  }
+  let conta = user
+  if (gestao && portal === 'empresa') {
+    // Na demonstração o gestor abre a empresa de exemplo.
+    const demo =
+      s.users.find((u) => u.email === 'empresa@logexpress.com' && u.role === 'empresa') ||
+      s.users.find((u) => u.role === 'empresa' && u.ativo)
+    if (demo) conta = demo
+  } else {
+    const falha = portalErrado(user, portal)
+    if (falha) return { resultado: { ok: false, error: falha } }
+  }
+  const resultado = avaliarPerfil(conta, portal, s)
+  if (gestao) {
+    resultado.isSuperuser = user.role === 'super' || isLocalSuperUser(user.usuario || '')
+    resultado.precisaConfig = resultado.isSuperuser && portal === 'admin'
+  }
+  return { contaId: resultado.ok ? conta.id : undefined, resultado }
+}
+
 type StoreApi = {
   state: AppState
   currentUser: User | null
   currentEmpresa: Empresa | null
   currentProfissional: Profissional | null
   login: (email: string, senha: string) => Promise<{ ok: boolean; error?: string; role?: UserRole }>
-  loginPortal: (
-    usuarioOuEmail: string,
-    senha: string,
-    portal: 'empresa' | 'profissional' | 'admin',
-  ) => Promise<{
-    ok: boolean
-    error?: string
-    aviso?: boolean
-    role?: UserRole
-    usuario?: string
-    isSuperuser?: boolean
-    precisaConfig?: boolean
-    precisaPerfil?: boolean
-  }>
+  loginPortal: (usuarioOuEmail: string, senha: string, portal: PortalLogin) => Promise<ResultadoLogin>
+  /** Troca obrigatória (senha provisória) e conclusão do login. */
+  concluirTrocaSenha: (senhaAtual: string, novaSenha: string, portal: PortalLogin) => Promise<ResultadoLogin>
   logout: () => void
   refreshFromCloud: () => Promise<void>
   excluirUsuario: (userId: string) => Promise<{ ok: boolean; error?: string }>
+  /** Admin gera senha provisória para alguém (a pessoa troca no próximo login). */
+  adminRedefinirSenha: (userId: string) => Promise<{ ok: true; senha: string } | { ok: false; error: string }>
   resolveEmailByIdentificador: (id: string) => Promise<string | null>
   portalRegisterUser: (data: {
     email: string
     usuario: string
     senha: string
     role: 'empresa' | 'profissional'
+    verifyToken: string
   }) => Promise<{ ok: boolean; error?: string }>
-  portalResetSenha: (email: string, novaSenha: string) => Promise<{ ok: boolean; error?: string }>
-  registerEmpresa: (user: Omit<User, 'id' | 'role' | 'ativo' | 'createdAt'>, empresa: Omit<Empresa, 'id' | 'userId' | 'status' | 'avaliacaoMedia' | 'favoritos' | 'bloqueados' | 'docsOk' | 'saldo' | 'limitePosPago' | 'diasTaxaZero' | 'metaTaxaZero' | 'diasAgenciados' | 'rankingDias' | 'economiaTotal'>, documentos?: DocumentoCadastro[]) => Promise<{ ok: boolean; error?: string }>
+  portalResetSenha: (email: string, novaSenha: string, verifyToken: string) => Promise<{ ok: boolean; error?: string }>
+  registerEmpresa: (user: Omit<User, 'id' | 'role' | 'ativo' | 'createdAt'>, empresa: Omit<Empresa, 'id' | 'userId' | 'status' | 'avaliacaoMedia' | 'favoritos' | 'bloqueados' | 'docsOk' | 'saldo' | 'limitePosPago' | 'diasTaxaZero' | 'metaTaxaZero' | 'diasAgenciados' | 'rankingDias' | 'economiaTotal'>, documentos?: DocumentoCadastro[], termos?: AceiteTermo['documento'][]) => Promise<{ ok: boolean; error?: string }>
   registerProfissional: (user: Omit<User, 'id' | 'role' | 'ativo' | 'createdAt'>, profissional: Omit<Profissional, 'id' | 'userId' | 'status' | 'nivel' | 'avaliacaoMedia' | 'taxaComparecimento' | 'faltas' | 'tempoRespostaMin' | 'ganhosMes' | 'saldo'>, documentos?: DocumentoCadastro[]) => Promise<{ ok: boolean; error?: string }>
-  completeEmpresaPerfil: (empresa: Omit<Empresa, 'id' | 'userId' | 'status' | 'avaliacaoMedia' | 'favoritos' | 'bloqueados' | 'docsOk' | 'saldo' | 'limitePosPago' | 'diasTaxaZero' | 'metaTaxaZero' | 'diasAgenciados' | 'rankingDias' | 'economiaTotal'>, documentos?: DocumentoCadastro[]) => Promise<{ ok: boolean; error?: string }>
-  completeProfissionalPerfil: (profissional: Omit<Profissional, 'id' | 'userId' | 'status' | 'nivel' | 'avaliacaoMedia' | 'taxaComparecimento' | 'faltas' | 'tempoRespostaMin' | 'ganhosMes' | 'saldo'>, documentos?: DocumentoCadastro[]) => Promise<{ ok: boolean; error?: string }>
+  completeEmpresaPerfil: (empresa: Omit<Empresa, 'id' | 'userId' | 'status' | 'avaliacaoMedia' | 'favoritos' | 'bloqueados' | 'docsOk' | 'saldo' | 'limitePosPago' | 'diasTaxaZero' | 'metaTaxaZero' | 'diasAgenciados' | 'rankingDias' | 'economiaTotal'>, documentos?: DocumentoCadastro[], termos?: AceiteTermo['documento'][]) => Promise<{ ok: boolean; error?: string }>
+  completeProfissionalPerfil: (profissional: Omit<Profissional, 'id' | 'userId' | 'status' | 'nivel' | 'avaliacaoMedia' | 'taxaComparecimento' | 'faltas' | 'tempoRespostaMin' | 'ganhosMes' | 'saldo'>, documentos?: DocumentoCadastro[], termos?: AceiteTermo['documento'][]) => Promise<{ ok: boolean; error?: string }>
   createDemanda: (data: Omit<Demanda, 'id' | 'createdAt' | 'status' | 'categoria'>) => Demanda
   publicarVaga: (data: Omit<Demanda, 'id' | 'createdAt' | 'status' | 'categoria'>) => Demanda
   candidatar: (demandaId: string, profissionalId: string) => { ok: boolean; error?: string }
@@ -183,6 +367,7 @@ type StoreApi = {
   registrarConsentimento: (
     profissionalId: string,
     campo: 'politica' | 'curriculo' | 'compartilhamento',
+    dar?: boolean,
   ) => void
   refuseCandidato: (candidaturaId: string) => void
   doCheckIn: (demandaId: string, profissionalId: string) => void
@@ -220,9 +405,9 @@ type StoreApi = {
   ) => { ok: true; chave: string; rotulo: string } | { ok: false; error: string }
   toggleFavorito: (empresaId: string, profissionalId: string) => void
   toggleBloqueado: (empresaId: string, profissionalId: string) => void
-  setEmpresaStatus: (id: string, status: Empresa['status'], opts?: { motivoRecusa?: string }) => Promise<void>
+  setEmpresaStatus: (id: string, status: Empresa['status'], opts?: { motivoRecusa?: string }) => Promise<{ ok: boolean; error?: string }>
   patchState: (fn: (s: AppState) => AppState) => void
-  setProfissionalStatus: (id: string, status: Profissional['status'], opts?: { motivoRecusa?: string }) => Promise<void>
+  setProfissionalStatus: (id: string, status: Profissional['status'], opts?: { motivoRecusa?: string }) => Promise<{ ok: boolean; error?: string }>
   enviarDocumento: (data: {
     tipoId: string
     donoTipo: 'profissional' | 'empresa' | 'ett'
@@ -246,33 +431,48 @@ function persist(next: AppState) {
   return next
 }
 
-function diasDaMissao(demanda: Demanda) {
-  if (!demanda.dataFim) return 1
-  const a = new Date(`${demanda.data}T12:00:00`)
-  const b = new Date(`${demanda.dataFim}T12:00:00`)
-  if (Number.isNaN(a.getTime()) || Number.isNaN(b.getTime()) || b < a) return 1
-  return Math.round((b.getTime() - a.getTime()) / 86400000) + 1
-}
+const centavos = (valor: number) => Math.round(valor * 100) / 100
 
-function finishDemandaState(s: AppState, demandaId: string): AppState {
+/**
+ * Encerra a missão e gera os pagamentos.
+ *  - O período vai até a data efetiva do encerramento (antes: sempre o período planejado — missão
+ *    de 30 dias encerrada no 3º dia pagava 30 diárias).
+ *  - Paga os dias com presença registrada (entrada no ponto). Se ninguém usou o ponto nesta
+ *    missão, vale o período até a data efetiva (empresa que não usa o ponto do app).
+ *  - Comissão em centavos (antes era arredondada para reais inteiros).
+ *  - Candidaturas ainda abertas são canceladas: não dá mais para "aprovar" alguém numa missão
+ *    encerrada e reabri-la (o que gerava pagamento em dobro).
+ */
+function finishDemandaState(s: AppState, demandaId: string, dataEfetiva?: string): AppState {
   const demanda = s.demandas.find((d) => d.id === demandaId)
-  if (!demanda || demanda.status === 'finalizada') return s
-  const confirmados = s.candidaturas.filter(
-    (c) => c.demandaId === demandaId && c.status === 'confirmada',
-  )
-  const dias = diasDaMissao(demanda)
-  const valor = demanda.valorDiaria * dias
-  const pagamentos: Pagamento[] = confirmados.map((c) => ({
-    id: uid('pag'),
-    demandaId,
-    profissionalId: c.profissionalId,
-    empresaId: demanda.empresaId,
-    valor,
-    comissao: Math.round(valor * 0.12),
-    status: 'pago' as const,
-    createdAt: nowIso(),
-  }))
-  const profIds = new Set(confirmados.map((c) => c.profissionalId))
+  if (!demanda || demanda.status === 'finalizada' || demanda.status === 'cancelada') return s
+  const fimPlanejado = demanda.dataFim || demanda.data
+  const fim = dataEfetiva && dataEfetiva >= demanda.data && dataEfetiva < fimPlanejado ? dataEfetiva : fimPlanejado
+  const diasPeriodo = diasEntre(demanda.data, fim)
+  const confirmados = s.candidaturas.filter((c) => c.demandaId === demandaId && c.status === 'confirmada')
+  const usaPonto = s.checkIns.some((c) => c.demandaId === demandaId && c.checkInAt)
+  const jaPagos = new Set(s.pagamentos.filter((p) => p.demandaId === demandaId).map((p) => p.profissionalId))
+  const agora = nowIso()
+  const pagamentos: Pagamento[] = []
+  const diasPorProf = new Map<string, number>()
+  for (const c of confirmados) {
+    if (jaPagos.has(c.profissionalId)) continue
+    const dias = usaPonto ? Math.min(diasPeriodo, diasComPresenca(s.checkIns, demandaId, c.profissionalId, fim)) : diasPeriodo
+    if (dias <= 0) continue
+    const valor = centavos(demanda.valorDiaria * dias)
+    diasPorProf.set(c.profissionalId, dias)
+    pagamentos.push({
+      id: uid('pag'),
+      demandaId,
+      profissionalId: c.profissionalId,
+      empresaId: demanda.empresaId,
+      valor,
+      comissao: centavos(valor * 0.12),
+      status: 'pago' as const,
+      createdAt: agora,
+    })
+  }
+  const valorPorProf = new Map(pagamentos.map((p) => [p.profissionalId, p.valor]))
   const empresa = s.empresas.find((e) => e.id === demanda.empresaId)
   const recibos: PecaDocumental[] = []
   if (empresa) {
@@ -285,7 +485,7 @@ function finishDemandaState(s: AppState, demandaId: string): AppState {
         empresa,
         profissional,
         valor: pagamento.valor,
-        dias,
+        dias: diasPorProf.get(pagamento.profissionalId) ?? diasPeriodo,
         pagoEm: pagamento.createdAt,
       })
       if (recibo) recibos.push(recibo)
@@ -294,29 +494,54 @@ function finishDemandaState(s: AppState, demandaId: string): AppState {
   return {
     ...s,
     pecas: [...recibos, ...(s.pecas ?? [])],
+    // Encerramento antecipado grava o fim real (a regra dos 180 dias conta o período efetivo).
     demandas: s.demandas.map((d) =>
-      d.id === demandaId ? { ...d, status: 'finalizada' as const } : d,
+      d.id === demandaId
+        ? { ...d, status: 'finalizada' as const, ...(fim < fimPlanejado ? { dataFim: fim } : {}) }
+        : d,
+    ),
+    candidaturas: s.candidaturas.map((c) =>
+      c.demandaId === demandaId && (c.status === 'pendente' || c.status === 'aceita')
+        ? { ...c, status: 'cancelada' as const }
+        : c,
     ),
     contratos: s.contratos.map((contrato) =>
       contrato.demandaId === demandaId && contrato.status !== 'rescindido'
-        ? { ...contrato, status: 'concluido' as const }
+        ? { ...contrato, status: 'concluido' as const, ...(fim < fimPlanejado ? { fimEm: fim } : {}) }
         : contrato,
     ),
     pagamentos: [...pagamentos, ...s.pagamentos],
-    profissionais: s.profissionais.map((p) =>
-      profIds.has(p.id)
-        ? {
-            ...p,
-            saldo: p.saldo + valor,
-            ganhosMes: p.ganhosMes + valor,
-          }
-        : p,
-    ),
+    profissionais: s.profissionais.map((p) => {
+      const valor = valorPorProf.get(p.id)
+      return valor ? { ...p, saldo: centavos(p.saldo + valor), ganhosMes: centavos(p.ganhosMes + valor) } : p
+    }),
   }
 }
 
+/** Ao abrir: no modo real, só mantém o usuário logado se a sessão do servidor ainda vale. */
+function estadoAoAbrir(): AppState {
+  const s = loadState()
+  if (emDemo()) return s
+  const sessao = lerSessao()
+  if (sessao && !sessao.trocarSenha && sessao.contaId === s.sessionUserId) return s
+  if (sessao) limparSessao()
+  return persist(estadoVazio())
+}
+
 export function StoreProvider({ children }: { children: ReactNode }) {
-  const [state, setState] = useState<AppState>(() => loadState())
+  const [state, setState] = useState<AppState>(estadoAoAbrir)
+  const stateRef = useRef(state)
+  /** Só envia mudanças depois do primeiro pull da sessão (senão dados velhos sobrescreveriam o banco). */
+  const sincronizadoRef = useRef(false)
+
+  useEffect(() => {
+    stateRef.current = state
+  }, [state])
+
+  const aplicar = useCallback((next: AppState) => {
+    stateRef.current = next
+    setState(next)
+  }, [])
 
   useEffect(() => {
     function aoStorage(event: StorageEvent) {
@@ -332,12 +557,37 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     return () => window.removeEventListener('storage', aoStorage)
   }, [])
 
+  /**
+   * Sai da conta. No modo real os dados baixados saem deste aparelho (antes ficavam todos no
+   * navegador, inclusive de outras pessoas). No demo só desloga.
+   */
+  const sairDaSessao = useCallback(() => {
+    limparSessao()
+    zerarBase()
+    sincronizadoRef.current = false
+    aplicar(persist(emDemo() ? { ...stateRef.current, sessionUserId: null } : estadoVazio()))
+  }, [aplicar])
+
   const refreshFromCloud = useCallback(async () => {
-    if (!(await supabaseConfigured())) return
+    if (emDemo() || !tokenAtual()) return
     const cloud = await pullCloudBundle()
+    if (cloud === 'sessao_expirada') {
+      sairDaSessao()
+      return
+    }
     if (!cloud) return
-    setState((prev) => persist(mesclarCloudNoEstado(prev, cloud)))
-  }, [])
+    if (!tokenAtual()) return
+    // Atualização funcional: uma mudança feita pelo usuário enquanto o pull estava a caminho
+    // não é descartada. As decisões usam uma foto da base, então rodar duas vezes (StrictMode)
+    // dá o mesmo resultado.
+    const foto = fotografarBase()
+    setState((prev) => {
+      const next = persist(recalcularDerivados(mesclarNuvem(prev, cloud, foto)))
+      stateRef.current = next
+      return next
+    })
+    sincronizadoRef.current = true
+  }, [sairDaSessao])
 
   useEffect(() => {
     void refreshFromCloud()
@@ -347,10 +597,52 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     return () => window.clearInterval(id)
   }, [refreshFromCloud])
 
+  // Envia ao banco o que mudou neste aparelho (vagas, candidaturas, perfil, documentos…).
+  useEffect(() => {
+    if (emDemo() || !sincronizadoRef.current || !tokenAtual() || !state.sessionUserId) return
+    const t = window.setTimeout(() => {
+      void enviarMudancas(stateRef.current).then((erros) => {
+        if (erros.length) console.warn('[sincronizacao]', erros)
+      })
+    }, 800)
+    return () => window.clearTimeout(t)
+  }, [state])
 
   const update = useCallback((fn: (s: AppState) => AppState) => {
     setState((prev) => persist(fn(prev)))
   }, [])
+
+  /** Abre a sessão do servidor neste aparelho e baixa o que a conta pode ver. */
+  const abrirSessaoReal = useCallback(
+    async (resposta: RespostaSessao) => {
+      const user = contaDaApi(resposta.conta)
+      salvarSessao({
+        token: resposta.token,
+        expira: resposta.expira,
+        contaId: user.id,
+        trocarSenha: Boolean(resposta.trocarSenha),
+      })
+      if (resposta.trocarSenha) return user
+      zerarBase()
+      sincronizadoRef.current = false
+      aplicar(persist({ ...estadoVazio(), users: [user], sessionUserId: user.id }))
+      await refreshFromCloud()
+      return user
+    },
+    [aplicar, refreshFromCloud],
+  )
+
+  /** Depois do login real: avisos de aprovação e se falta completar o perfil. */
+  const concluirEntrada = useCallback(
+    (conta: User, portal: PortalLogin): ResultadoLogin => {
+      const live = stateRef.current
+      const user = live.users.find((u) => u.id === conta.id) ?? conta
+      const resultado = avaliarPerfil(user, portal, live)
+      if (!resultado.ok) sairDaSessao()
+      return resultado
+    },
+    [sairDaSessao],
+  )
 
   const currentUser = useMemo(
     () => state.users.find((u) => u.id === state.sessionUserId) ?? null,
@@ -392,186 +684,89 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     currentEmpresa,
     currentProfissional,
 
-async login(email, senha) {
-      let user = state.users.find(
+    async login(email, senha) {
+      // Só no modo demo: no real o login é sempre pelo portal, no servidor.
+      if (!emDemo()) return { ok: false, error: 'Entre pela tela de login do portal.' }
+      const key = email.trim().toLowerCase()
+      const user = state.users.find(
         (u) =>
-          (u.email.toLowerCase() === email.toLowerCase() ||
-            (u.usuario || '').toLowerCase() === email.toLowerCase()) &&
-          u.senha === senha &&
-          u.ativo,
+          (u.email.toLowerCase() === key || (u.usuario || '').toLowerCase() === key) && u.senha === senha && u.ativo,
       )
-      if (!user && (await supabaseConfigured())) {
-        const remoto = await buscarContaLogin(email, senha)
-        if (remoto) {
-          update((s) => {
-            let next = {
-              ...s,
-              users: s.users.some((u) => u.id === remoto.user.id)
-                ? s.users.map((u) => (u.id === remoto.user.id ? { ...u, ...remoto.user } : u))
-                : [...s.users, remoto.user],
-            }
-            if (remoto.profissional && !next.profissionais.some((p) => p.id === remoto.profissional!.id)) {
-              next = { ...next, profissionais: [...next.profissionais, remoto.profissional] }
-            }
-            if (remoto.empresa && !next.empresas.some((e) => e.id === remoto.empresa!.id)) {
-              next = { ...next, empresas: [...next.empresas, remoto.empresa] }
-            }
-            return next
-          })
-          user = remoto.user
-        }
-      }
       if (!user) return { ok: false, error: 'E-mail ou senha inválidos.' }
-      update((s) => ({ ...s, sessionUserId: user!.id }))
+      update((s) => ({ ...s, sessionUserId: user.id }))
       return { ok: true, role: user.role }
     },
-async loginPortal(usuarioOuEmail, senha, portal) {
-      const key = usuarioOuEmail.trim().toLowerCase()
-      let user = state.users.find(
-        (u) =>
-          u.ativo &&
-          u.senha === senha &&
-          (u.email.toLowerCase() === key || (u.usuario || '').toLowerCase() === key),
+
+    async loginPortal(usuarioOuEmail, senha, portal) {
+      if (emDemo()) {
+        const key = usuarioOuEmail.trim().toLowerCase()
+        const user = state.users.find(
+          (u) =>
+            u.ativo && u.senha === senha && (u.email.toLowerCase() === key || (u.usuario || '').toLowerCase() === key),
+        )
+        if (!user) return { ok: false, error: 'Usuário ou senha inválidos.' }
+        const avaliado = avaliarEntradaDemo(user, portal, state)
+        if (avaliado.contaId) update((s) => ({ ...s, sessionUserId: avaliado.contaId! }))
+        return avaliado.resultado
+      }
+      // Modo real: a senha é conferida no servidor (antes o navegador baixava todas as contas
+      // com a senha em texto puro e comparava ele mesmo).
+      const r = await chamarApi<RespostaSessao>(
+        '/api/auth/entrar',
+        { identificador: usuarioOuEmail.trim(), senha },
+        { erroPadrao: 'Não foi possível entrar agora. Tente de novo em instantes.' },
       )
-
-      if (!user && (await supabaseConfigured())) {
-        const remoto = await buscarContaLogin(usuarioOuEmail, senha)
-        if (remoto) {
-          update((s) => {
-            let next = {
-              ...s,
-              users: s.users.some((u) => u.id === remoto.user.id)
-                ? s.users.map((u) => (u.id === remoto.user.id ? { ...u, ...remoto.user } : u))
-                : [...s.users, remoto.user],
-            }
-            if (remoto.profissional) {
-              next = {
-                ...next,
-                profissionais: next.profissionais.some((p) => p.id === remoto.profissional!.id)
-                  ? next.profissionais.map((p) =>
-                      p.id === remoto.profissional!.id ? { ...p, ...remoto.profissional! } : p,
-                    )
-                  : [...next.profissionais, remoto.profissional],
-              }
-            }
-            if (remoto.empresa) {
-              next = {
-                ...next,
-                empresas: next.empresas.some((e) => e.id === remoto.empresa!.id)
-                  ? next.empresas.map((e) => (e.id === remoto.empresa!.id ? { ...e, ...remoto.empresa! } : e))
-                  : [...next.empresas, remoto.empresa],
-              }
-            }
-            return next
-          })
-          user = remoto.user
-        }
+      if (!r.ok) return { ok: false, error: r.erro }
+      const conta = contaDaApi(r.conta)
+      const falha = portalErrado(conta, portal)
+      if (falha) return { ok: false, error: falha }
+      await abrirSessaoReal(r)
+      if (r.trocarSenha) {
+        return { ok: true, trocarSenha: true, role: conta.role, usuario: conta.usuario || conta.email }
       }
-
-      if (!user) return { ok: false, error: 'Usuário ou senha inválidos.' }
-
-      const snap = loadState()
-      user = snap.users.find((u) => u.id === user!.id) || user
-
-      const contaOperacional = user.role === 'profissional' || user.role === 'empresa'
-      const isSuper =
-        user.role === 'super' ||
-        (!contaOperacional &&
-          (isLocalSuperUser(user.usuario || '') || isLocalSuperUser(user.email)))
-
-      if (!isSuper) {
-        if (portal === 'empresa' && user.role !== 'empresa') {
-          return { ok: false, error: 'Esta conta não é de Empresa. Use o login de Profissional ou Admin.' }
-        }
-        if (portal === 'profissional' && user.role !== 'profissional') {
-          return { ok: false, error: 'Esta conta não é de Profissional. Use o login de Empresa ou Admin.' }
-        }
-        if (portal === 'admin' && user.role !== 'admin' && user.role !== 'super') {
-          return { ok: false, error: 'Sem permissão para o Painel Admin.' }
-        }
-        const sistema = portal === 'admin' ? 'admin' : portal
-        if (!canAccessSistema(user.usuario || user.email, sistema, user.email, user.role)) {
-          return { ok: false, error: 'Acesso bloqueado pelas permissões do portal.' }
-        }
-      }
-
-      if ((user.role === 'super' || user.role === 'admin') && portal === 'profissional') {
-        return {
-          ok: false,
-          error:
-            'Esta conta não abre o perfil de um colaborador. Entre com o usuário criado no cadastro do profissional.',
-        }
-      }
-
-      if ((user.role === 'super' || user.role === 'admin') && portal === 'empresa') {
-        const demo =
-          snap.users.find((u) => u.email === 'empresa@logexpress.com' && u.role === 'empresa') ||
-          snap.users.find((u) => u.role === 'empresa' && u.ativo) ||
-          state.users.find((u) => u.email === 'empresa@logexpress.com' && u.role === 'empresa') ||
-          state.users.find((u) => u.role === 'empresa' && u.ativo)
-        if (demo) user = demo
-      }
-
-      let hasPerfil =
-        user.role === 'profissional'
-          ? snap.profissionais.some((p) => p.userId === user!.id) ||
-            state.profissionais.some((p) => p.userId === user!.id)
-          : user.role === 'empresa'
-            ? snap.empresas.some((e) => e.userId === user!.id) ||
-              state.empresas.some((e) => e.userId === user!.id)
-            : true
-
-      if (!hasPerfil && (user.role === 'empresa' || user.role === 'profissional') && (await supabaseConfigured())) {
-        await refreshFromCloud()
-        const after = loadState()
-        hasPerfil =
-          user.role === 'profissional'
-            ? after.profissionais.some((p) => p.userId === user!.id)
-            : after.empresas.some((e) => e.userId === user!.id)
-      }
-
-      const live = loadState()
-
-      if (portal === 'empresa' && user.role === 'empresa' && !isSuper && hasPerfil) {
-        const empresa =
-          live.empresas.find((item) => item.userId === user!.id) ||
-          state.empresas.find((item) => item.userId === user!.id)
-        const aviso = empresa ? avisoAcessoEmpresa(empresa.status) : null
-        if (aviso) return { ok: false, error: aviso, aviso: true }
-      }
-
-      if (portal === 'profissional' && user.role === 'profissional' && !isSuper && hasPerfil) {
-        const profissional =
-          live.profissionais.find((item) => item.userId === user!.id) ||
-          state.profissionais.find((item) => item.userId === user!.id)
-        const aviso = profissional ? avisoAcessoProfissional(profissional.status) : null
-        if (aviso) return { ok: false, error: aviso, aviso: true }
-      }
-
-      update((s) => ({ ...s, sessionUserId: user!.id }))
-      return {
-        ok: true,
-        role: user.role,
-        usuario: user.usuario || user.email,
-        isSuperuser: isSuper,
-        precisaConfig: isSuper && portal === 'admin',
-        precisaPerfil:
-          (user.role === 'empresa' || user.role === 'profissional') &&
-          (user.perfilCompleto === false || !hasPerfil),
-      }
+      return concluirEntrada(conta, portal)
     },
-async resolveEmailByIdentificador(id) {
+
+    async concluirTrocaSenha(senhaAtual, novaSenha, portal) {
+      const r = await chamarApi<RespostaSessao>(
+        '/api/auth/trocar-senha',
+        { senhaAtual, novaSenha },
+        { tokenProvisorio: true, erroPadrao: 'Não foi possível trocar a senha. Tente de novo.' },
+      )
+      if (!r.ok) return { ok: false, error: r.erro }
+      const conta = await abrirSessaoReal(r)
+      return concluirEntrada(conta, portal)
+    },
+
+    async adminRedefinirSenha(userId) {
+      if (emDemo()) return { ok: false, error: 'Indisponível no modo demonstração.' }
+      const r = await chamarApi<{ senhaTemporaria: string }>('/api/auth/admin/redefinir-senha', { contaId: userId })
+      if (!r.ok) return { ok: false, error: r.erro }
+      return { ok: true, senha: r.senhaTemporaria }
+    },
+
+    async resolveEmailByIdentificador(id) {
       const key = id.trim().toLowerCase()
       const user = state.users.find(
         (u) => u.email.toLowerCase() === key || (u.usuario || '').toLowerCase() === key,
       )
-      if (user?.email) return user.email
-      if (await supabaseConfigured()) return resolveEmailCloud(id)
-      return null
+      return user?.email ?? null
     },
-async portalRegisterUser({ email, usuario, senha, role }) {
+
+    async portalRegisterUser({ email, usuario, senha, role, verifyToken }) {
       const em = email.trim().toLowerCase()
       const us = usuario.trim()
+      if (!emDemo()) {
+        // A conta nasce no servidor, que confere o e-mail confirmado (token) e guarda a senha em hash.
+        const r = await chamarApi<RespostaSessao>(
+          '/api/auth/criar-conta',
+          { verify_token: verifyToken, usuario: us, senha },
+          { erroPadrao: 'Não foi possível criar a conta. Tente de novo em instantes.' },
+        )
+        if (!r.ok) return { ok: false, error: r.erro }
+        await abrirSessaoReal(r)
+        return { ok: true }
+      }
       if (state.users.some((u) => u.email.toLowerCase() === em)) {
         return { ok: false, error: 'Este e-mail já está sendo utilizado.' }
       }
@@ -595,96 +790,67 @@ async portalRegisterUser({ email, usuario, senha, role }) {
         users: [...s.users, user],
         sessionUserId: userId,
         auditLogs: [
-          {
-            id: uid('log'),
-            at: nowIso(),
-            actorId: userId,
-            action: 'portal_cadastro',
-            detail: `${us} (${role})`,
-          },
+          { id: uid('log'), at: nowIso(), actorId: userId, action: 'portal_cadastro', detail: `${us} (${role})` },
           ...s.auditLogs,
         ],
       }))
-      if (await supabaseConfigured()) {
-        const remoto = await upsertConta(user)
-        if (!remoto.ok) return { ok: false, error: remoto.erro }
-      }
       return { ok: true }
-    },
-async portalResetSenha(email, novaSenha) {
-      const em = email.trim().toLowerCase()
-      const user = state.users.find((u) => u.email.toLowerCase() === em)
-      if (!user && !(await supabaseConfigured())) return { ok: false, error: 'Usuário não encontrado.' }
-      if (user) {
-        update((s) => ({
-          ...s,
-          users: s.users.map((u) => (u.email.toLowerCase() === em ? { ...u, senha: novaSenha } : u)),
-        }))
-      }
-      if (await supabaseConfigured()) {
-        const remoto = await atualizarSenhaConta(em, novaSenha)
-        if (!remoto.ok) return { ok: false, error: remoto.erro }
-      }
-      return { ok: true }
-    },
-    logout() {
-      update((s) => ({ ...s, sessionUserId: null }))
     },
 
-    async registerEmpresa(userData, empresaData, documentos) {
-      if (state.users.some((u) => u.email.toLowerCase() === userData.email.toLowerCase())) {
+    async portalResetSenha(email, novaSenha, verifyToken) {
+      if (!emDemo()) {
+        const r = await chamarApi('/api/auth/redefinir-senha', { verify_token: verifyToken, novaSenha })
+        return r.ok ? { ok: true } : { ok: false, error: r.erro }
+      }
+      const em = email.trim().toLowerCase()
+      if (!state.users.some((u) => u.email.toLowerCase() === em)) return { ok: false, error: 'Usuário não encontrado.' }
+      update((s) => ({
+        ...s,
+        users: s.users.map((u) => (u.email.toLowerCase() === em ? { ...u, senha: novaSenha } : u)),
+      }))
+      return { ok: true }
+    },
+
+    logout() {
+      sairDaSessao()
+    },
+
+    async registerEmpresa(userData, empresaData, documentos, termos) {
+      // Conta nova só pelo servidor (login → criar conta com código por e-mail).
+      if (!emDemo()) return { ok: false, error: 'Crie a conta pela tela de login, com o código enviado por e-mail.' }
+      const em = userData.email.trim().toLowerCase()
+      if (state.users.some((u) => u.email.toLowerCase() === em)) {
         return { ok: false, error: 'Este e-mail já está sendo utilizado.' }
       }
       const userId = uid('user')
       const empresaId = uid('emp')
       const user: User = {
         id: userId,
-        email: userData.email,
+        email: em,
         senha: userData.senha,
         role: 'empresa',
         ativo: true,
         createdAt: nowIso(),
+        aceites: aceitesComTermos(undefined, termos),
       }
-      const empresa: Empresa = {
-        ...empresaData,
-        id: empresaId,
-        userId,
-        status: 'pendente',
-        avaliacaoMedia: 5,
-        favoritos: [],
-        bloqueados: [],
-        docsOk: true,
-        saldo: 0,
-        limitePosPago: 3000,
-        diasTaxaZero: 0,
-        metaTaxaZero: 300,
-        diasAgenciados: 0,
-        rankingDias: 999,
-        economiaTotal: 0,
-      }
+      const empresa = novaEmpresa(empresaData, empresaId, userId)
+      const docs = documentosDeCadastro([], empresaId, documentos, 'empresa')
       update((s) => ({
         ...s,
         users: [...s.users, user],
-        empresas: [...s.empresas, empresa],
-        documentos: documentosDeCadastro(s.documentos, empresaId, documentos, 'empresa'),
+        empresas: [...s.empresas.filter((e) => e.id !== empresa.id), empresa],
+        documentos: juntarDocumentos(s.documentos, docs),
         sessionUserId: userId,
         auditLogs: [
           { id: uid('log'), at: nowIso(), actorId: userId, action: 'cadastro_empresa', detail: empresa.nomeFantasia },
           ...s.auditLogs,
         ],
       }))
-      if (await supabaseConfigured()) {
-        const conta = await upsertConta(user)
-        if (!conta.ok) return { ok: false, error: conta.erro }
-        const emp = await upsertEmpresa(empresa)
-        if (!emp.ok) return { ok: false, error: emp.erro }
-        const docs = documentosDeCadastro([], empresaId, documentos, 'empresa')
-        if (docs.length) await upsertDocumentos(docs)
-      }
       return { ok: true }
     },
 
     async registerProfissional(userData, profissionalData, documentos) {
+      if (!emDemo()) return { ok: false, error: 'Crie a conta pela tela de login, com o código enviado por e-mail.' }
       if (state.users.some((u) => u.email.toLowerCase() === userData.email.toLowerCase())) {
         return { ok: false, error: 'Este e-mail já está sendo utilizado.' }
       }
@@ -698,19 +864,7 @@ async portalResetSenha(email, novaSenha) {
         ativo: true,
         createdAt: nowIso(),
       }
-      const profissional: Profissional = {
-        ...profissionalData,
-        id: profId,
-        userId,
-        status: 'pendente',
-        nivel: 'bronze',
-        avaliacaoMedia: 5,
-        taxaComparecimento: 100,
-        faltas: 0,
-        tempoRespostaMin: 10,
-        ganhosMes: 0,
-        saldo: 0,
-      }
+      const profissional = novoProfissional(profissionalData, profId, userId)
       update((s) => ({
         ...s,
         users: [...s.users, user],
@@ -722,131 +876,76 @@ async portalResetSenha(email, novaSenha) {
           ...s.auditLogs,
         ],
       }))
-      if (await supabaseConfigured()) {
-        const conta = await upsertConta(user)
-        if (!conta.ok) return { ok: false, error: conta.erro }
-        const prof = await upsertProfissional(profissional)
-        if (!prof.ok) return { ok: false, error: prof.erro }
-        const docs = documentosDeCadastro([], profId, documentos)
-        if (docs.length) await upsertDocumentos(docs)
-      }
       return { ok: true }
     },
 
-    async completeEmpresaPerfil(empresaData, documentos) {
+    async completeEmpresaPerfil(empresaData, documentos, termos) {
       const user = state.users.find((u) => u.id === state.sessionUserId)
       if (!user || user.role !== 'empresa') {
         return { ok: false, error: 'Sessão de empresa inválida.' }
       }
-      if (state.empresas.some((e) => e.userId === user.id)) {
-        update((s) => {
-          const existente = s.empresas.find((e) => e.userId === user.id)
-          return {
-            ...s,
-            users: s.users.map((u) => (u.id === user.id ? { ...u, perfilCompleto: true } : u)),
-            documentos: existente
-              ? documentosDeCadastro(s.documentos, existente.id, documentos, 'empresa')
-              : s.documentos,
-          }
-        })
-        if (await supabaseConfigured()) {
-          await upsertConta({ ...user, perfilCompleto: true })
-          const depois = loadState()
-          const emp = depois.empresas.find((e) => e.userId === user.id)
-          if (emp) {
-            await upsertEmpresa(emp)
-            const docs = depois.documentos.filter((d) => d.donoTipo === 'empresa' && d.donoId === emp.id)
-            if (docs.length) await upsertDocumentos(docs)
-          }
-        }
-        return { ok: true }
+      const existente = state.empresas.find((e) => e.userId === user.id)
+      // Antes, se a empresa já existia, os dados que a pessoa acabou de preencher eram descartados.
+      const empresa: Empresa = existente
+        ? { ...existente, ...empresaData }
+        : novaEmpresa(empresaData, uid('emp'), user.id)
+      let docs = documentosDeCadastro([], empresa.id, documentos, 'empresa')
+      const conta: User = { ...user, perfilCompleto: true, aceites: aceitesComTermos(user.aceites, termos) }
+
+      if (await supabaseConfigured()) {
+        // A ordem importa: empresa e documentos antes de marcar a conta como completa.
+        // Antes os erros eram ignorados; a conta ficava "completa" sem empresa na nuvem, o admin
+        // nunca via o cadastro e o próximo login caía no formulário pedindo e-mail já usado.
+        const salvo = await salvarPerfilNaNuvem('empresa', empresa, docs)
+        if (!salvo.ok) return { ok: false, error: salvo.erro }
+        docs = salvo.docs
+        const contaSalva = await atualizarConta(conta)
+        if (!contaSalva.ok) return { ok: false, error: contaSalva.erro }
       }
-      const empresa: Empresa = {
-        ...empresaData,
-        id: uid('emp'),
-        userId: user.id,
-        status: 'pendente',
-        avaliacaoMedia: 5,
-        favoritos: [],
-        bloqueados: [],
-        docsOk: true,
-        saldo: 0,
-        limitePosPago: 3000,
-        diasTaxaZero: 0,
-        metaTaxaZero: 300,
-        diasAgenciados: 0,
-        rankingDias: 999,
-        economiaTotal: 0,
-      }
+
       update((s) => ({
         ...s,
-        empresas: [...s.empresas, empresa],
-        documentos: documentosDeCadastro(s.documentos, empresa.id, documentos, 'empresa'),
-        users: s.users.map((u) => (u.id === user.id ? { ...u, perfilCompleto: true } : u)),
+        empresas: s.empresas.some((e) => e.id === empresa.id)
+          ? s.empresas.map((e) => (e.id === empresa.id ? empresa : e))
+          : [...s.empresas, empresa],
+        documentos: juntarDocumentos(s.documentos, docs),
+        users: s.users.map((u) => (u.id === user.id ? { ...u, perfilCompleto: true, aceites: conta.aceites } : u)),
         auditLogs: [
-          {
-            id: uid('log'),
-            at: nowIso(),
-            actorId: user.id,
-            action: 'completar_perfil_empresa',
-            detail: empresa.nomeFantasia,
-          },
+          { id: uid('log'), at: nowIso(), actorId: user.id, action: 'completar_perfil_empresa', detail: empresa.nomeFantasia },
           ...s.auditLogs,
         ],
       }))
-      if (await supabaseConfigured()) {
-        await upsertConta({ ...user, perfilCompleto: true })
-        await upsertEmpresa(empresa)
-        const docs = documentosDeCadastro([], empresa.id, documentos, 'empresa')
-        if (docs.length) await upsertDocumentos(docs)
-      }
       return { ok: true }
     },
 
-    async completeProfissionalPerfil(profissionalData, documentos) {
+    async completeProfissionalPerfil(profissionalData, documentos, termos) {
       const user = state.users.find((u) => u.id === state.sessionUserId)
       if (!user || user.role !== 'profissional') {
         return { ok: false, error: 'Sessão de profissional inválida.' }
       }
-      if (state.profissionais.some((p) => p.userId === user.id)) {
-        update((s) => {
-          const existente = s.profissionais.find((p) => p.userId === user.id)
-          return {
-            ...s,
-            users: s.users.map((u) => (u.id === user.id ? { ...u, perfilCompleto: true } : u)),
-            documentos: existente ? documentosDeCadastro(s.documentos, existente.id, documentos) : s.documentos,
-          }
-        })
-        if (await supabaseConfigured()) {
-          await upsertConta({ ...user, perfilCompleto: true })
-          const depois = loadState()
-          const prof = depois.profissionais.find((p) => p.userId === user.id)
-          if (prof) {
-            await upsertProfissional(prof)
-            const docs = depois.documentos.filter((d) => d.donoTipo === 'profissional' && d.donoId === prof.id)
-            if (docs.length) await upsertDocumentos(docs)
-          }
-        }
-        return { ok: true }
+      const existente = state.profissionais.find((p) => p.userId === user.id)
+      // Mesmo tratamento do cadastro da empresa: dados novos valem, nada é ignorado em silêncio.
+      const profissional: Profissional = existente
+        ? { ...existente, ...profissionalData }
+        : novoProfissional(profissionalData, uid('prof'), user.id)
+      let docs = documentosDeCadastro([], profissional.id, documentos)
+      const conta: User = { ...user, perfilCompleto: true, aceites: aceitesComTermos(user.aceites, termos) }
+
+      if (await supabaseConfigured()) {
+        const salvo = await salvarPerfilNaNuvem('profissional', profissional, docs)
+        if (!salvo.ok) return { ok: false, error: salvo.erro }
+        docs = salvo.docs
+        const contaSalva = await atualizarConta(conta)
+        if (!contaSalva.ok) return { ok: false, error: contaSalva.erro }
       }
-      const profissional: Profissional = {
-        ...profissionalData,
-        id: uid('prof'),
-        userId: user.id,
-        status: 'pendente',
-        nivel: 'bronze',
-        avaliacaoMedia: 5,
-        taxaComparecimento: 100,
-        faltas: 0,
-        tempoRespostaMin: 10,
-        ganhosMes: 0,
-        saldo: 0,
-      }
+
       update((s) => ({
         ...s,
-        profissionais: [...s.profissionais, profissional],
-        documentos: documentosDeCadastro(s.documentos, profissional.id, documentos),
-        users: s.users.map((u) => (u.id === user.id ? { ...u, perfilCompleto: true } : u)),
+        profissionais: s.profissionais.some((p) => p.id === profissional.id)
+          ? s.profissionais.map((p) => (p.id === profissional.id ? profissional : p))
+          : [...s.profissionais, profissional],
+        documentos: juntarDocumentos(s.documentos, docs),
+        users: s.users.map((u) => (u.id === user.id ? { ...u, perfilCompleto: true, aceites: conta.aceites } : u)),
         auditLogs: [
           {
             id: uid('log'),
@@ -858,12 +957,6 @@ async portalResetSenha(email, novaSenha) {
           ...s.auditLogs,
         ],
       }))
-      if (await supabaseConfigured()) {
-        await upsertConta({ ...user, perfilCompleto: true })
-        await upsertProfissional(profissional)
-        const docs = documentosDeCadastro([], profissional.id, documentos)
-        if (docs.length) await upsertDocumentos(docs)
-      }
       return { ok: true }
     },
 
@@ -994,31 +1087,43 @@ async portalResetSenha(email, novaSenha) {
     },
 
     convidarParaMissao(input) {
-      let demandaId = input.demandaId ?? ''
-      let candidaturaId = ''
+      // Ids decididos antes do update: o React pode rodar a função de atualização depois do
+      // return, e a tela recebia null (o próximo convite criava outra vaga igual).
+      const criarVaga = !input.demandaId
+      if (criarVaga && !input.pedido) return null
+      const demandaId = input.demandaId || uid('dem')
+      const atual = state.demandas.find((d) => d.id === demandaId)
+      if (atual && (atual.status === 'finalizada' || atual.status === 'cancelada')) return null
+      // Vaga já lotada não recebe convite.
+      if (
+        atual &&
+        atual.quantidade > 0 &&
+        state.candidaturas.filter((c) => c.demandaId === demandaId && c.status === 'confirmada').length >= atual.quantidade
+      ) {
+        return null
+      }
+      const jaConvidado = state.candidaturas.find(
+        (c) => c.demandaId === demandaId && c.profissionalId === input.profissionalId,
+      )
+      const candidaturaId = jaConvidado?.id ?? uid('cand')
       update((s) => {
         let demandas = s.demandas
-        if (!demandaId) {
-          if (!input.pedido) return s
+        if (criarVaga && input.pedido && !s.demandas.some((d) => d.id === demandaId)) {
           const criada: Demanda = {
             ...input.pedido,
-            id: uid('dem'),
+            id: demandaId,
             categoria: cargoCategoria(input.pedido.cargo),
             status: 'aberta',
             createdAt: nowIso(),
           }
-          demandaId = criada.id
           demandas = [criada, ...s.demandas]
         }
         const existente = s.candidaturas.find(
           (c) => c.demandaId === demandaId && c.profissionalId === input.profissionalId,
         )
-        if (existente) {
-          candidaturaId = existente.id
-          return { ...s, demandas }
-        }
+        if (existente) return { ...s, demandas }
         const cand: Candidatura = {
-          id: uid('cand'),
+          id: candidaturaId,
           demandaId,
           profissionalId: input.profissionalId,
           status: 'pendente',
@@ -1027,7 +1132,6 @@ async portalResetSenha(email, novaSenha) {
           createdAt: nowIso(),
           origem: 'convite',
         }
-        candidaturaId = cand.id
         const profissional = s.profissionais.find((p) => p.id === input.profissionalId)
         const demanda = demandas.find((d) => d.id === demandaId)
         const empresa = demanda ? s.empresas.find((e) => e.id === demanda.empresaId) : undefined
@@ -1059,7 +1163,6 @@ async portalResetSenha(email, novaSenha) {
           ],
         }
       })
-      if (!demandaId || !candidaturaId) return null
       return { demandaId, candidaturaId }
     },
 
@@ -1088,8 +1191,10 @@ async portalResetSenha(email, novaSenha) {
       update((s) => ({
         ...s,
         candidaturas: s.candidaturas.map((c) =>
-          c.demandaId === demandaId && c.profissionalId === profissionalId
-            ? { ...c, status: 'recusada' as const }
+          c.demandaId === demandaId &&
+          c.profissionalId === profissionalId &&
+          (c.status === 'pendente' || c.status === 'aceita')
+            ? { ...c, status: 'recusada' as const, recusadaPor: 'profissional' as const }
             : c,
         ),
       }))
@@ -1105,10 +1210,13 @@ async portalResetSenha(email, novaSenha) {
           ? s.empresas.find((e) => e.id === demanda.empresaId)
           : undefined
         if (!demanda || !profissional || !empresa) return s
+        // Missão encerrada/cancelada não recebe mais gente (antes reabria e pagava de novo).
+        if (demanda.status === 'finalizada' || demanda.status === 'cancelada') return s
 
         const confirmados = s.candidaturas.filter(
           (c) => c.demandaId === cand.demandaId && c.status === 'confirmada',
         ).length
+        if (demanda.quantidade > 0 && confirmados >= demanda.quantidade) return s
         const vagaFechada = confirmados + 1 >= demanda.quantidade
         const nextCands = s.candidaturas.map((c) => {
           if (c.id === candidaturaId) return { ...c, status: 'confirmada' as const }
@@ -1274,7 +1382,7 @@ async portalResetSenha(email, novaSenha) {
             )
           }
         }
-        const encerrada = finishDemandaState(s, demanda.id)
+        const encerrada = finishDemandaState(s, demanda.id, input.dataEfetiva)
         return {
           ...encerrada,
           pecas: [...novas, ...(encerrada.pecas ?? [])],
@@ -1286,22 +1394,17 @@ async portalResetSenha(email, novaSenha) {
       update((s) => ({ ...s, cadastroEtt: cadastro }))
     },
 
-    registrarConsentimento(profissionalId, campo) {
+    registrarConsentimento(profissionalId, campo, dar = true) {
       const chave =
         campo === 'politica' ? 'politicaEm' : campo === 'curriculo' ? 'curriculoEm' : 'compartilhamentoEm'
       update((s) => ({
         ...s,
-        profissionais: s.profissionais.map((p) =>
-          p.id === profissionalId
-            ? {
-                ...p,
-                consentimentoPrivacidade: {
-                  ...p.consentimentoPrivacidade,
-                  [chave]: nowIso(),
-                },
-              }
-            : p,
-        ),
+        profissionais: s.profissionais.map((p) => {
+          if (p.id !== profissionalId) return p
+          // Desmarcar retira o consentimento (o termo diz que dá para retirar; antes só renovava a data).
+          const { [chave]: _antigo, ...resto } = p.consentimentoPrivacidade ?? {}
+          return { ...p, consentimentoPrivacidade: dar ? { ...resto, [chave]: nowIso() } : resto }
+        }),
       }))
     },
 
@@ -1367,43 +1470,55 @@ async portalResetSenha(email, novaSenha) {
     },
 
     refuseCandidato(candidaturaId) {
+      // Só pendente/aceita: recusar uma confirmada deixava o contrato ativo.
       update((s) => ({
         ...s,
         candidaturas: s.candidaturas.map((c) =>
-          c.id === candidaturaId ? { ...c, status: 'recusada' as const } : c,
-        ),
-      }))
-    },
-
-    doCheckIn(demandaId, profissionalId) {
-      update((s) => ({
-        ...s,
-        checkIns: s.checkIns.map((c) =>
-          c.demandaId === demandaId && c.profissionalId === profissionalId
-            ? { ...c, checkInAt: nowIso(), gpsOk: true }
+          c.id === candidaturaId && (c.status === 'pendente' || c.status === 'aceita')
+            ? { ...c, status: 'recusada' as const, recusadaPor: 'empresa' as const }
             : c,
         ),
       }))
     },
 
-    doCheckOut(demandaId, profissionalId) {
+    // Ponto por dia: antes havia um único registro por missão e, depois da primeira saída,
+    // "Registrar entrada" nunca voltava — missões de vários dias só contavam o 1º dia.
+    doCheckIn(demandaId, profissionalId) {
       update((s) => {
-        const check = s.checkIns.find(
-          (c) => c.demandaId === demandaId && c.profissionalId === profissionalId,
-        )
-        let horas = 8
-        if (check?.checkInAt) {
-          horas = Math.max(
-            1,
-            Math.round((Date.now() - new Date(check.checkInAt).getTime()) / 3600000),
-          )
+        const demanda = s.demandas.find((d) => d.id === demandaId)
+        if (!demanda || demanda.status === 'finalizada' || demanda.status === 'cancelada') return s
+        const hoje = hojeLocal()
+        const meus = s.checkIns.filter((c) => c.demandaId === demandaId && c.profissionalId === profissionalId)
+        if (meus.some((c) => c.checkInAt && diaDoPonto(c) === hoje)) return s
+        const vazio = meus.find((c) => !c.checkInAt)
+        const registro: CheckIn = {
+          id: vazio?.id ?? uid('chk'),
+          demandaId,
+          profissionalId,
+          data: hoje,
+          checkInAt: nowIso(),
+          gpsOk: true,
         }
         return {
           ...s,
+          checkIns: vazio
+            ? s.checkIns.map((c) => (c.id === vazio.id ? registro : c))
+            : [registro, ...s.checkIns],
+        }
+      })
+    },
+
+    doCheckOut(demandaId, profissionalId) {
+      update((s) => {
+        const aberto = s.checkIns.find(
+          (c) => c.demandaId === demandaId && c.profissionalId === profissionalId && c.checkInAt && !c.checkOutAt,
+        )
+        if (!aberto?.checkInAt) return s
+        const horas = Math.max(1, Math.round((Date.now() - new Date(aberto.checkInAt).getTime()) / 3600000))
+        return {
+          ...s,
           checkIns: s.checkIns.map((c) =>
-            c.demandaId === demandaId && c.profissionalId === profissionalId
-              ? { ...c, checkOutAt: nowIso(), horasTrabalhadas: horas }
-              : c,
+            c.id === aberto.id ? { ...c, checkOutAt: nowIso(), horasTrabalhadas: horas } : c,
           ),
         }
       })
@@ -1563,59 +1678,81 @@ async portalResetSenha(email, novaSenha) {
 
 async setEmpresaStatus(id, status, opts) {
       const atual = state.empresas.find((e) => e.id === id)
-      if (!atual) return
+      if (!atual) return { ok: false, error: 'Empresa não encontrada.' }
       const next = {
         ...atual,
         status,
         motivoRecusa:
           status === 'recusada' ? String(opts?.motivoRecusa || '').trim() || atual.motivoRecusa : undefined,
       }
+      // Antes a falha da nuvem era ignorada: o admin via "aprovado", o e-mail saía,
+      // mas o banco seguia "pendente" e a empresa continuava sem conseguir entrar.
+      if (await supabaseConfigured()) {
+        const remoto = await upsertEmpresa(next)
+        if (!remoto.ok) return { ok: false, error: remoto.erro }
+      }
       update((s) => ({
         ...s,
         empresas: s.empresas.map((e) => (e.id === id ? next : e)),
       }))
-      if (await supabaseConfigured()) await upsertEmpresa(next)
+      return { ok: true }
     },
 async setProfissionalStatus(id, status, opts) {
       const atual = state.profissionais.find((p) => p.id === id)
-      if (!atual) return
+      if (!atual) return { ok: false, error: 'Colaborador não encontrado.' }
       const next = {
         ...atual,
         status,
         motivoRecusa:
           status === 'recusado' ? String(opts?.motivoRecusa || '').trim() || atual.motivoRecusa : undefined,
       }
+      if (await supabaseConfigured()) {
+        const remoto = await upsertProfissional(next)
+        if (!remoto.ok) return { ok: false, error: remoto.erro }
+      }
       update((s) => ({
         ...s,
         profissionais: s.profissionais.map((p) => (p.id === id ? next : p)),
       }))
-      if (await supabaseConfigured()) await upsertProfissional(next)
+      return { ok: true }
     },
     finishDemanda(demandaId) {
       update((s) => finishDemandaState(s, demandaId))
     },
 
     cancelDemanda(demandaId) {
-      update((s) => ({
-        ...s,
-        demandas: s.demandas.map((d) =>
-          d.id === demandaId ? { ...d, status: 'cancelada' as const } : d,
-        ),
-        candidaturas: s.candidaturas.map((c) =>
-          c.demandaId === demandaId && (c.status === 'pendente' || c.status === 'aceita')
-            ? { ...c, status: 'cancelada' as const }
-            : c,
-        ),
-      }))
+      update((s) => {
+        const demanda = s.demandas.find((d) => d.id === demandaId)
+        if (!demanda || demanda.status === 'finalizada' || demanda.status === 'cancelada') return s
+        // Se alguém já trabalhou (entrada no ponto), "cancelar" vira encerramento hoje: os dias
+        // trabalhados são pagos. Antes a vaga sumia e ninguém recebia.
+        if (s.checkIns.some((c) => c.demandaId === demandaId && c.checkInAt)) {
+          return finishDemandaState(s, demandaId, hojeLocal())
+        }
+        return {
+          ...s,
+          demandas: s.demandas.map((d) => (d.id === demandaId ? { ...d, status: 'cancelada' as const } : d)),
+          // Inclui quem já estava confirmado: antes a vaga cancelada seguia "em andamento" para ele.
+          candidaturas: s.candidaturas.map((c) =>
+            c.demandaId === demandaId && (c.status === 'pendente' || c.status === 'aceita' || c.status === 'confirmada')
+              ? { ...c, status: 'cancelada' as const }
+              : c,
+          ),
+          contratos: s.contratos.map((contrato) =>
+            contrato.demandaId === demandaId && contrato.status !== 'concluido'
+              ? { ...contrato, status: 'rescindido' as const }
+              : contrato,
+          ),
+        }
+      })
     },
 
     resetDemo() {
       setState(persist(resetState()))
     },
 
-    async refreshFromCloud() {
-      await refreshFromCloud()
-    },
+    // Referência estável (useCallback): quem usa em dependência de efeito não entra em loop.
+    refreshFromCloud,
 
     async excluirUsuario(userId) {
       const alvo = state.users.find((u) => u.id === userId)

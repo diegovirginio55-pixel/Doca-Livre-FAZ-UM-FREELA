@@ -1,5 +1,7 @@
 import { cargoLabel } from '../data/categories'
 import { effectiveStatus } from './documentos'
+import { rotuloMotivo } from './modalidadeContratacao'
+import { dataLocal } from './ponto'
 import { nowIso, uid } from './seed'
 import type {
   CadastroEtt,
@@ -91,6 +93,19 @@ function dataBr(iso: string) {
   return `${d}/${m}/${y}`
 }
 
+/**
+ * Dia local de um instante. `iso.slice(0, 10)` pega o dia em UTC: pagamento feito depois das 21h
+ * (Brasília) saía com a data de amanhã no recibo. Data pura (AAAA-MM-DD) fica como está.
+ */
+function diaLocal(valor: string) {
+  if (/^\d{4}-\d{2}-\d{2}$/.test(valor)) return valor
+  return dataLocal(valor) || valor.slice(0, 10)
+}
+
+function moeda(valor: number) {
+  return valor.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
+}
+
 function linhasMissao(demanda: Demanda, empresa: Empresa, ett: CadastroEtt) {
   const fim = demanda.dataFim || demanda.data
   return [
@@ -103,8 +118,8 @@ function linhasMissao(demanda: Demanda, empresa: Empresa, ett: CadastroEtt) {
     `Início: ${dataBr(demanda.data)}`,
     `Término previsto: ${dataBr(fim)}`,
     `Jornada: ${demanda.horaInicio}–${demanda.horaFim}`,
-    `Remuneração prevista: ${demanda.valorDiaria ? `R$ ${demanda.valorDiaria} por dia` : 'a informar'}`,
-    `Motivo: ${demanda.motivo || 'não informado'}`,
+    `Remuneração prevista: ${demanda.valorDiaria ? `${moeda(demanda.valorDiaria)} por dia` : 'a informar'}`,
+    `Motivo: ${demanda.motivo ? rotuloMotivo(demanda.motivo) : 'não informado'}`,
     `Atividades: ${demanda.atividades || demanda.descricao || 'não informadas'}`,
     `Requisitos: ${demanda.requisitos.join(', ') || 'não informados'}`,
     `Observações: ${demanda.observacoes || 'sem observações'}`,
@@ -193,8 +208,8 @@ export function criarContratoIndividual(params: {
       `Início: ${dataBr(demanda.data)}`,
       `Término: ${dataBr(fim)}`,
       `Jornada: ${demanda.horaInicio}–${demanda.horaFim}`,
-      `Remuneração: ${demanda.valorDiaria ? `R$ ${demanda.valorDiaria} por dia` : 'a informar'}`,
-      `Motivo da contratação: ${demanda.motivo || 'não informado'}`,
+      `Remuneração: ${demanda.valorDiaria ? `${moeda(demanda.valorDiaria)} por dia` : 'a informar'}`,
+      `Motivo da contratação: ${demanda.motivo ? rotuloMotivo(demanda.motivo) : 'não informado'}`,
       'Natureza: contrato de trabalho temporário da Lei 6.019/1974, com a empresa de trabalho temporário como empregadora e colocação do trabalhador à disposição da tomadora pelo prazo e pelo motivo desta missão.',
       'Prazo: até 180 dias, prorrogável por mais 90 dias quando mantido o motivo. A condição de temporário é anotada na carteira de trabalho.',
       'Direitos: remuneração equivalente à dos empregados da mesma categoria da tomadora, jornada de até 8 horas diárias, horas extras com acréscimo mínimo de 50%, repouso semanal remunerado, adicional noturno, férias e 13º proporcionais, FGTS, seguro contra acidente de trabalho e proteção previdenciária.',
@@ -328,7 +343,6 @@ export function criarRecibo(params: {
   if (pecas.some((p) => p.tipo === 'recibo' && p.demandaId === demanda.id && p.profissionalId === profissional.id)) {
     return null
   }
-  const moeda = (v: number) => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
   return {
     id: uid('peca'),
     numero: proximoNumero(pecas, 'REC'),
@@ -345,7 +359,7 @@ export function criarRecibo(params: {
       `Período: ${dataBr(demanda.data)} a ${dataBr(demanda.dataFim || demanda.data)}`,
       `Dias: ${params.dias} · Diária: ${moeda(demanda.valorDiaria)}`,
       `Valor: ${moeda(params.valor)}`,
-      `Pago em: ${dataBr(params.pagoEm.slice(0, 10))}`,
+      `Pago em: ${dataBr(diaLocal(params.pagoEm))}`,
       'Declaro que recebi o valor acima pela missão temporária descrita.',
     ],
     assinaturas: [{ papel: 'trabalhador', nome: profissional.nome, status: 'pendente' }],
@@ -369,7 +383,7 @@ export function criarEncerramento(params: {
   const antecipada = params.dataEfetiva < fim
   const prazo = new Date(`${params.dataEfetiva}T12:00:00`)
   prazo.setDate(prazo.getDate() + 2)
-  const prazoIso = prazo.toISOString().slice(0, 10)
+  const prazoIso = dataLocal(prazo)
   return {
     id: uid('peca'),
     numero: proximoNumero(params.pecas, 'ENC'),
