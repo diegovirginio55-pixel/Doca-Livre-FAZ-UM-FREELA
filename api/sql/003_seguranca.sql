@@ -91,6 +91,21 @@ language sql stable as $$
   select fz_minha_empresa(eid) or fz_meu_profissional(pid)
 $$;
 
+-- ---------- Regras antigas ----------
+-- O banco veio do Supabase com uma regra "libera tudo" (using (true)) em cada tabela mao_*.
+-- Regras permissivas se somam: deixá-las anularia todas as regras abaixo. Remove todas as que
+-- não são deste arquivo (prefixo fz_).
+do $$
+declare p record;
+begin
+  for p in
+    select schemaname, tablename, policyname from pg_policies
+    where schemaname = 'public' and tablename like 'mao\_%' and policyname not like 'fz\_%'
+  loop
+    execute format('drop policy %I on %I.%I', p.policyname, p.schemaname, p.tablename);
+  end loop;
+end $$;
+
 -- ---------- Permissões do papel web ----------
 
 revoke all on all tables in schema public from web;
