@@ -1,17 +1,23 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="Doca Livre">
-  <rect width="512" height="512" rx="96" fill="#ffffff"/>
-  <g transform="translate(106 106)">
-    <path d="M0 0h118" stroke="#f9db00" stroke-width="28" stroke-linecap="round"/>
-    <path d="M0 300h118" stroke="#f9db00" stroke-width="28" stroke-linecap="round"/>
-    <path d="M0 0v144" stroke="#f9db00" stroke-width="28" stroke-linecap="round"/>
-    <path d="M0 300v-144" stroke="#f9db00" stroke-width="28" stroke-linecap="round"/>
-    <path d="M300 0H182" stroke="#f9db00" stroke-width="28" stroke-linecap="round"/>
-    <path d="M300 300H182" stroke="#f9db00" stroke-width="28" stroke-linecap="round"/>
-    <path d="M300 0v144" stroke="#f9db00" stroke-width="28" stroke-linecap="round"/>
-    <path d="M300 300v-144" stroke="#f9db00" stroke-width="28" stroke-linecap="round"/>
-    <path d="M62 150h100" stroke="#f9db00" stroke-width="52" stroke-linecap="round"/>
-    <path d="M58 150l72-60v120z" fill="#f9db00"/>
-    <path d="M238 150H138" stroke="#f9db00" stroke-width="52" stroke-linecap="round"/>
-    <path d="M242 150L170 90v120z" fill="#f9db00"/>
+  <!-- Contorno azul-marinho no tema claro e branco no escuro (a barra de abas fica escura). -->
+  <style>
+    .contorno { stroke: #043460; }
+    @media (prefers-color-scheme: dark) {
+      .contorno { stroke: #ffffff; }
+    }
+  </style>
+  <g transform="translate(106 106)" fill="none" stroke-width="28" stroke-linecap="round">
+    <path class="contorno" d="M0 0h118"/>
+    <path class="contorno" d="M0 300h118"/>
+    <path class="contorno" d="M0 0v144"/>
+    <path class="contorno" d="M0 300v-144"/>
+    <path class="contorno" d="M300 0H182"/>
+    <path class="contorno" d="M300 300H182"/>
+    <path class="contorno" d="M300 0v144"/>
+    <path class="contorno" d="M300 300v-144"/>
+    <path d="M62 150h100" stroke="#f9db00" stroke-width="52"/>
+    <path d="M58 150l72-60v120z" fill="#f9db00" stroke="none"/>
+    <path d="M238 150H138" stroke="#f9db00" stroke-width="52"/>
+    <path d="M242 150L170 90v120z" fill="#f9db00" stroke="none"/>
   </g>
 </svg>
