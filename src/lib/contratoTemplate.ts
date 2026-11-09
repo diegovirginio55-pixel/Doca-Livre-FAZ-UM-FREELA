@@ -142,7 +142,7 @@ export function renderContratoHtml(params: {
 </head>
 <body>
   <div class="brand">
-    <img src="${PLATAFORMA_DOCA.site.startsWith('http') ? '' : '/logo-doca-livre.png'}" alt="Doca Livre" />
+    <img src="${PLATAFORMA_DOCA.site.startsWith('http') ? '' : '/logo-doca-livre.png?v=2026-11-09'}" alt="Doca Livre" />
   </div>
   <h1>${
     demanda.motivo
