@@ -19,6 +19,7 @@ function carregar() {
         faceapi.nets.faceLandmark68Net.loadFromUri(MODELOS_URL),
         faceapi.nets.faceRecognitionNet.loadFromUri(MODELOS_URL),
       ])
+      await aquecer(faceapi)
       return faceapi
     })()
     carregando.catch(() => {
@@ -26,6 +27,30 @@ function carregar() {
     })
   }
   return carregando
+}
+
+/**
+ * No WebGL, o primeiro cálculo de cada rede sai errado (testado em GPU Intel real e no
+ * renderizador por software): a selfie, calculada primeiro, "não tinha rosto" na posição normal,
+ * o código achava um rosto na foto girada e a comparação dava "não confere" até para a mesma foto.
+ * Rodar as três redes uma vez numa imagem neutra resolve — e a comparação em si fica rápida.
+ */
+async function aquecer(faceapi: FaceApi) {
+  const canvas = document.createElement('canvas')
+  canvas.width = 160
+  canvas.height = 160
+  const ctx = canvas.getContext('2d')
+  if (!ctx) return
+  ctx.fillStyle = '#888'
+  ctx.fillRect(0, 0, 160, 160)
+  await faceapi.nets.ssdMobilenetv1.locateFaces(canvas)
+  await faceapi.nets.faceLandmark68Net.detectLandmarks(canvas)
+  await faceapi.nets.faceRecognitionNet.computeFaceDescriptor(canvas)
+}
+
+/** Começa a baixar e aquecer o modelo antes (ex.: ao abrir a etapa de documentos). */
+export function prepararComparacaoRostos() {
+  void carregar().catch(() => undefined)
 }
 
 function imagem(dataUrl: string) {

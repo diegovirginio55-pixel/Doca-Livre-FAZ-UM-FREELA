@@ -577,14 +577,20 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     }
     if (!cloud) return
     if (!tokenAtual()) return
-    // Atualização funcional: uma mudança feita pelo usuário enquanto o pull estava a caminho
-    // não é descartada. As decisões usam uma foto da base, então rodar duas vezes (StrictMode)
-    // dá o mesmo resultado.
+    // O resultado vai para stateRef na hora: quem espera este pull (o login decide para onde ir
+    // olhando se a empresa/perfil chegou) precisa ver os dados já mesclados. Com só a
+    // atualização funcional, ela rodava depois e a empresa aprovada caía no formulário de cadastro.
+    // Se o usuário mudou algo enquanto o pull estava a caminho, a mescla é refeita sobre a versão
+    // mais nova; as decisões usam a mesma foto da base, então repetir (StrictMode) dá o mesmo resultado.
     const foto = fotografarBase()
+    const origem = stateRef.current
+    const mesclado = persist(recalcularDerivados(mesclarNuvem(origem, cloud, foto)))
+    stateRef.current = mesclado
     setState((prev) => {
-      const next = persist(recalcularDerivados(mesclarNuvem(prev, cloud, foto)))
-      stateRef.current = next
-      return next
+      if (prev === origem) return mesclado
+      const refeito = persist(recalcularDerivados(mesclarNuvem(prev, cloud, foto)))
+      stateRef.current = refeito
+      return refeito
     })
     sincronizadoRef.current = true
   }, [sairDaSessao])

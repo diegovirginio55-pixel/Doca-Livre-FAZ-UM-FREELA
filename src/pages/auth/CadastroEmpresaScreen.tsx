@@ -541,7 +541,16 @@ export function CadastroEmpresaScreen({ onBack, onDone }: Props) {
             </div>
           </dl>
         )}
-        {step === 7 && <AceiteCadastro role="empresa" marcados={aceites} onMarcar={setAceites} />}
+        {step === 7 && (
+          <AceiteCadastro
+            role="empresa"
+            marcados={aceites}
+            onMarcar={(marcados) => {
+              setAceites(marcados)
+              setError('')
+            }}
+          />
+        )}
 
         {error && <p className="error">{error}</p>}
         <button type="submit" className="btn btn-accent btn-block" disabled={enviando}>

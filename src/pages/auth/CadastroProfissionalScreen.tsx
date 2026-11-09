@@ -108,6 +108,8 @@ export function CadastroProfissionalScreen({ onBack, onDone }: Props) {
     nome: '',
     cpf: '',
     rg: '',
+    /** Estado que emitiu o RG: o dígito verificador só é conferido quando é SP. */
+    rgUf: 'SP',
     nascimento: '',
     telefone: '',
     email: currentUser?.email || '',
@@ -232,6 +234,12 @@ export function CadastroProfissionalScreen({ onBack, onDone }: Props) {
   }
 
   const [rosto, setRosto] = useState<ResultadoRosto | { status: 'comparando' } | null>(null)
+  // O modelo de rosto leva alguns segundos para baixar e aquecer: começa ao abrir a etapa,
+  // enquanto a pessoa escolhe as fotos.
+  useEffect(() => {
+    if (step !== PASSO.documentos) return
+    void import('../../lib/compararRostos').then((m) => m.prepararComparacaoRostos()).catch(() => undefined)
+  }, [step])
   const fotoDoc = linhas.documento.arquivo
   const fotoSelfie = linhas.selfie.arquivo
   useEffect(() => {
@@ -372,7 +380,9 @@ export function CadastroProfissionalScreen({ onBack, onDone }: Props) {
       const falhaDados =
         (form.nome.trim().split(/\s+/).length < 2 ? 'Informe o nome completo (nome e sobrenome).' : '') ||
         erroCpf(form.cpf) ||
-        erroRg(form.rg, form.estado) ||
+        // Antes usava o estado do endereço, que só é preenchido na etapa 8 (até lá valia SP):
+        // RG de outro estado com 9 dígitos continuava barrado.
+        erroRg(form.rg, form.rgUf) ||
         erroTelefone(form.telefone) ||
         (!completing && state.users.some((u) => u.email.trim().toLowerCase() === form.email.trim().toLowerCase())
           ? 'Este e-mail já tem uma conta. Use outro e-mail ou entre com ele na tela de login.'
@@ -555,6 +565,16 @@ export function CadastroProfissionalScreen({ onBack, onDone }: Props) {
             <label className="field"><span>CPF</span><input value={form.cpf} onChange={(e) => set('cpf', mascararCpf(e.target.value))} inputMode="numeric" autoComplete="off" placeholder="000.000.000-00" maxLength={14} required /></label>
             {form.cpf.replace(/\D/g, '').length === 11 && erroCpf(form.cpf) && <p className="portal-login__erro">{erroCpf(form.cpf)}</p>}
             <label className="field"><span>RG</span><input value={form.rg} onChange={(e) => set('rg', mascararRg(e.target.value))} autoComplete="off" placeholder="00.000.000-0" maxLength={18} required /></label>
+            <label className="field">
+              <span>Estado que emitiu o RG</span>
+              <select value={form.rgUf} onChange={(e) => set('rgUf', e.target.value)}>
+                {UFS.map((uf) => (
+                  <option key={uf} value={uf}>
+                    {uf}
+                  </option>
+                ))}
+              </select>
+            </label>
             <label className="field"><span>Nascimento</span><input type="date" value={form.nascimento} onChange={(e) => set('nascimento', e.target.value)} required /></label>
             <label className="field"><span>Telefone</span><input type="tel" value={form.telefone} onChange={(e) => set('telefone', mascararTelefone(e.target.value))} inputMode="tel" autoComplete="tel-national" placeholder="(11) 91234-5678" maxLength={15} required /></label>
             {dddInfo && <small className="muted">{dddInfo}</small>}
@@ -781,7 +801,14 @@ export function CadastroProfissionalScreen({ onBack, onDone }: Props) {
               </datalist>
               <small className="muted">A chave Pix não mostra o banco. Informe para a equipe conferir o pagamento mais rápido.</small>
             </label>
-            <AceiteCadastro role="profissional" marcados={aceites} onMarcar={setAceites} />
+            <AceiteCadastro
+              role="profissional"
+              marcados={aceites}
+              onMarcar={(marcados) => {
+                setAceites(marcados)
+                setError('')
+              }}
+            />
           </>
         )}
 

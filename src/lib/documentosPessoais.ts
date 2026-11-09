@@ -46,7 +46,9 @@ export function erroRg(valor: string, estado?: string) {
   if (/^(\d)\1+$/.test(r)) return 'RG inválido. Confira os números.'
   // O dígito verificador é a regra de SP; RG de outro estado com 9 dígitos não pode ser barrado.
   if (estado?.toUpperCase() === 'SP' && r.length === 9 && /^\d{8}[\dX]$/.test(r)) {
-    if (digitoRgSp(r.slice(0, 8)) !== r[8]) return 'RG inválido. Confira o dígito final.'
+    if (digitoRgSp(r.slice(0, 8)) !== r[8]) {
+      return 'RG inválido. Confira o dígito final. Se o RG não for de SP, escolha o estado que o emitiu.'
+    }
   }
   return ''
 }

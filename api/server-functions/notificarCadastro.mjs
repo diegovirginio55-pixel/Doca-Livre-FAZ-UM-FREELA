@@ -98,7 +98,7 @@ export async function notificarCadastro(payload) {
   })
 
   try {
-    const resposta = await fetch('https://api.resend.com/emails', {
+    const resposta = await fetch(config.RESEND_API_URL || 'https://api.resend.com/emails', {
       method: 'POST',
       headers: {
         Authorization: `Bearer ${apiKey}`,
