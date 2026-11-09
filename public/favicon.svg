@@ -1,14 +1,14 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="Doca Livre">
   <rect width="512" height="512" rx="96" fill="#ffffff"/>
   <g transform="translate(106 106)">
-    <path d="M0 0h118" stroke="#050505" stroke-width="28" stroke-linecap="round"/>
-    <path d="M0 300h118" stroke="#050505" stroke-width="28" stroke-linecap="round"/>
-    <path d="M0 0v144" stroke="#050505" stroke-width="28" stroke-linecap="round"/>
-    <path d="M0 300v-144" stroke="#050505" stroke-width="28" stroke-linecap="round"/>
-    <path d="M300 0H182" stroke="#050505" stroke-width="28" stroke-linecap="round"/>
-    <path d="M300 300H182" stroke="#050505" stroke-width="28" stroke-linecap="round"/>
-    <path d="M300 0v144" stroke="#050505" stroke-width="28" stroke-linecap="round"/>
-    <path d="M300 300v-144" stroke="#050505" stroke-width="28" stroke-linecap="round"/>
+    <path d="M0 0h118" stroke="#f9db00" stroke-width="28" stroke-linecap="round"/>
+    <path d="M0 300h118" stroke="#f9db00" stroke-width="28" stroke-linecap="round"/>
+    <path d="M0 0v144" stroke="#f9db00" stroke-width="28" stroke-linecap="round"/>
+    <path d="M0 300v-144" stroke="#f9db00" stroke-width="28" stroke-linecap="round"/>
+    <path d="M300 0H182" stroke="#f9db00" stroke-width="28" stroke-linecap="round"/>
+    <path d="M300 300H182" stroke="#f9db00" stroke-width="28" stroke-linecap="round"/>
+    <path d="M300 0v144" stroke="#f9db00" stroke-width="28" stroke-linecap="round"/>
+    <path d="M300 300v-144" stroke="#f9db00" stroke-width="28" stroke-linecap="round"/>
     <path d="M62 150h100" stroke="#f9db00" stroke-width="52" stroke-linecap="round"/>
     <path d="M58 150l72-60v120z" fill="#f9db00"/>
     <path d="M238 150H138" stroke="#f9db00" stroke-width="52" stroke-linecap="round"/>
