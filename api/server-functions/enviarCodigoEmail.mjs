@@ -1,19 +1,17 @@
+// Código de confirmação por e-mail (cadastro e troca de senha), guardado no banco.
+//
+// Antes: o código ficava na memória do processo (sumia ao reiniciar e não valia em outra
+// réplica), era gerado com Math.random, não tinha limite de tentativas e a ação
+// "enviar_legado" deixava o próprio cliente escolher o código — o que permitia confirmar
+// qualquer e-mail e trocar a senha de qualquer conta.
+import { createHash } from 'node:crypto'
+import { gerarCodigo, gerarTokenAleatorio, segredoJwt } from '../auth.mjs'
+import { pool } from '../migrar.mjs'
+
 const OTP_MINUTOS = 10
-const CODE_TTL_MS = OTP_MINUTOS * 60 * 1000
-const TOKEN_TTL_MS = 15 * 60 * 1000
-const COOLDOWN_MS = 60 * 1000
-const PEPPER = 'doca-mao-otp'
-
-/** @type {Map<string, any>} */
-const memoria = new Map()
-
-function ambiente(env) {
-  return env ?? process.env
-}
-
-function chave(finalidade, email) {
-  return `${finalidade}:${String(email || '').trim().toLowerCase()}`
-}
+const TOKEN_MINUTOS = 15
+const COOLDOWN_SEGUNDOS = 60
+const MAX_TENTATIVAS = 5
 
 export function montarEmailCodigo(finalidade, codigo) {
   const acao =
@@ -37,32 +35,16 @@ export function montarEmailCodigo(finalidade, codigo) {
   return { assunto, texto, html }
 }
 
-function genCode() {
-  return String(Math.floor(100000 + Math.random() * 900000))
+function hashCodigo(codigo) {
+  return createHash('sha256').update(`${segredoJwt()}:otp:${codigo}`).digest('hex')
 }
 
-function genToken() {
-  return `vt_${Math.random().toString(36).slice(2)}${Date.now().toString(36)}`
+function emailValido(email) {
+  return /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)
 }
 
-async function sha256Hex(texto) {
-  const { createHash } = await import('node:crypto')
-  return createHash('sha256').update(texto).digest('hex')
-}
-
-async function enviarResend({ email, codigo, finalidade, env }) {
-  const destino = String(email || '').trim().toLowerCase()
-  const digitos = String(codigo || '').replace(/\D/g, '')
-  const tipo = finalidade === 'senha' ? 'senha' : finalidade === 'cadastro' ? 'cadastro' : ''
-  if (!destino || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(destino)) {
-    return { ok: false, status: 400, erro: 'Informe um e-mail válido.' }
-  }
-  if (digitos.length !== 6 || tipo === '') {
-    return { ok: false, status: 400, erro: 'Não foi possível enviar o e-mail.' }
-  }
-
-  const config = ambiente(env)
-  const apiKey = String(config.RESEND_API_KEY || '').trim()
+async function enviarResend(email, codigo, finalidade) {
+  const apiKey = String(process.env.RESEND_API_KEY || '').trim()
   if (!apiKey) {
     return {
       ok: false,
@@ -70,124 +52,130 @@ async function enviarResend({ email, codigo, finalidade, env }) {
       erro: 'Não foi possível enviar o e-mail. O envio ainda não está configurado neste ambiente.',
     }
   }
-
   const from =
-    String(config.RESEND_FROM || '').trim() ||
-    String(config.SMTP_FROM || '').trim() ||
+    String(process.env.RESEND_FROM || '').trim() ||
+    String(process.env.SMTP_FROM || '').trim() ||
     'Doca Livre fazumfreela <onboarding@resend.dev>'
-  const { assunto, texto, html } = montarEmailCodigo(tipo, digitos)
-
+  const { assunto, texto, html } = montarEmailCodigo(finalidade, codigo)
   try {
-    const resposta = await fetch('https://api.resend.com/emails', {
+    const resposta = await fetch(process.env.RESEND_API_URL || 'https://api.resend.com/emails', {
       method: 'POST',
-      headers: {
-        Authorization: `Bearer ${apiKey}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        from,
-        to: [destino],
-        subject: assunto,
-        text: texto,
-        html,
-      }),
+      headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
+      signal: AbortSignal.timeout(20000),
+      body: JSON.stringify({ from, to: [email], subject: assunto, text: texto, html }),
     })
     if (resposta.status === 200 || resposta.status === 201) return { ok: true, status: 200 }
-    return {
-      ok: false,
-      status: 503,
-      erro: 'Não foi possível enviar o e-mail. Tente de novo em instantes.',
-    }
   } catch {
-    return {
-      ok: false,
-      status: 503,
-      erro: 'Não foi possível enviar o e-mail. Tente de novo em instantes.',
-    }
+    /* cai no erro abaixo */
   }
+  return { ok: false, status: 503, erro: 'Não foi possível enviar o e-mail. Tente de novo em instantes.' }
 }
 
-/** Compatível com o fluxo antigo (cliente manda o código) e com acao enviar/verificar/consumir. */
-export async function enviarCodigoEmail(payload) {
-  const {
-    email,
-    codigo,
+async function contaPorIdentificador(identificador) {
+  const chave = String(identificador || '').trim().toLowerCase()
+  if (!chave) return null
+  const { rows } = await pool.query(
+    `select id, email, ativo from mao_contas where lower(email) = $1 or lower(usuario) = $1 limit 1`,
+    [chave],
+  )
+  return rows[0] || null
+}
+
+async function enviar({ email, identificador, finalidade, portalRole }) {
+  let destino = String(email || '').trim().toLowerCase()
+  if (finalidade === 'senha') {
+    const conta = await contaPorIdentificador(identificador || email)
+    if (!conta || !conta.ativo) return { ok: false, status: 404, erro: 'Usuário ou e-mail não encontrado.' }
+    destino = String(conta.email).toLowerCase()
+  } else {
+    if (!destino || !emailValido(destino)) return { ok: false, status: 400, erro: 'Informe um e-mail válido.' }
+    const existe = await pool.query(`select 1 from mao_contas where lower(email) = $1 limit 1`, [destino])
+    if (existe.rowCount) return { ok: false, status: 409, erro: 'Este e-mail já está sendo utilizado.' }
+  }
+
+  const recente = await pool.query(
+    `select 1 from mao_email_codigos
+     where lower(email) = $1 and finalidade = $2 and not usado
+       and created_at > now() - make_interval(secs => $3)
+     limit 1`,
+    [destino, finalidade, COOLDOWN_SEGUNDOS],
+  )
+  if (recente.rowCount) {
+    return { ok: false, status: 429, erro: 'Aguarde cerca de 1 minuto para pedir outro código.' }
+  }
+
+  const codigo = gerarCodigo()
+  // Um código novo invalida os anteriores do mesmo e-mail.
+  await pool.query(`update mao_email_codigos set usado = true where lower(email) = $1 and finalidade = $2 and not usado`, [
+    destino,
     finalidade,
-    env,
-    acao = codigo ? 'enviar_legado' : 'enviar',
-    portalRole = null,
-    verify_token = null,
-  } = payload || {}
-
-  const destino = String(email || '').trim().toLowerCase()
-  const tipo = finalidade === 'senha' ? 'senha' : finalidade === 'cadastro' ? 'cadastro' : ''
-
-  if (acao === 'enviar' || acao === 'enviar_legado') {
-    if (!destino || !tipo) {
-      return { ok: false, status: 400, erro: 'Informe um e-mail válido.' }
-    }
-    const k = chave(tipo, destino)
-    const atual = memoria.get(k)
-    if (atual && Date.now() - (atual.criadoEm || 0) < COOLDOWN_MS && !atual.usado) {
-      return { ok: false, status: 429, erro: 'Aguarde cerca de 1 minuto para pedir outro código.' }
-    }
-    let digitos = String(codigo || '').replace(/\D/g, '')
-    if (digitos.length !== 6) digitos = genCode()
-    const hash = await sha256Hex(`${PEPPER}:${digitos}`)
-    memoria.set(k, {
-      finalidade: tipo,
-      email: destino,
-      codigoHash: hash,
-      codigoPlano: digitos,
-      expiraEm: Date.now() + CODE_TTL_MS,
-      criadoEm: Date.now(),
-      usado: false,
-      portalRole: tipo === 'cadastro' ? portalRole : null,
-      verifyToken: null,
-      tokenExpira: null,
-    })
-    const enviado = await enviarResend({ email: destino, codigo: digitos, finalidade: tipo, env })
+  ])
+  const papel = finalidade === 'cadastro' && (portalRole === 'empresa' || portalRole === 'profissional') ? portalRole : null
+  const { rows } = await pool.query(
+    `insert into mao_email_codigos (finalidade, email, codigo_hash, expira_em, portal_role)
+     values ($1, $2, $3, now() + make_interval(mins => $4), $5) returning id`,
+    [finalidade, destino, hashCodigo(codigo), OTP_MINUTOS, papel],
+  )
+  const enviado = await enviarResend(destino, codigo, finalidade)
+  if (!enviado.ok) {
+    await pool.query(`delete from mao_email_codigos where id = $1`, [rows[0].id])
     return enviado
   }
+  return { ok: true, status: 200, email: destino }
+}
 
-  if (acao === 'verificar') {
-    const digitos = String(codigo || '').replace(/\D/g, '')
-    if (!destino || digitos.length !== 6 || !tipo) {
-      return { ok: false, status: 400, erro: 'Código inválido ou expirado.' }
-    }
-    const rec = memoria.get(chave(tipo, destino))
-    const hash = await sha256Hex(`${PEPPER}:${digitos}`)
-    if (!rec || rec.usado || rec.expiraEm <= Date.now() || rec.codigoHash !== hash) {
-      return { ok: false, status: 400, erro: 'Código inválido ou expirado.' }
-    }
-    const token = genToken()
-    rec.verifyToken = token
-    rec.tokenExpira = Date.now() + TOKEN_TTL_MS
-    memoria.set(chave(tipo, destino), rec)
-    return {
-      ok: true,
-      status: 200,
-      verify_token: token,
-      portalRole: rec.portalRole || null,
-      email: destino,
-    }
+async function verificar({ email, identificador, codigo, finalidade }) {
+  const digitos = String(codigo || '').replace(/\D/g, '')
+  let destino = String(email || '').trim().toLowerCase()
+  if (finalidade === 'senha' && !destino) {
+    const conta = await contaPorIdentificador(identificador)
+    destino = conta ? String(conta.email).toLowerCase() : ''
   }
-
-  if (acao === 'consumir') {
-    const token = String(verify_token || '')
-    if (!token) return { ok: false, status: 400, erro: 'Sessão de cadastro expirada.' }
-    for (const [k, rec] of memoria.entries()) {
-      if (rec.verifyToken === token) {
-        if (rec.usado || !rec.tokenExpira || rec.tokenExpira <= Date.now()) {
-          return { ok: false, status: 400, erro: 'Sessão de cadastro expirada.' }
-        }
-        rec.usado = true
-        memoria.set(k, rec)
-        return { ok: true, status: 200 }
-      }
-    }
-    return { ok: false, status: 400, erro: 'Sessão de cadastro expirada.' }
+  if (!destino || digitos.length !== 6) return { ok: false, status: 400, erro: 'Código inválido ou expirado.' }
+  const { rows } = await pool.query(
+    `select id, codigo_hash, tentativas, portal_role from mao_email_codigos
+     where lower(email) = $1 and finalidade = $2 and not usado and expira_em > now()
+     order by created_at desc limit 1`,
+    [destino, finalidade],
+  )
+  const rec = rows[0]
+  if (!rec) return { ok: false, status: 400, erro: 'Código inválido ou expirado.' }
+  if (rec.tentativas >= MAX_TENTATIVAS) {
+    return { ok: false, status: 429, erro: 'Muitas tentativas erradas. Peça um novo código.' }
   }
+  if (rec.codigo_hash !== hashCodigo(digitos)) {
+    await pool.query(`update mao_email_codigos set tentativas = tentativas + 1 where id = $1`, [rec.id])
+    return { ok: false, status: 400, erro: 'Código inválido ou expirado.' }
+  }
+  const token = gerarTokenAleatorio('vt')
+  await pool.query(
+    `update mao_email_codigos set verify_token = $2, token_expira_em = now() + make_interval(mins => $3) where id = $1`,
+    [rec.id, token, TOKEN_MINUTOS],
+  )
+  return { ok: true, status: 200, verify_token: token, portalRole: rec.portal_role || null, email: destino }
+}
 
+/**
+ * Usa (uma vez só) o token de e-mail confirmado. Chamado pelo servidor ao criar a conta ou
+ * trocar a senha — o cliente não "consome" mais nada por conta própria.
+ */
+export async function consumirTokenVerificado(verifyToken, finalidade) {
+  const token = String(verifyToken || '')
+  if (!token) return null
+  const { rows } = await pool.query(
+    `update mao_email_codigos set usado = true
+     where verify_token = $1 and finalidade = $2 and not usado and token_expira_em > now()
+     returning email, portal_role`,
+    [token, finalidade],
+  )
+  return rows[0] ? { email: String(rows[0].email).toLowerCase(), portalRole: rows[0].portal_role || null } : null
+}
+
+export async function enviarCodigoEmail(payload) {
+  const { acao = 'enviar', email, identificador, codigo, finalidade, portalRole } = payload || {}
+  const tipo = finalidade === 'senha' ? 'senha' : finalidade === 'cadastro' ? 'cadastro' : ''
+  if (!tipo) return { ok: false, status: 400, erro: 'Informe um e-mail válido.' }
+  if (acao === 'enviar') return enviar({ email, identificador, finalidade: tipo, portalRole })
+  if (acao === 'verificar') return verificar({ email, identificador, codigo, finalidade: tipo })
   return { ok: false, status: 400, erro: 'Ação não reconhecida.' }
 }

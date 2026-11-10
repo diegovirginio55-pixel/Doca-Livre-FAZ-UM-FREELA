@@ -1,11 +1,16 @@
 import { spawn } from 'node:child_process'
+import { segredoJwt } from './auth.mjs'
 
 const senha = encodeURIComponent(process.env.PGPASSWORD || '')
-process.env.PGRST_DB_URI = `postgres://${process.env.PGUSER}:${senha}@${process.env.PGHOST}:5432/${process.env.PGDATABASE}?sslmode=require`
+const ssl = process.env.PGSSL === 'off' ? 'disable' : 'require'
+process.env.PGRST_DB_URI = `postgres://${process.env.PGUSER}:${senha}@${process.env.PGHOST}:${process.env.PGPORT || 5432}/${process.env.PGDATABASE}?sslmode=${ssl}`
 process.env.PGRST_DB_SCHEMAS = 'public'
 process.env.PGRST_DB_ANON_ROLE = 'web'
 process.env.PGRST_SERVER_HOST = '127.0.0.1'
 process.env.PGRST_SERVER_PORT = '3001'
+// Mesmo segredo que a API usa para assinar o token de sessão: o PostgREST valida o token e
+// as regras do banco (003_seguranca.sql) leem quem é o usuário.
+process.env.PGRST_JWT_SECRET = segredoJwt()
 
 const { preparar } = await import('./migrar.mjs')
 try {
@@ -16,7 +21,7 @@ try {
   process.env.MIGRACAO_ERRO = mensagem
 }
 
-const postgrest = spawn('/usr/local/bin/postgrest', [], { stdio: 'inherit' })
+const postgrest = spawn(process.env.POSTGREST_BIN || '/usr/local/bin/postgrest', [], { stdio: 'inherit' })
 postgrest.on('exit', (codigo) => {
   console.error(`postgrest encerrou ${codigo}`)
 })

@@ -122,43 +122,103 @@ export function validarNecessidade(modalidade: Modalidade, inicio: string, fim: 
   }
 }
 
-function cicloTemporario(datas: string[], inicioPedido: string) {
-  const passadas = [...new Set(datas.filter((d) => d < inicioPedido))].sort()
-  if (passadas.length === 0) return { dias: 0, ultimo: null as string | null, intervalo: null as number | null }
-  const ultimo = passadas[passadas.length - 1]
-  const intervalo = intervaloDias(ultimo, inicioPedido)
-  if (intervalo >= 90) return { dias: 0, ultimo, intervalo }
-  const grupo = [ultimo]
-  for (let i = passadas.length - 2; i >= 0; i--) {
-    const maisAntigo = grupo[grupo.length - 1]
-    if (intervaloDias(passadas[i], maisAntigo) >= 90) break
-    grupo.push(passadas[i])
+/** Período de uma alocação (missão) da pessoa com a empresa: AAAA-MM-DD, inclusive. */
+export type PeriodoAlocacao = { inicio: string; fim: string }
+
+const DATA_ISO = /^\d{4}-\d{2}-\d{2}$/
+
+function periodosValidos(periodos: PeriodoAlocacao[]): PeriodoAlocacao[] {
+  return periodos
+    .filter((p) => DATA_ISO.test(p.inicio))
+    .map((p) => ({ inicio: p.inicio, fim: p.fim && DATA_ISO.test(p.fim) && p.fim >= p.inicio ? p.fim : p.inicio }))
+}
+
+/** Une períodos que se sobrepõem ou encostam: o mesmo dia não conta duas vezes. */
+function unirPeriodos(periodos: PeriodoAlocacao[]): PeriodoAlocacao[] {
+  const ordenados = [...periodos].sort((a, b) => a.inicio.localeCompare(b.inicio))
+  const unidos: PeriodoAlocacao[] = []
+  for (const p of ordenados) {
+    const ultimo = unidos[unidos.length - 1]
+    // Sobrepõe (começa até o fim do anterior) ou encosta (começa no dia seguinte).
+    if (ultimo && intervaloDias(ultimo.fim, p.inicio) <= 1) {
+      if (p.fim > ultimo.fim) ultimo.fim = p.fim
+    } else {
+      unidos.push({ ...p })
+    }
   }
-  return { dias: grupo.length, ultimo, intervalo }
+  return unidos
+}
+
+/**
+ * Ciclo temporário com a mesma tomadora: o pedido mais as missões ligadas a ele por intervalos de
+ * menos de 90 dias (para trás e para a frente). Soma os dias reais de cada missão (início..fim,
+ * inclusive). Antes contava quantas DATAS DE INÍCIO havia, como se cada missão durasse 1 dia — uma
+ * missão anterior de 150 dias valia 1.
+ */
+function cicloTemporario(periodos: PeriodoAlocacao[], inicio: string, fim: string) {
+  const unidos = unirPeriodos(periodos)
+  const antes = unidos.filter((p) => p.fim < inicio)
+  const depois = unidos.filter((p) => p.inicio > fim)
+  let dias = 0
+  let agendados = 0
+  let borda = inicio
+  for (let i = antes.length - 1; i >= 0; i--) {
+    if (intervaloDias(antes[i].fim, borda) >= 90) break
+    dias += diasInclusivos(antes[i].inicio, antes[i].fim)
+    borda = antes[i].inicio
+  }
+  borda = fim
+  for (const p of depois) {
+    if (intervaloDias(borda, p.inicio) >= 90) break
+    agendados += diasInclusivos(p.inicio, p.fim)
+    borda = p.fim
+  }
+  const ultimo = antes[antes.length - 1]?.fim ?? null
+  return {
+    dias: dias + agendados,
+    agendados,
+    ultimo,
+    intervalo: ultimo ? intervaloDias(ultimo, inicio) : null,
+  }
 }
 
 export function avaliarPessoaModalidade(params: {
   modalidade: Modalidade
   inicio: string
   fim: string
-  datasAnteriores: string[]
+  /** Missões da pessoa com a mesma empresa, sem contar a vaga que está sendo analisada. */
+  periodosAnteriores: PeriodoAlocacao[]
 }): { situacao: SituacaoPessoa; texto: string } {
-  const { modalidade, inicio, fim, datasAnteriores } = params
+  const { modalidade, inicio, fim } = params
+  const fimPedido = fim && fim >= inicio ? fim : inicio
   const diasPedido = diasInclusivos(inicio, fim)
-  const sobreposto = datasAnteriores.find((d) => d >= inicio && d <= fim)
+  const periodos = periodosValidos(params.periodosAnteriores)
+  // Interseção de intervalos. Antes só bloqueava quando o INÍCIO da missão anterior caía dentro do
+  // pedido: quem estava no meio de uma missão iniciada antes aparecia como disponível.
+  const sobreposto = periodos
+    .filter((p) => p.inicio <= fimPedido && p.fim >= inicio)
+    .sort((a, b) => a.inicio.localeCompare(b.inicio))[0]
   if (sobreposto) {
+    const quando =
+      sobreposto.inicio === sobreposto.fim
+        ? `em ${formatarData(sobreposto.inicio)}`
+        : `de ${formatarData(sobreposto.inicio)} a ${formatarData(sobreposto.fim)}`
     return {
       situacao: 'bloqueado',
-      texto: `Indisponível neste período: já existe alocação desta pessoa na sua empresa em ${formatarData(sobreposto)}.`,
+      texto: `Indisponível neste período: já existe alocação desta pessoa na sua empresa ${quando}.`,
     }
   }
 
-  const passadas = datasAnteriores.filter((d) => d < inicio).sort()
-  const ultimo = passadas[passadas.length - 1] ?? null
+  const ultimo =
+    periodos
+      .filter((p) => p.fim < inicio)
+      .map((p) => p.fim)
+      .sort()
+      .pop() ?? null
   const intervalo = ultimo ? intervaloDias(ultimo, inicio) : null
 
   if (modalidade === 'temporario') {
-    const ciclo = cicloTemporario(datasAnteriores, inicio)
+    const ciclo = cicloTemporario(periodos, inicio, fimPedido)
     if (ciclo.dias === 0) {
       if (diasPedido > 180) {
         return {
@@ -175,21 +235,24 @@ export function avaliarPessoaModalidade(params: {
       }
     }
     const total = ciclo.dias + diasPedido
+    const agendados = ciclo.agendados
+      ? ` (${ciclo.agendados} em missão já agendada depois deste pedido)`
+      : ''
     if (total <= 180) {
       return {
         situacao: 'compativel',
-        texto: `Cabe no temporário: ${ciclo.dias} dia${ciclo.dias === 1 ? '' : 's'} já computados nesta empresa neste ciclo, mais ${diasPedido} deste pedido, ainda dentro dos 180 dias, consecutivos ou não.`,
+        texto: `Cabe no temporário: ${ciclo.dias} dia${ciclo.dias === 1 ? '' : 's'} já computados nesta empresa neste ciclo${agendados}, mais ${diasPedido} deste pedido, ainda dentro dos 180 dias, consecutivos ou não.`,
       }
     }
     if (total <= 270) {
       return {
         situacao: 'alerta',
-        texto: `Passa de 180 dias (${ciclo.dias} anteriores + ${diasPedido} deste pedido). Só cabe como prorrogação de até 90 dias, se continuarem as condições que justificaram o temporário.`,
+        texto: `Passa de 180 dias: ${ciclo.dias} já computados neste ciclo${agendados}, mais ${diasPedido} deste pedido. Só cabe como prorrogação de até 90 dias, se continuarem as condições que justificaram o temporário.`,
       }
     }
     return {
       situacao: 'bloqueado',
-      texto: `Não cabe temporário agora. O ciclo nesta empresa já soma ${ciclo.dias} dia${ciclo.dias === 1 ? '' : 's'} e este pedido soma ${diasPedido}. O teto é 180 dias mais uma prorrogação de até 90. Depois disso, a mesma pessoa só volta como temporária para a mesma empresa após 90 dias.`,
+      texto: `Não cabe temporário agora. O ciclo nesta empresa já soma ${ciclo.dias} dia${ciclo.dias === 1 ? '' : 's'}${agendados} e este pedido soma ${diasPedido}. O teto é 180 dias mais uma prorrogação de até 90. Depois disso, a mesma pessoa só volta como temporária para a mesma empresa após 90 dias.`,
     }
   }
 

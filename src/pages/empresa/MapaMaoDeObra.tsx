@@ -37,7 +37,8 @@ export function MapaMaoDeObra({ empresa }: { empresa: Empresa }) {
     return state.profissionais
       .filter((pessoa) => pessoa.status === 'aprovado' && !bloqueados.has(pessoa.id) && coordenadaOk(pessoa))
       .slice()
-      .sort((a, b) => distanciaKm(empresa.endereco, a.endereco) - distanciaKm(empresa.endereco, b.endereco))
+      // Sede sem coordenada dá distância NaN, e comparar NaN deixava a ordenação inconsistente.
+      .sort((a, b) => paraOrdenar(distanciaKm(empresa.endereco, a.endereco)) - paraOrdenar(distanciaKm(empresa.endereco, b.endereco)))
   }, [empresa.bloqueados, empresa.endereco, state.profissionais])
 
   const visiveis = useMemo(() => {
@@ -47,8 +48,22 @@ export function MapaMaoDeObra({ empresa }: { empresa: Empresa }) {
 
   const selecionado = visiveis.find((pessoa) => pessoa.id === selecionadoId) ?? null
 
+  // `empresa` e `visiveis` ganham identidade nova a cada sincronização (30 s). Os efeitos usam só
+  // valores primitivos e uma chave estável com os pontos no mapa; antes o fitBounds rodava a cada
+  // sincronização e desfazia o zoom/arraste do usuário.
+  const sedeLat = empresa.endereco.lat
+  const sedeLng = empresa.endereco.lng
+  const sedeNome = empresa.nomeFantasia
+  const sedeOk = coordenadaEmpresa({ endereco: { lat: sedeLat, lng: sedeLng } })
+  const chaveEnquadramento = JSON.stringify([
+    ...(sedeOk ? [[sedeLat, sedeLng]] : []),
+    ...visiveis.map((pessoa) => [pessoa.endereco.lat, pessoa.endereco.lng]),
+  ])
+
   useEffect(() => {
     const el = telaRef.current
+    // Cópia local: o cleanup não deve ler `marcasRef.current` (aviso react-hooks/exhaustive-deps).
+    const marcas = marcasRef.current
     if (!el || mapaRef.current) return
     const mapa = L.map(el, { zoomControl: true, scrollWheelZoom: true })
     L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
@@ -69,27 +84,26 @@ export function MapaMaoDeObra({ empresa }: { empresa: Empresa }) {
       window.clearTimeout(depois)
       mapa.remove()
       mapaRef.current = null
-      marcasRef.current.clear()
+      marcas.clear()
     }
   }, [])
 
+  // Marcadores: refeitos quando a lista muda, sem mexer no enquadramento.
   useEffect(() => {
     const mapa = mapaRef.current
     if (!mapa) return
     marcasRef.current.forEach((marca) => marca.remove())
     marcasRef.current.clear()
 
-    const limites = L.latLngBounds([])
-    if (coordenadaEmpresa(empresa)) {
-      const sede = L.marker([empresa.endereco.lat, empresa.endereco.lng], {
+    if (sedeOk) {
+      const sede = L.marker([sedeLat, sedeLng], {
         icon: pinSede(),
         keyboard: false,
         zIndexOffset: -100,
       })
-      sede.bindTooltip(empresa.nomeFantasia, { direction: 'top' })
+      sede.bindTooltip(sedeNome, { direction: 'top' })
       sede.addTo(mapa)
       marcasRef.current.set('sede', sede)
-      limites.extend(sede.getLatLng())
     }
 
     for (const pessoa of visiveis) {
@@ -106,19 +120,25 @@ export function MapaMaoDeObra({ empresa }: { empresa: Empresa }) {
       })
       marca.addTo(mapa)
       marcasRef.current.set(pessoa.id, marca)
-      limites.extend(marca.getLatLng())
     }
+  }, [sedeLat, sedeLng, sedeNome, sedeOk, visiveis])
 
-    if (raio == null && limites.isValid()) mapa.fitBounds(limites.pad(0.28), { padding: [28, 28], maxZoom: 12 })
-  }, [empresa, raio, visiveis])
+  // Enquadramento: só quando o conjunto de pontos muda (ou ao voltar para "Todos").
+  useEffect(() => {
+    const mapa = mapaRef.current
+    if (!mapa || raio != null) return
+    const pontos = JSON.parse(chaveEnquadramento) as [number, number][]
+    const limites = L.latLngBounds(pontos.map(([lat, lng]) => L.latLng(lat, lng)))
+    if (limites.isValid()) mapa.fitBounds(limites.pad(0.28), { padding: [28, 28], maxZoom: 12 })
+  }, [chaveEnquadramento, raio])
 
   useEffect(() => {
     const mapa = mapaRef.current
     if (!mapa) return
     circuloRef.current?.remove()
     circuloRef.current = null
-    if (raio == null || !coordenadaEmpresa(empresa)) return
-    const circulo = L.circle([empresa.endereco.lat, empresa.endereco.lng], {
+    if (raio == null || !sedeOk) return
+    const circulo = L.circle([sedeLat, sedeLng], {
       radius: raio * 1000,
       color: '#111',
       weight: 2,
@@ -131,7 +151,7 @@ export function MapaMaoDeObra({ empresa }: { empresa: Empresa }) {
       circulo.remove()
       if (circuloRef.current === circulo) circuloRef.current = null
     }
-  }, [empresa, raio])
+  }, [raio, sedeLat, sedeLng, sedeOk])
 
   useEffect(() => {
     const mapa = mapaRef.current
@@ -372,7 +392,12 @@ function distanciaKm(a: { lat: number; lng: number }, b: { lat: number; lng: num
   return 6371 * 2 * Math.asin(Math.min(1, Math.sqrt(h)))
 }
 
+function paraOrdenar(km: number) {
+  return Number.isFinite(km) ? km : Number.POSITIVE_INFINITY
+}
+
 function formatarDistancia(km: number) {
+  if (!Number.isFinite(km)) return 'distância não calculada'
   if (km < 1) return `${Math.max(1, Math.round(km * 1000))} m da empresa`
   return `${km.toLocaleString('pt-BR', { maximumFractionDigits: 1 })} km da empresa`
 }

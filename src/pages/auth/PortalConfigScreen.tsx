@@ -144,6 +144,8 @@ export function PortalConfigScreen({ onContinuar, onSair }: Props) {
   function savePerms() {
     if (!current || !permsDraft) return
     savePermissoesUsuario(current.usuario, permsDraft)
+    // Avisa a sincronização: a matriz vai para o banco e passa a valer em todos os aparelhos.
+    store.patchState((s) => ({ ...s }))
     setOkMsg('Permissões salvas.')
     setTick((t) => t + 1)
   }

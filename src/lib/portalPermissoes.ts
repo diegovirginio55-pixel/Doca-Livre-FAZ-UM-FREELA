@@ -85,6 +85,18 @@ export function loadPermissoesMatriz(): Record<string, Record<SistemaId, Sistema
   return loadJson(PERMS_KEY, {})
 }
 
+/**
+ * Matriz vinda do banco (config compartilhada). Antes as permissões ficavam só no navegador de
+ * quem configurou e não valiam em nenhum outro aparelho.
+ */
+export function aplicarPermissoesDaNuvem(matriz: Record<string, Record<SistemaId, SistemaPermissao>>) {
+  try {
+    saveJson(PERMS_KEY, matriz && typeof matriz === 'object' ? matriz : {})
+  } catch {
+    /* ignore */
+  }
+}
+
 export function savePermissoesUsuario(
   usuario: string,
   matriz: Record<SistemaId, SistemaPermissao>,

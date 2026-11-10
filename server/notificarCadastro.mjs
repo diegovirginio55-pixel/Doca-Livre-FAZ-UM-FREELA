@@ -1,3 +1,11 @@
+function escaparHtml(texto) {
+  return String(texto)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+}
+
 function ambiente(env) {
   return env ?? process.env
 }
@@ -5,6 +13,7 @@ function ambiente(env) {
 export function montarEmailNotificacaoCadastro({ nome, tipo, decisao, motivo }) {
   const quem = tipo === 'empresa' ? 'da empresa' : 'de colaborador'
   const rotulo = String(nome || '').trim() || 'olá'
+  const rotuloHtml = escaparHtml(rotulo)
   if (decisao === 'aprovado' || decisao === 'aprovada') {
     const assunto = 'Doca Livre fazumfreela — cadastro aprovado'
     const texto =
@@ -13,7 +22,7 @@ export function montarEmailNotificacaoCadastro({ nome, tipo, decisao, motivo }) 
       'Agora você já pode entrar e acessar o portal em https://fazumfreela.com.br\n\n' +
       'Se não foi você quem se cadastrou, ignore este e-mail.'
     const html =
-      `<p>Olá, <strong>${rotulo}</strong>!</p>` +
+      `<p>Olá, <strong>${rotuloHtml}</strong>!</p>` +
       `<p>Seu cadastro ${quem} no <strong>Doca Livre fazumfreela</strong> foi <strong>aprovado</strong>.</p>` +
       '<p>Agora você já pode entrar e acessar o portal em ' +
       '<a href="https://fazumfreela.com.br">fazumfreela.com.br</a>.</p>' +
@@ -29,9 +38,9 @@ export function montarEmailNotificacaoCadastro({ nome, tipo, decisao, motivo }) 
     'Se quiser corrigir os dados ou documentos e tentar de novo, acesse https://fazumfreela.com.br\n\n' +
     'Se não foi você quem se cadastrou, ignore este e-mail.'
   const html =
-    `<p>Olá, <strong>${rotulo}</strong>!</p>` +
+    `<p>Olá, <strong>${rotuloHtml}</strong>!</p>` +
     `<p>Analisamos seu cadastro ${quem} no <strong>Doca Livre fazumfreela</strong> e, neste momento, ele <strong>não foi aprovado</strong>.</p>` +
-    `<p><strong>Motivo:</strong> ${razao.replace(/</g, '&lt;')}</p>` +
+    `<p><strong>Motivo:</strong> ${escaparHtml(razao)}</p>` +
     '<p>Se quiser corrigir os dados ou documentos e tentar de novo, acesse ' +
     '<a href="https://fazumfreela.com.br">fazumfreela.com.br</a>.</p>' +
     '<p style="color:#64748b;font-size:13px">Se não foi você quem se cadastrou, ignore este e-mail.</p>'

@@ -1,41 +1,61 @@
-# Deploy — Doca Livre Mão de Obra
+# Deploy — Doca Livre fazumfreela
 
-Ordem: **Supabase → GitHub → Render**.
+São duas peças, publicadas **juntas** (a versão nova do site não funciona com a API antiga e vice-versa):
+
+1. **API (Azure Container Apps)** — pasta `api/`: login, senhas, código por e-mail, banco (PostgREST) e documentos (Azure Blob).
+2. **Site (Render)** — `render.yaml`: só serve os arquivos do site (`node server/index.mjs`).
 
 Repo: https://github.com/eldertenorio-max/Doca-Livre-M-o-de-Obra
 
-## Render (passo a passo)
+## 1. API no Azure
 
-1. Abra https://dashboard.render.com e faça login.
-2. **New +** → **Blueprint**.
-3. Conecte o GitHub (se ainda não) e selecione **`eldertenorio-max/Doca-Livre-M-o-de-Obra`**.
-4. Render lê o `render.yaml` e cria o serviço Node **`doca-livre-mao-de-obra`** (`node server/index.mjs`).
-5. Preencha as variáveis (obrigatórias):
+Imagem Docker a partir de `api/Dockerfile`. Ao iniciar, `start.mjs` roda a migração (`api/sql/001…003` + `migrar.mjs`) e sobe o PostgREST e a API.
 
-| Key | Value |
-|-----|--------|
-| `VITE_SUPABASE_URL` | `https://wsympxaarlrfdasmpbyf.supabase.co` |
-| `VITE_SUPABASE_ANON_KEY` | a publishable key do projeto (Dashboard Supabase → Settings → API) |
-| `NODE_VERSION` | `20.19.0` (já vem no blueprint) |
-| `RESEND_API_KEY` | a mesma chave do WMS Pro |
-| `RESEND_FROM` | remetente verificado, a mesma do WMS Pro |
-| `GEMINI_API_KEY` | a mesma chave Gemini do WMS Plus, só no servidor |
+### Variáveis de ambiente
 
-6. **Apply** / **Deploy**.
-7. Aguarde o build (`npm ci` → `write-supabase-config` → `vite build`) e o start `node server/index.mjs`.
-8. Abra a URL `*.onrender.com` gerada.
+| Key | Obrigatória | Para quê |
+|-----|-------------|----------|
+| `PGHOST`, `PGUSER`, `PGPASSWORD`, `PGDATABASE` | sim | Banco PostgreSQL. `PGUSER` precisa ser dono das tabelas e poder assumir o papel `web`. |
+| `ANON_KEY` | sim | Chave pública do site (`sb_publishable_…`, a mesma de `src/lib/supabaseConfig.ts`). |
+| `JWT_SECRET` | recomendada | Segredo do token de sessão (32+ caracteres aleatórios). Sem ela, é derivado de `PGPASSWORD` — trocar a senha do banco desloga todo mundo. |
+| `STORAGE_SIGN_SECRET` | recomendada | Segredo dos links de documento. Sem ela usa `AZURE_STORAGE_KEY` ou `PGPASSWORD`. |
+| `AZURE_STORAGE_KEY` ou identidade gerenciada (`AZURE_CLIENT_ID`) | sim | Acesso ao Blob `stofertacargaprod/mao-documentos`. O container deve ser **privado**. |
+| `RESEND_API_KEY`, `RESEND_FROM` | sim | E-mail do código de cadastro/senha e de aprovação. Remetente de domínio verificado. |
+| `GEMINI_API_KEY` (e/ou `CLOUDFLARE_*`, `OPENROUTER_API_KEY`) | opcional | Análise automática de documento e leitura de currículo. Sem elas, vai tudo para a validação manual. |
+| `IMPORT_TOKEN` | opcional | Protege `/copiar` e as contagens do `/saude`. |
 
-### Alternativa sem Blueprint
-**New +** → **Web Service** → mesmo repo → branch `main` → runtime Node:
+### O que a migração faz (uma vez, sem apagar dados)
 
-- **Build:** `npm ci --no-audit --no-fund && node scripts/write-supabase-config.mjs && npm run build`
-- **Start:** `node server/index.mjs`
-- Mesmas env vars acima
+- Cria `mao_credenciais` e passa as senhas antigas (que estavam em texto puro em `mao_contas.senha_hash`) para hash scrypt. Quem já tinha conta entra com a mesma senha.
+- Cria `mao_registros` (vagas, candidaturas, contratos, pagamentos, avaliações…).
+- Tira o acesso total do papel `web` e liga as regras por usuário (RLS). Sem login, o banco não devolve nada.
+- Cria as contas de gestão `Diego`, `Elder` (super) e `admin` com a senha antiga e **troca obrigatória no primeiro login**. Se já existirem, não mexe.
 
-## Após o deploy
-- Login Empresa / Profissional / Admin na URL do Render
-- Demo: `carlos` / `demo123` (profissional), `logexpress` / `demo123` (empresa)
-- Super: `Diego` ou `Elder` / `demo123` (só no **Admin**)
+Depois do deploy: `GET /saude` deve responder `{"ok":true,"rest":true}`. Se aparecer `erro`, a migração falhou (o texto diz onde) e nada foi alterado no banco.
 
-## E-mail do código
-O site publicado é estático e chama a função Supabase `enviar-codigo`. No projeto **Doca Livre Mão de Obra**, em Edge Functions → Secrets, defina `RESEND_API_KEY` e `RESEND_FROM` (as mesmas do WMS Pro). Sem a chave, a tela avisa que o envio ainda não está configurado. `onboarding@resend.dev` só chega no dono da conta Resend; use um remetente de domínio verificado. No computador, o Vite também aceita `POST /api/portal/enviar-codigo`.
+## 2. Site no Render
+
+1. https://dashboard.render.com → **New +** → **Blueprint** → repo acima. O `render.yaml` cria o serviço `doca-livre-mao-de-obra`.
+2. Variáveis: `NODE_VERSION` = `20.19.0` (já vem). As demais (`RESEND_*`, `GEMINI_API_KEY`) não são mais usadas pelo site — ficam só na API do Azure.
+3. Build: `npm ci && npm run build`. Start: `node server/index.mjs`.
+
+O site fala com a API em `https://fazumfreela-api.purpleocean-4b1d485c.brazilsouth.azurecontainerapps.io` (fixo em `src/lib/supabaseConfig.ts`).
+
+## Depois do deploy
+
+1. Entre no **Admin** com `Diego`, `Elder` e `admin` (senha antiga) e defina a senha forte pedida na tela. Faça isso logo: até a troca, a senha antiga é a mesma que já circulou.
+2. Teste o cadastro de uma empresa: portal Empresa → **Criar conta** → código por e-mail → formulário → aparece em Admin → Empresas como pendente → **Ver cadastro** abre os documentos.
+3. Quem esquecer a senha: **Esqueci a senha** (e-mail) ou, no Admin, **Senha provisória** (a pessoa troca no primeiro login). O sistema não guarda senhas legíveis — nem o admin consegue vê-las.
+
+## Modo demonstração
+
+Botão **Ver demonstração** na tela inicial: dados fictícios só no navegador, sem nenhum acesso ao banco. As contas demo (`logexpress`, `joao`, `Diego`… com `demo123`) só existem nesse modo.
+
+## Rodar local
+
+```bash
+npm install
+npm run dev
+```
+
+O site local também usa a API do Azure. Para testar sem tocar em produção, use o modo demonstração.

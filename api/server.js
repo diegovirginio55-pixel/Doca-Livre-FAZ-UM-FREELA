@@ -3,6 +3,18 @@ import https from 'node:https'
 import { timingSafeEqual } from 'node:crypto'
 import { pool } from './migrar.mjs'
 import { atenderArquivo } from './arquivos.mjs'
+import { pareceJwt, tokenDoPedido } from './auth.mjs'
+import {
+  adminRedefinirSenha,
+  contaDoPedido,
+  criarConta,
+  ehGestao,
+  entrar,
+  existe,
+  redefinirSenha,
+  sessaoAtual,
+  trocarSenha,
+} from './rotasAuth.mjs'
 import { enviarCodigoEmail } from './server-functions/enviarCodigoEmail.mjs'
 import { notificarCadastro } from './server-functions/notificarCadastro.mjs'
 import { analisarDocumentoCadastro } from './server-functions/analisarDocumentoCadastro.mjs'
@@ -23,6 +35,7 @@ const tabelas = [
   'mao_profissionais',
   'mao_empresas',
   'mao_documentos',
+  'mao_registros',
 ]
 const copiaPermitida = new Set(tabelas)
 
@@ -66,7 +79,26 @@ function cors(origemPedido) {
     'access-control-allow-methods': 'GET,POST,PATCH,PUT,DELETE,OPTIONS',
     'access-control-expose-headers': 'content-range, content-location, location, preference-applied',
     'access-control-max-age': '86400',
+    vary: 'Origin',
   }
+}
+
+function responder(req, res, status, corpo) {
+  res.writeHead(status, { 'content-type': 'application/json', ...cors(req.headers.origin) })
+  res.end(JSON.stringify(corpo))
+}
+
+/** Só os campos esperados (antes o corpo inteiro ia para a função, inclusive um `env` forjado). */
+function campos(corpo, nomes) {
+  const out = {}
+  for (const nome of nomes) if (corpo && corpo[nome] !== undefined) out[nome] = corpo[nome]
+  return out
+}
+
+/** Resposta sem o `status` interno. */
+function semStatus(resultado) {
+  const { status: _status, ...resto } = resultado
+  return resto
 }
 
 async function colunasDaTabela(tabela) {
@@ -147,11 +179,13 @@ async function contagens() {
   return out
 }
 
-function encaminhar(req, res, base, caminho, tirar = []) {
+function encaminhar(req, res, base, caminho) {
   const alvo = new URL(caminho, base)
   const lib = alvo.protocol === 'https:' ? https : http
   const headers = { ...req.headers, host: alvo.host }
-  for (const nome of tirar) delete headers[nome]
+  // O supabase-js manda a chave pública como "Bearer" quando não há sessão; o PostgREST
+  // recusaria por não ser um JWT. O token de sessão (JWT) segue para as regras do banco.
+  if (!pareceJwt(tokenDoPedido(req))) delete headers.authorization
   const pre = lib.request(alvo, { method: req.method, headers }, (up) => {
     const saida = { ...up.headers, ...cors(req.headers.origin) }
     res.writeHead(up.statusCode || 502, saida)
@@ -164,6 +198,18 @@ function encaminhar(req, res, base, caminho, tirar = []) {
   req.pipe(pre)
 }
 
+/** Rotas JSON: lê o corpo, chama a função e devolve sem o status interno. */
+async function rotaJson(req, res, limite, executar, falha) {
+  try {
+    const corpo = req.method === 'GET' ? {} : await lerCorpo(req, limite)
+    const resultado = await executar(corpo)
+    responder(req, res, resultado.status || (resultado.ok ? 200 : 503), semStatus(resultado))
+  } catch (erro) {
+    console.error('[rota]', req.url, erro?.message || erro)
+    responder(req, res, 400, { ok: false, erro: falha })
+  }
+}
+
 const server = http.createServer(async (req, res) => {
   const url = new URL(req.url || '/', 'http://local')
   const caminho = url.pathname
@@ -174,35 +220,30 @@ const server = http.createServer(async (req, res) => {
     return
   }
 
-  // 1. Health check
+  // 1. Health check (contagens só para quem tem o token de importação)
   if (caminho === '/saude' || caminho === '/') {
     if (process.env.MIGRACAO_ERRO) {
-      res.writeHead(500, { 'content-type': 'application/json', ...cors(req.headers.origin) })
-      res.end(JSON.stringify({ ok: false, erro: String(process.env.MIGRACAO_ERRO).slice(0, 300) }))
+      responder(req, res, 500, { ok: false, erro: String(process.env.MIGRACAO_ERRO).slice(0, 300) })
       return
     }
     try {
-      const dados = await contagens()
+      await pool.query('select 1')
       let rest = false
       try {
-        const prova = await fetch('http://127.0.0.1:3001/mao_contas?select=id&limit=1')
-        rest = prova.ok
+        const prova = await fetch('http://127.0.0.1:3001/', { signal: AbortSignal.timeout(3000) })
+        rest = prova.status < 500
       } catch {
         rest = false
       }
-      res.writeHead(200, { 'content-type': 'application/json', ...cors(req.headers.origin) })
-      res.end(
-        JSON.stringify({
-          ok: true,
-          sistema: 'fazumfreela',
-          rest,
-          contagens: dados,
-        }),
-      )
+      const detalhes = segredoConfere(process.env.IMPORT_TOKEN, req.headers['x-importar'])
+      responder(req, res, 200, {
+        ok: true,
+        sistema: 'fazumfreela',
+        rest,
+        ...(detalhes ? { contagens: await contagens() } : {}),
+      })
     } catch (erro) {
-      const mensagem = erro instanceof Error ? erro.message : 'Falha no banco'
-      res.writeHead(500, { 'content-type': 'application/json' })
-      res.end(JSON.stringify({ ok: false, erro: mensagem }))
+      responder(req, res, 500, { ok: false, erro: erro instanceof Error ? erro.message : 'Falha no banco' })
     }
     return
   }
@@ -233,93 +274,154 @@ const server = http.createServer(async (req, res) => {
     return
   }
 
-  // 3. Validação de API Key (permite requisições públicas de storage GET ou HEAD)
-  const publicoStorage =
-    caminho.startsWith('/storage/v1/object/public/') &&
-    (req.method === 'GET' || req.method === 'HEAD')
+  // 3. Chave da API. O download de link assinado passa sem chave: o token do link protege
+  //    (<img> e nova aba não mandam cabeçalho).
+  const linkAssinado =
+    caminho.startsWith('/storage/v1/object/sign/') && (req.method === 'GET' || req.method === 'HEAD')
   if (
     process.env.ANON_KEY &&
-    !publicoStorage &&
+    !linkAssinado &&
     !segredoConfere(process.env.ANON_KEY, req.headers.apikey || url.searchParams.get('apikey'))
   ) {
-    res.writeHead(401, { 'content-type': 'application/json', ...cors(req.headers.origin) })
-    res.end(JSON.stringify({ message: 'Chave inválida' }))
+    responder(req, res, 401, { message: 'Chave inválida' })
     return
   }
 
-  // 4. Edge Functions e rotas do portal
+  // 4. Autenticação
+  if (caminho === '/api/auth/entrar' && req.method === 'POST') {
+    await rotaJson(req, res, 4000, (c) => entrar(campos(c, ['identificador', 'senha'])), 'Não foi possível entrar.')
+    return
+  }
+  if (caminho === '/api/auth/sessao' && req.method === 'GET') {
+    await rotaJson(req, res, 0, () => sessaoAtual(req), 'Sessão expirada. Entre de novo.')
+    return
+  }
+  if (caminho === '/api/auth/existe' && req.method === 'POST') {
+    await rotaJson(req, res, 4000, (c) => existe(campos(c, ['email', 'usuario'])), 'Não foi possível consultar.')
+    return
+  }
+  if (caminho === '/api/auth/criar-conta' && req.method === 'POST') {
+    await rotaJson(
+      req,
+      res,
+      4000,
+      (c) => criarConta(campos(c, ['verify_token', 'usuario', 'senha'])),
+      'Não foi possível criar a conta.',
+    )
+    return
+  }
+  if (caminho === '/api/auth/trocar-senha' && req.method === 'POST') {
+    await rotaJson(
+      req,
+      res,
+      4000,
+      (c) => trocarSenha(req, campos(c, ['senhaAtual', 'novaSenha'])),
+      'Não foi possível trocar a senha.',
+    )
+    return
+  }
+  if (caminho === '/api/auth/redefinir-senha' && req.method === 'POST') {
+    await rotaJson(
+      req,
+      res,
+      4000,
+      (c) => redefinirSenha(campos(c, ['verify_token', 'novaSenha'])),
+      'Não foi possível trocar a senha.',
+    )
+    return
+  }
+  if (caminho === '/api/auth/admin/redefinir-senha' && req.method === 'POST') {
+    await rotaJson(
+      req,
+      res,
+      4000,
+      (c) => adminRedefinirSenha(req, campos(c, ['contaId'])),
+      'Não foi possível redefinir a senha.',
+    )
+    return
+  }
+
+  // 5. Funções do portal
   if (caminho === '/functions/v1/enviar-codigo' || caminho === '/api/portal/enviar-codigo') {
-    try {
-      const corpo = await lerCorpo(req, 8000)
-      const resultado = await enviarCodigoEmail(corpo)
-      res.writeHead(resultado.status || (resultado.ok ? 200 : 503), {
-        'content-type': 'application/json',
-        ...cors(req.headers.origin),
-      })
-      res.end(JSON.stringify(resultado))
-    } catch {
-      res.writeHead(400, { 'content-type': 'application/json', ...cors(req.headers.origin) })
-      res.end(JSON.stringify({ ok: false, erro: 'Falha ao processar código' }))
-    }
+    await rotaJson(
+      req,
+      res,
+      8000,
+      async (c) => {
+        const r = await enviarCodigoEmail(
+          campos(c, ['acao', 'email', 'identificador', 'codigo', 'finalidade', 'portalRole']),
+        )
+        // Nada além do necessário volta ao navegador.
+        return r.ok
+          ? {
+              ok: true,
+              status: 200,
+              ...(r.email ? { email: r.email } : {}),
+              ...(r.verify_token ? { verify_token: r.verify_token } : {}),
+              ...(r.portalRole ? { portalRole: r.portalRole } : {}),
+            }
+          : r
+      },
+      'Falha ao processar código',
+    )
     return
   }
 
   if (caminho === '/functions/v1/notificar-cadastro' || caminho === '/api/portal/notificar-cadastro') {
-    try {
-      const corpo = await lerCorpo(req, 8000)
-      const resultado = await notificarCadastro(corpo)
-      res.writeHead(resultado.status || (resultado.ok ? 200 : 503), {
-        'content-type': 'application/json',
-        ...cors(req.headers.origin),
-      })
-      res.end(JSON.stringify(resultado))
-    } catch {
-      res.writeHead(400, { 'content-type': 'application/json', ...cors(req.headers.origin) })
-      res.end(JSON.stringify({ ok: false, erro: 'Falha ao notificar cadastro' }))
+    // Só o admin avisa aprovação/recusa (antes qualquer um mandava e-mail em nome da empresa).
+    const quem = await contaDoPedido(req)
+    if (!quem || !ehGestao(quem.role)) {
+      responder(req, res, 403, { ok: false, erro: 'Sem permissão.' })
+      return
     }
+    await rotaJson(
+      req,
+      res,
+      8000,
+      (c) => notificarCadastro(campos(c, ['email', 'nome', 'tipo', 'decisao', 'motivo'])),
+      'Falha ao notificar cadastro',
+    )
     return
   }
 
   if (caminho === '/functions/v1/analisar-documento' || caminho === '/api/cadastro/analisar-documento') {
-    try {
-      const corpo = await lerCorpo(req, 8_000_000)
-      const resultado = await analisarDocumentoCadastro(corpo)
-      res.writeHead(resultado.status || (resultado.ok ? 200 : 503), {
-        'content-type': 'application/json',
-        ...cors(req.headers.origin),
-      })
-      res.end(JSON.stringify(resultado))
-    } catch {
-      res.writeHead(400, { 'content-type': 'application/json', ...cors(req.headers.origin) })
-      res.end(JSON.stringify({ ok: false, erro: 'Falha ao analisar documento' }))
+    if (!(await contaDoPedido(req))) {
+      responder(req, res, 401, { ok: false, erro: 'Entre na sua conta para enviar documentos.' })
+      return
     }
+    await rotaJson(
+      req,
+      res,
+      8_000_000,
+      (c) => analisarDocumentoCadastro(campos(c, ['nome', 'arquivos', 'contexto', 'tipo', 'cnpj', 'cidade', 'cpf'])),
+      'Falha ao analisar documento',
+    )
     return
   }
 
   if (caminho === '/api/cadastro/ler-curriculo') {
-    try {
-      const corpo = await lerCorpo(req, 3_500_000)
-      const resultado = await lerCurriculo(corpo)
-      res.writeHead(resultado.status || (resultado.ok ? 200 : 503), {
-        'content-type': 'application/json',
-        ...cors(req.headers.origin),
-      })
-      res.end(JSON.stringify(resultado))
-    } catch {
-      res.writeHead(400, { 'content-type': 'application/json', ...cors(req.headers.origin) })
-      res.end(JSON.stringify({ ok: false, erro: 'Falha ao ler currículo' }))
+    if (!(await contaDoPedido(req))) {
+      responder(req, res, 401, { ok: false, erro: 'Entre na sua conta para ler o currículo.' })
+      return
     }
+    await rotaJson(
+      req,
+      res,
+      3_500_000,
+      (c) => lerCurriculo(campos(c, ['texto', 'imagem', 'cargos'])),
+      'Falha ao ler currículo',
+    )
     return
   }
 
-  // 5. REST (PostgREST)
+  // 6. REST (PostgREST)
   if (caminho.startsWith('/rest/v1')) {
     const resto = caminho.slice('/rest/v1'.length) || '/'
-    encaminhar(req, res, 'http://127.0.0.1:3001', `${resto}${url.search}`, ['authorization'])
+    encaminhar(req, res, 'http://127.0.0.1:3001', `${resto}${url.search}`)
     return
   }
 
-  // 6. Storage (Azure Blob)
+  // 7. Storage (Azure Blob)
   if (caminho.startsWith('/storage/v1')) {
     const corsArquivo = cors(req.headers.origin)
     const writeHeadOriginal = res.writeHead.bind(res)
@@ -337,13 +439,12 @@ const server = http.createServer(async (req, res) => {
     } catch (e) {
       console.error('[storage error]', e)
       if (!res.headersSent) res.writeHead(500, { 'content-type': 'application/json' })
-      res.end(JSON.stringify({ message: 'Falha no arquivo', erro: e?.message || String(e) }))
+      res.end(JSON.stringify({ message: 'Falha no arquivo' }))
     }
     return
   }
 
-  res.writeHead(404, { 'content-type': 'application/json', ...cors(req.headers.origin) })
-  res.end(JSON.stringify({ ok: false, erro: 'Não encontrado' }))
+  responder(req, res, 404, { ok: false, erro: 'Não encontrado' })
 })
 
 server.on('upgrade', (req, socket) => {

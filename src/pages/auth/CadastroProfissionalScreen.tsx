@@ -9,6 +9,7 @@ import type { TermoId } from '../../lib/termos'
 import { ACCEPT_DOCUMENTO_CADASTRO, analisarDocumentoCadastro, lerArquivoCadastro, type FotoDocumento, type PapelDocumento } from '../../lib/analisarDocumentoCadastro'
 import type { ResultadoRosto } from '../../lib/compararRostos'
 import { coordenadaDaCidade } from '../../lib/coordenadaCidade'
+import { hojeLocal } from '../../lib/ponto'
 import { CERTIFICADOS_COMUNS, habilidadesDoTexto, mesclarCurriculo, nomeCertificado, semContato } from '../../lib/curriculo'
 import type { LeituraCurriculo } from '../../lib/lerCurriculo'
 import { validarChavePix } from '../../lib/pix'
@@ -87,10 +88,13 @@ const PASSO = {
 } as const
 
 export function CadastroProfissionalScreen({ onBack, onDone }: Props) {
-  const { registerProfissional, completeProfissionalPerfil, aceitarTermos, currentUser, state } = useStore()
-  const completing = currentUser?.role === 'profissional' && currentUser.perfilCompleto === false
+  const { registerProfissional, completeProfissionalPerfil, currentUser, state } = useStore()
+  // Qualquer conta de profissional já logada completa o perfil (antes exigia perfilCompleto === false
+  // e uma conta "completa" sem perfil salvo caía no cadastro novo, que barrava o próprio e-mail).
+  const completing = currentUser?.role === 'profissional'
   const [step, setStep] = useState<number>(PASSO.curriculo)
   const [error, setError] = useState('')
+  const [enviando, setEnviando] = useState(false)
   const [aceites, setAceites] = useState<TermoId[]>([])
   const [curriculo, setCurriculo] = useState<{ nome: string; copia?: string } | null>(null)
   const [certNovo, setCertNovo] = useState('')
@@ -104,6 +108,8 @@ export function CadastroProfissionalScreen({ onBack, onDone }: Props) {
     nome: '',
     cpf: '',
     rg: '',
+    /** Estado que emitiu o RG: o dígito verificador só é conferido quando é SP. */
+    rgUf: 'SP',
     nascimento: '',
     telefone: '',
     email: currentUser?.email || '',
@@ -228,6 +234,12 @@ export function CadastroProfissionalScreen({ onBack, onDone }: Props) {
   }
 
   const [rosto, setRosto] = useState<ResultadoRosto | { status: 'comparando' } | null>(null)
+  // O modelo de rosto leva alguns segundos para baixar e aquecer: começa ao abrir a etapa,
+  // enquanto a pessoa escolhe as fotos.
+  useEffect(() => {
+    if (step !== PASSO.documentos) return
+    void import('../../lib/compararRostos').then((m) => m.prepararComparacaoRostos()).catch(() => undefined)
+  }, [step])
   const fotoDoc = linhas.documento.arquivo
   const fotoSelfie = linhas.selfie.arquivo
   useEffect(() => {
@@ -282,7 +294,7 @@ export function CadastroProfissionalScreen({ onBack, onDone }: Props) {
     if (form.cnhCategoria.trim()) {
       if (!/^(ACC|A|B|C|D|E|AB|AC|AD|AE)$/.test(form.cnhCategoria.trim())) return 'Categoria da CNH inválida. Use ACC, A, B, C, D, E, AB, AC, AD ou AE.'
       if (!form.cnhValidade) return 'Informe a validade da CNH.'
-      if (form.cnhValidade < new Date().toISOString().slice(0, 10)) return 'A CNH informada está vencida.'
+      if (form.cnhValidade < hojeLocal()) return 'A CNH informada está vencida.'
     }
     return ''
   }
@@ -368,7 +380,9 @@ export function CadastroProfissionalScreen({ onBack, onDone }: Props) {
       const falhaDados =
         (form.nome.trim().split(/\s+/).length < 2 ? 'Informe o nome completo (nome e sobrenome).' : '') ||
         erroCpf(form.cpf) ||
-        erroRg(form.rg) ||
+        // Antes usava o estado do endereço, que só é preenchido na etapa 8 (até lá valia SP):
+        // RG de outro estado com 9 dígitos continuava barrado.
+        erroRg(form.rg, form.rgUf) ||
         erroTelefone(form.telefone) ||
         (!completing && state.users.some((u) => u.email.trim().toLowerCase() === form.email.trim().toLowerCase())
           ? 'Este e-mail já tem uma conta. Use outro e-mail ou entre com ele na tela de login.'
@@ -451,7 +465,7 @@ export function CadastroProfissionalScreen({ onBack, onDone }: Props) {
       setError('Marque todos os termos e consentimentos para concluir o cadastro.')
       return
     }
-    const hoje = new Date().toISOString().slice(0, 10)
+    const hoje = hojeLocal()
     const habilidades = habilidadesDoTexto(form.habilidades)
     const cnh = form.cnhCategoria.trim()
     const profissionalPayload = {
@@ -496,15 +510,24 @@ export function CadastroProfissionalScreen({ onBack, onDone }: Props) {
       banco: form.banco.trim() || undefined,
     }
     const documentos = documentosEnviados()
-    const res = await (completing
-      ? completeProfissionalPerfil(profissionalPayload, documentos)
-      : registerProfissional({ email: form.email, senha: form.senha }, profissionalPayload, documentos))
-    if (!res.ok) {
-      setError(res.error ?? 'Erro no cadastro')
-      return
+    if (enviando) return
+    setEnviando(true)
+    try {
+      // Os termos vão junto para a conta no banco (antes ficavam só no navegador e o aviso de
+      // termos voltava a cada sincronização).
+      const res = await (completing
+        ? completeProfissionalPerfil(profissionalPayload, documentos, aceites)
+        : registerProfissional({ email: form.email, senha: form.senha }, profissionalPayload, documentos))
+      if (!res.ok) {
+        setError(res.error ?? 'Erro no cadastro')
+        return
+      }
+      onDone()
+    } catch {
+      setError('Não foi possível concluir o cadastro. Confira a internet e tente de novo.')
+    } finally {
+      setEnviando(false)
     }
-    aceitarTermos(aceites)
-    onDone()
   }
 
   return (
@@ -542,6 +565,16 @@ export function CadastroProfissionalScreen({ onBack, onDone }: Props) {
             <label className="field"><span>CPF</span><input value={form.cpf} onChange={(e) => set('cpf', mascararCpf(e.target.value))} inputMode="numeric" autoComplete="off" placeholder="000.000.000-00" maxLength={14} required /></label>
             {form.cpf.replace(/\D/g, '').length === 11 && erroCpf(form.cpf) && <p className="portal-login__erro">{erroCpf(form.cpf)}</p>}
             <label className="field"><span>RG</span><input value={form.rg} onChange={(e) => set('rg', mascararRg(e.target.value))} autoComplete="off" placeholder="00.000.000-0" maxLength={18} required /></label>
+            <label className="field">
+              <span>Estado que emitiu o RG</span>
+              <select value={form.rgUf} onChange={(e) => set('rgUf', e.target.value)}>
+                {UFS.map((uf) => (
+                  <option key={uf} value={uf}>
+                    {uf}
+                  </option>
+                ))}
+              </select>
+            </label>
             <label className="field"><span>Nascimento</span><input type="date" value={form.nascimento} onChange={(e) => set('nascimento', e.target.value)} required /></label>
             <label className="field"><span>Telefone</span><input type="tel" value={form.telefone} onChange={(e) => set('telefone', mascararTelefone(e.target.value))} inputMode="tel" autoComplete="tel-national" placeholder="(11) 91234-5678" maxLength={15} required /></label>
             {dddInfo && <small className="muted">{dddInfo}</small>}
@@ -768,13 +801,20 @@ export function CadastroProfissionalScreen({ onBack, onDone }: Props) {
               </datalist>
               <small className="muted">A chave Pix não mostra o banco. Informe para a equipe conferir o pagamento mais rápido.</small>
             </label>
-            <AceiteCadastro role="profissional" marcados={aceites} onMarcar={setAceites} />
+            <AceiteCadastro
+              role="profissional"
+              marcados={aceites}
+              onMarcar={(marcados) => {
+                setAceites(marcados)
+                setError('')
+              }}
+            />
           </>
         )}
 
         {error && <p className="error">{error}</p>}
-        <button type="submit" className="btn btn-accent btn-block">
-          {step === ETAPAS.length ? 'Concluir cadastro' : 'Continuar'}
+        <button type="submit" className="btn btn-accent btn-block" disabled={enviando}>
+          {step === ETAPAS.length ? (enviando ? 'Enviando cadastro…' : 'Concluir cadastro') : 'Continuar'}
         </button>
       </form>
     </div>

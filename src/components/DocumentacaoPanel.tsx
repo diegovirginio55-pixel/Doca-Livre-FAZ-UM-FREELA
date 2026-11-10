@@ -18,6 +18,16 @@ import {
   validarEnvioDocumento,
   type ChecklistItem,
 } from '../lib/documentos'
+import { ACCEPT_DOCUMENTO_CADASTRO, lerArquivoCadastro } from '../lib/analisarDocumentoCadastro'
+
+function lerComoDataUrl(file: File) {
+  return new Promise<string>((resolve, reject) => {
+    const leitor = new FileReader()
+    leitor.onload = () => resolve(String(leitor.result || ''))
+    leitor.onerror = () => reject(new Error('Não foi possível ler o arquivo.'))
+    leitor.readAsDataURL(file)
+  })
+}
 import { useStore } from '../lib/store'
 import type { DocumentoStatus, Empresa, Profissional } from '../lib/types'
 
@@ -325,9 +335,35 @@ function ChecklistLista({
   const { enviarDocumento } = useStore()
   const [aberto, setAberto] = useState<string | null>(null)
   const [arquivo, setArquivo] = useState('')
+  /** Conteúdo lido do arquivo (antes só o nome era guardado e o admin não tinha o que abrir). */
+  const [conteudo, setConteudo] = useState<string | null>(null)
+  const [lendo, setLendo] = useState(false)
   const [validade, setValidade] = useState('')
   const [erro, setErro] = useState('')
   const [aviso, setAviso] = useState('')
+
+  async function escolherArquivo(file: File | undefined) {
+    setErro('')
+    setConteudo(null)
+    setArquivo(file?.name ?? '')
+    if (!file) return
+    setLendo(true)
+    try {
+      if (/\.(docx?|txt)$/i.test(file.name)) {
+        // Currículo em Word/TXT: vai como está (o leitor de documentos só trata foto e PDF).
+        if (file.size > 3_500_000) throw new Error('O arquivo ficou grande demais. Envie um menor.')
+        setConteudo(await lerComoDataUrl(file))
+      } else {
+        const lido = await lerArquivoCadastro(file)
+        setConteudo(`data:${lido.mime};base64,${lido.dados}`)
+      }
+    } catch (falha) {
+      setArquivo('')
+      setErro(falha instanceof Error ? falha.message : 'Não foi possível ler o arquivo.')
+    } finally {
+      setLendo(false)
+    }
+  }
 
   function abrir(tipoId: string, validadeAtual: string) {
     if (aberto === tipoId) {
@@ -348,7 +384,8 @@ function ChecklistLista({
   }, [aberto])
 
   function enviar(tipoId: string) {
-    if (!arquivo.trim()) {
+    if (lendo) return
+    if (!arquivo.trim() || !conteudo) {
       setErro('Escolha o arquivo.')
       return
     }
@@ -363,10 +400,12 @@ function ChecklistLista({
       donoTipo,
       donoId,
       arquivoNome: arquivo.trim(),
+      arquivoDados: conteudo,
       validade: def?.temValidade ? validade : undefined,
     })
     setAberto(null)
     setArquivo('')
+    setConteudo(null)
     setErro('')
     setAviso(tipoId)
   }
@@ -412,11 +451,8 @@ function ChecklistLista({
                   <span>Novo arquivo</span>
                   <input
                     type="file"
-                    accept=".pdf,.jpg,.jpeg,.png,.txt,application/pdf,image/jpeg,image/png,text/plain"
-                    onChange={(e) => {
-                      setArquivo(e.target.files?.[0]?.name ?? '')
-                      setErro('')
-                    }}
+                    accept={ACCEPT_DOCUMENTO_CADASTRO}
+                    onChange={(e) => void escolherArquivo(e.target.files?.[0])}
                   />
                 </label>
                 {def.temValidade && (
@@ -427,8 +463,13 @@ function ChecklistLista({
                 )}
                 {arquivo && <p className="muted">Selecionado: {arquivo}</p>}
                 {erro && <p className="error">{erro}</p>}
-                <button type="button" className="px-btn px-btn-primary" onClick={() => enviar(def.id)}>
-                  Enviar para análise
+                <button
+                  type="button"
+                  className="px-btn px-btn-primary"
+                  disabled={lendo}
+                  onClick={() => enviar(def.id)}
+                >
+                  {lendo ? 'Lendo arquivo…' : 'Enviar para análise'}
                 </button>
               </div>
             )}

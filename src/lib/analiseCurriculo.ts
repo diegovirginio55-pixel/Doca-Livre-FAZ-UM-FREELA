@@ -281,19 +281,32 @@ function requisitoAtendido(
   )
 }
 
+/**
+ * Missões da pessoa com a empresa que contam para o ciclo temporário. `ignorarDemandaId` é a vaga
+ * que está sendo analisada: quem já aceitou o convite DESTA vaga não pode contar contra si mesmo
+ * (antes caía em "Fora do ciclo" por "sobreposição" com a própria vaga e sumia "Gerar contrato").
+ */
 function contratosNaEmpresa(
   profissionalId: string,
   empresaId: string,
   demandas: Demanda[],
   candidaturas: Candidatura[],
+  ignorarDemandaId?: string | null,
 ) {
   return candidaturas
     .filter(
       (c) =>
         c.profissionalId === profissionalId &&
+        c.demandaId !== ignorarDemandaId &&
         (c.status === 'aceita' || c.status === 'confirmada'),
     )
-    .map((c) => demandas.find((d) => d.id === c.demandaId && d.empresaId === empresaId))
+    .map((c) => {
+      const d = demandas.find((item) => item.id === c.demandaId && item.empresaId === empresaId)
+      if (!d || d.status === 'cancelada') return undefined
+      // Missão encerrada só conta para quem foi de fato contratado.
+      if (d.status === 'finalizada' && c.status !== 'confirmada') return undefined
+      return d
+    })
     .filter((d): d is Demanda => Boolean(d))
 }
 
@@ -303,13 +316,17 @@ function avaliarNaModalidade(
   pedido: PedidoContratacao,
   demandas: Demanda[],
   candidaturas: Candidatura[],
+  demandaAtualId?: string | null,
 ) {
-  const datas = contratosNaEmpresa(profissionalId, empresa.id, demandas, candidaturas).map((d) => d.data)
+  // Período inteiro de cada missão (data..dataFim). Antes só a data de início entrava na conta.
+  const periodos = contratosNaEmpresa(profissionalId, empresa.id, demandas, candidaturas, demandaAtualId).map(
+    (d) => ({ inicio: d.data, fim: d.dataFim || d.data }),
+  )
   return avaliarPessoaModalidade({
     modalidade: pedido.modalidade,
     inicio: pedido.inicio,
     fim: pedido.fim,
-    datasAnteriores: datas,
+    periodosAnteriores: periodos,
   })
 }
 
@@ -367,8 +384,10 @@ export function analisarCurriculos(params: {
   documentos: DocumentoRegistro[]
   demandas: Demanda[]
   candidaturas: Candidatura[]
+  /** Vaga já criada para este pedido (convites enviados). Fica fora da conta do ciclo temporário. */
+  demandaAtualId?: string | null
 }): BuscaMissao {
-  const { pedido, empresa, profissionais, documentos, demandas, candidaturas } = params
+  const { pedido, empresa, profissionais, documentos, demandas, candidaturas, demandaAtualId } = params
   const label = cargoLabel(pedido.cargoId)
   const diasPedido = diasInclusivos(pedido.inicio, pedido.fim)
   const chavesObs = palavras(pedido.observacoes)
@@ -492,7 +511,7 @@ export function analisarCurriculos(params: {
     const relevante = temCargo || okReqs.length > 0 || okDifs.length > 0
     if (!relevante) continue
 
-    const seq = avaliarNaModalidade(profissional.id, empresa, pedido, demandas, candidaturas)
+    const seq = avaliarNaModalidade(profissional.id, empresa, pedido, demandas, candidaturas, demandaAtualId)
     const anos = anosExperiencia(profissional)
     const disp = profissional.disponibilidade
     const disponivel =

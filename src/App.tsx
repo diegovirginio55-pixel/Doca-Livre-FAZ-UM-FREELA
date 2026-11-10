@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { IntroSplash } from './components/IntroSplash'
+import { emDemo, trocarModo } from './lib/modo'
+import './pages/auth/PortalSelectScreen.css'
 import { StoreProvider, avisoAcessoEmpresa, avisoAcessoProfissional, useStore } from './lib/store'
 import { AdminApp } from './pages/admin/AdminApp'
 import { CadastroEmpresaScreen } from './pages/auth/CadastroEmpresaScreen'
@@ -86,6 +88,13 @@ function AppRoutes() {
     if (portal === 'empresa' && !currentEmpresa) {
       if (currentUser.role === 'empresa') {
         setGate('cadastro_empresa')
+        return
+      }
+      // Só na demonstração o gestor abre a empresa de exemplo. No sistema real isso dava a
+      // qualquer admin a sessão de uma empresa com senha publicada.
+      if (!emDemo()) {
+        logout()
+        setGate('select')
         return
       }
       void login('empresa@logexpress.com', 'demo123').then((res) => {
@@ -254,10 +263,23 @@ function AppRoutes() {
   )
 }
 
+function FaixaDemo() {
+  if (!emDemo()) return null
+  return (
+    <div className="faixa-demo" role="status">
+      <span>Modo demonstração — dados fictícios, só neste aparelho. Nada aqui vai para o sistema real.</span>
+      <button type="button" onClick={() => trocarModo('real')}>
+        Sair da demonstração
+      </button>
+    </div>
+  )
+}
+
 export default function App() {
   return (
     <StoreProvider>
       <AppRoutes />
+      <FaixaDemo />
       <PwaInstallBanner />
     </StoreProvider>
   )

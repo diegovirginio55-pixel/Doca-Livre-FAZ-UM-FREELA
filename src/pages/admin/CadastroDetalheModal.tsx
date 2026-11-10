@@ -162,6 +162,8 @@ export function CadastroProfissionalDetalhe({
           ? 'Cadastro aprovado e e-mail enviado.'
           : `Cadastro aprovado, mas o e-mail falhou: ${mail.erro}`,
       )
+    } catch (falha) {
+      setAviso(falha instanceof Error ? falha.message : 'Não foi possível aprovar.')
     } finally {
       setBusy(false)
     }
@@ -191,6 +193,8 @@ export function CadastroProfissionalDetalhe({
           : `Cadastro recusado, mas o e-mail falhou: ${mail.erro}`,
       )
       setRecusando(false)
+    } catch (falha) {
+      setAviso(falha instanceof Error ? falha.message : 'Não foi possível recusar.')
     } finally {
       setBusy(false)
     }
@@ -415,6 +419,8 @@ export function CadastroEmpresaDetalhe({
           ? 'Cadastro aprovado e e-mail enviado.'
           : `Cadastro aprovado, mas o e-mail falhou: ${mail.erro}`,
       )
+    } catch (falha) {
+      setAviso(falha instanceof Error ? falha.message : 'Não foi possível aprovar.')
     } finally {
       setBusy(false)
     }
@@ -443,6 +449,8 @@ export function CadastroEmpresaDetalhe({
           : `Cadastro recusado, mas o e-mail falhou: ${mail.erro}`,
       )
       setRecusando(false)
+    } catch (falha) {
+      setAviso(falha instanceof Error ? falha.message : 'Não foi possível recusar.')
     } finally {
       setBusy(false)
     }

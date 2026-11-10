@@ -39,7 +39,10 @@ export function coordenadaDaCidade(
       Number.isFinite(local.lat) &&
       Number.isFinite(local.lng),
   )
-  const origem = achou ?? BASES[chave] ?? { lat: -23.5505, lng: -46.6333 }
+  const origem = achou ?? BASES[chave]
+  // Cidade desconhecida fica sem coordenada (antes virava São Paulo: distâncias falsas e convites
+  // errados, e o erro passava para os próximos cadastros da mesma cidade).
+  if (!origem) return { lat: Number.NaN, lng: Number.NaN }
   return {
     lat: Number((origem.lat + (Math.random() - 0.5) * 0.02).toFixed(5)),
     lng: Number((origem.lng + (Math.random() - 0.5) * 0.02).toFixed(5)),

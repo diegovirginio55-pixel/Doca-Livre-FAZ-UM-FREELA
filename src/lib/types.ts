@@ -186,6 +186,8 @@ export type Profissional = {
   cpf: string
   rg: string
   nascimento: string
+  /** Idade calculada no servidor: a empresa recebe a idade, não a data de nascimento. */
+  idade?: number
   telefone: string
   foto?: string
   /** Aparece para a empresa tomadora. Sem telefone, e-mail, CPF ou endereço. */
@@ -258,12 +260,16 @@ export type Candidatura = {
   origem?: 'candidatura' | 'convite'
   /** Momento em que o trabalhador se candidatou ou aceitou o convite. */
   respondidoEm?: string
+  /** Quem recusou (status = recusada): a empresa ou o próprio trabalhador. */
+  recusadaPor?: 'empresa' | 'profissional'
 }
 
 export type CheckIn = {
   id: string
   demandaId: string
   profissionalId: string
+  /** Dia do ponto (AAAA-MM-DD, local). Uma missão de vários dias tem um registro por dia. */
+  data?: string
   checkInAt?: string
   checkOutAt?: string
   gpsOk: boolean

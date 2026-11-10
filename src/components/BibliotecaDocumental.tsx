@@ -251,7 +251,11 @@ function Consentimentos({ profissionalId }: { profissionalId: string }) {
       <h2>Privacidade e proteção de dados</h2>
       {itens.map(([campo, texto, em]) => (
         <label key={campo} className="bib-check">
-          <input type="checkbox" checked={Boolean(em)} onChange={() => registrarConsentimento(profissionalId, campo)} />
+          <input
+            type="checkbox"
+            checked={Boolean(em)}
+            onChange={(e) => registrarConsentimento(profissionalId, campo, e.target.checked)}
+          />
           <span>
             {texto}
             {em ? ` — registrado em ${new Date(em).toLocaleString('pt-BR')}` : ''}
@@ -340,12 +344,17 @@ function PecaCard({ peca, modo }: { peca: PecaDocumental; modo: 'ett' | 'tomador
 
 function EncerramentoForm({ empresaId }: { empresaId?: string }) {
   const { state, registrarEncerramento } = useStore()
-  const demandas = state.demandas.filter((d) => !empresaId || d.empresaId === empresaId)
+  // Só missões em aberto/andamento (antes listava também as já encerradas e canceladas).
+  const demandas = state.demandas.filter(
+    (d) => (!empresaId || d.empresaId === empresaId) && d.status !== 'finalizada' && d.status !== 'cancelada',
+  )
   const [demandaId, setDemandaId] = useState(demandas[0]?.id ?? '')
   const [dataEfetiva, setDataEfetiva] = useState('')
   const [motivo, setMotivo] = useState('pedido da tomadora')
   const [responsavel, setResponsavel] = useState('tomadora')
   const [observacoes, setObservacoes] = useState('')
+  const [aviso, setAviso] = useState<{ texto: string; erro: boolean } | null>(null)
+  const selecionada = demandas.find((d) => d.id === demandaId) ?? demandas[0]
 
   if (demandas.length === 0) return null
 
@@ -355,7 +364,7 @@ function EncerramentoForm({ empresaId }: { empresaId?: string }) {
       <div className="bib-form">
         <label>
           <span>Contrato / missão</span>
-          <select value={demandaId} onChange={(e) => setDemandaId(e.target.value)}>
+          <select value={selecionada?.id ?? ''} onChange={(e) => setDemandaId(e.target.value)}>
             {demandas.map((d) => (
               <option key={d.id} value={d.id}>
                 {cargoLabel(d.cargo)} · término previsto {d.dataFim || d.data}
@@ -395,12 +404,23 @@ function EncerramentoForm({ empresaId }: { empresaId?: string }) {
         type="button"
         className="bib-btn"
         onClick={() => {
-          if (!demandaId || !dataEfetiva) return
-          registrarEncerramento({ demandaId, dataEfetiva, motivo, responsavel, observacoes })
+          if (!selecionada) return
+          if (!dataEfetiva) {
+            setAviso({ texto: 'Informe a data efetiva do encerramento.', erro: true })
+            return
+          }
+          if (dataEfetiva < selecionada.data) {
+            setAviso({ texto: 'A data efetiva não pode ser antes do início da missão.', erro: true })
+            return
+          }
+          registrarEncerramento({ demandaId: selecionada.id, dataEfetiva, motivo, responsavel, observacoes })
+          setAviso({ texto: 'Missão encerrada. Pagamentos e recibos gerados pelos dias com presença.', erro: false })
+          setDataEfetiva('')
         }}
       >
         Gerar encerramento
       </button>
+      {aviso && <p className={aviso.erro ? 'error' : 'muted'}>{aviso.texto}</p>}
     </section>
   )
 }

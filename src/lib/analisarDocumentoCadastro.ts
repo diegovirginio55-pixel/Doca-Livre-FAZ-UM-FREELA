@@ -1,5 +1,8 @@
-import workerUrl from 'pdfjs-dist/build/pdf.worker.min.mjs?url'
-import { loadSupabaseConfig } from './supabaseConfig'
+// Build legacy: a moderna usa Promise.withResolvers, Map.getOrInsertComputed e Math.sumPrecise sem
+// polyfill — em iPhone abaixo do iOS 17.4 e navegadores antigos o PDF não abria.
+import workerUrl from 'pdfjs-dist/legacy/build/pdf.worker.min.mjs?url'
+import { chamarApi } from './api'
+import { emDemo } from './modo'
 
 export type PapelDocumento = 'documento' | 'verso' | 'selfie'
 
@@ -40,7 +43,7 @@ function lerBinario(file: File, mime: FotoDocumento['mime']) {
 
 async function lerPdfComoJpeg(file: File): Promise<FotoDocumento> {
   if (file.size > 12_000_000) throw new Error('O arquivo ficou grande demais. Envie um menor.')
-  const { getDocument, GlobalWorkerOptions } = await import('pdfjs-dist')
+  const { getDocument, GlobalWorkerOptions } = await import('pdfjs-dist/legacy/build/pdf.mjs')
   GlobalWorkerOptions.workerSrc = workerUrl
   const pdf = await getDocument({ data: new Uint8Array(await file.arrayBuffer()) }).promise
   const total = Math.min(pdf.numPages, 2)
@@ -157,50 +160,16 @@ export async function analisarDocumentoCadastro(input: {
   cidade?: string
   cpf?: string
 }): Promise<{ ok: true; aceito: boolean; motivo: string; cnh: string } | { ok: false; erro: string }> {
-  const cfg = await loadSupabaseConfig()
-  const tentativas: { url: string; headers: Record<string, string> }[] = []
-  if (cfg.url && cfg.anonKey) {
-    tentativas.push({
-      url: `${cfg.url.replace(/\/$/, '')}/functions/v1/analisar-documento`,
-      headers: {
-        'Content-Type': 'application/json',
-        apikey: cfg.anonKey,
-        Authorization: `Bearer ${cfg.anonKey}`,
-      },
-    })
+  if (emDemo()) {
+    return { ok: false, erro: 'Modo demonstração: o documento fica para a validação manual.' }
   }
-  tentativas.push({
-    url: '/api/cadastro/analisar-documento',
-    headers: { 'Content-Type': 'application/json' },
-  })
-
-  let ultimo = 'Não foi possível analisar o documento. Tente de novo.'
-  for (const tentativa of tentativas) {
-    try {
-      const resposta = await fetch(tentativa.url, {
-        method: 'POST',
-        headers: tentativa.headers,
-        body: JSON.stringify(input),
-      })
-      const texto = await resposta.text()
-      type RespostaAnalise = { ok?: boolean; aceito?: boolean; motivo?: string; erro?: string; cnh?: string }
-      let data: RespostaAnalise | null = null
-      try {
-        data = JSON.parse(texto) as RespostaAnalise
-      } catch {
-        data = null
-      }
-      if (!data) continue
-      if (resposta.ok && data.ok && typeof data.aceito === 'boolean') {
-        return { ok: true, aceito: data.aceito, motivo: data.motivo || '', cnh: data.cnh || '' }
-      }
-      if (data.erro) {
-        ultimo = data.erro
-        if (resposta.status !== 404) return { ok: false, erro: data.erro }
-      }
-    } catch {
-      /* tenta o próximo caminho */
-    }
-  }
-  return { ok: false, erro: ultimo }
+  // Só com login (a análise usa a cota paga de IA; antes qualquer um chamava sem conta).
+  const r = await chamarApi<{ aceito: boolean; motivo?: string; cnh?: string }>(
+    '/api/cadastro/analisar-documento',
+    input,
+    { erroPadrao: 'Não foi possível analisar o documento. Tente de novo.' },
+  )
+  if (!r.ok) return { ok: false, erro: r.erro }
+  if (typeof r.aceito !== 'boolean') return { ok: false, erro: 'Não foi possível analisar o documento. Tente de novo.' }
+  return { ok: true, aceito: r.aceito, motivo: r.motivo || '', cnh: r.cnh || '' }
 }

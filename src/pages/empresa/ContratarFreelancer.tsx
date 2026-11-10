@@ -31,8 +31,10 @@ import { AvaliacaoTrabalhador } from './AvaliacaoTrabalhador'
 import { PerfilColaborador } from './PerfilColaborador'
 import { certificadosDoCurriculo, checklistProfissional, resumoDocumental } from '../../lib/documentos'
 import { distanciaKm } from '../../lib/matching'
+import { coordenadaDaCidade } from '../../lib/coordenadaCidade'
 import { rotuloPeriodo } from '../../lib/periodoMissao'
-import type { DocumentoRegistro, DocumentoStatus } from '../../lib/types'
+import { hojeLocal } from '../../lib/ponto'
+import type { Demanda, DocumentoRegistro, DocumentoStatus } from '../../lib/types'
 import {
   AVISO_FORMALIZACAO,
   MOTIVOS_TEMPORARIOS,
@@ -44,32 +46,65 @@ import { BRAND_PRODUCT_NAME, LOGO_DOCA_LIVRE_SRC } from '../../lib/brandAssets'
 import { useStore } from '../../lib/store'
 import './contratar.css'
 
+/** Dados de uma vaga antes de virar demanda (o que `publicarVaga`/`convidarParaMissao` recebem). */
+type PedidoVaga = Omit<Demanda, 'id' | 'createdAt' | 'status' | 'categoria'>
+
+/** Todos os trabalhadores pedidos já foram confirmados. */
+function vagaLotada(
+  demanda: Pick<Demanda, 'id' | 'quantidade'>,
+  candidaturas: { demandaId: string; status: string }[],
+) {
+  const confirmados = candidaturas.filter((c) => c.demandaId === demanda.id && c.status === 'confirmada').length
+  return demanda.quantidade > 0 && confirmados >= demanda.quantidade
+}
+
+function vagaEncerrada(status: string) {
+  return status === 'finalizada' || status === 'cancelada'
+}
+
+type LocalComCoordenada = { cidade: string; estado: string; lat: number; lng: number }
+
+type PontoOperacao = {
+  lat: number
+  lng: number
+  /** A cidade escolhida não foi localizada: distâncias e raio saem da sede da empresa. */
+  daSede: boolean
+}
+
+function coordenadaValida(lat: number, lng: number) {
+  return Number.isFinite(lat) && Number.isFinite(lng) && !(lat === 0 && lng === 0)
+}
+
+/**
+ * Coordenada da cidade da operação. Antes, cidade sem nenhum cadastro com coordenada (ex.: uma
+ * das cidades da lista padrão) ficava, sem aviso, com a coordenada da sede: a busca por raio e as
+ * distâncias eram medidas a partir da sede, e a vaga era gravada com o ponto errado.
+ */
 function pontoOperacao(
   cidade: string,
   estado: string,
-  empresa: { endereco: { cidade: string; estado: string; lat: number; lng: number } },
-  locais: { cidade: string; estado: string; lat: number; lng: number }[],
-) {
-  const mesmaEmpresa =
-    semAcento(cidade || empresa.endereco.cidade) === semAcento(empresa.endereco.cidade) &&
-    (!estado || estado.toUpperCase() === empresa.endereco.estado.toUpperCase())
-  if (mesmaEmpresa && Number.isFinite(empresa.endereco.lat)) {
-    return { lat: empresa.endereco.lat, lng: empresa.endereco.lng }
+  empresa: { endereco: LocalComCoordenada },
+  locais: LocalComCoordenada[],
+): PontoOperacao {
+  const sede = { lat: empresa.endereco.lat, lng: empresa.endereco.lng }
+  const nome = cidade.trim() || empresa.endereco.cidade
+  const uf = estado.trim().toUpperCase()
+  const ehCidadeDaSede =
+    semAcento(nome) === semAcento(empresa.endereco.cidade) && (!uf || uf === empresa.endereco.estado.toUpperCase())
+  if (ehCidadeDaSede && coordenadaValida(sede.lat, sede.lng)) return { ...sede, daSede: false }
+  const conhecidos = locais.filter((local) => coordenadaValida(local.lat, local.lng))
+  const mesmaCidade = (local: { cidade: string }) => semAcento(local.cidade) === semAcento(nome)
+  // Coordenada exata de um cadastro na cidade (sem o deslocamento aleatório de coordenadaDaCidade).
+  const exato = conhecidos.find((local) => mesmaCidade(local) && (!uf || local.estado.toUpperCase() === uf))
+  if (exato) return { lat: exato.lat, lng: exato.lng, daSede: false }
+  // Sem UF escolhida ("Todos"): usa a UF da lista de cidades de operação.
+  const ufCidade = uf || LOCAIS_OPERACAO.find(mesmaCidade)?.estado?.toUpperCase() || ''
+  if (ufCidade) {
+    const ponto = coordenadaDaCidade(nome, ufCidade, conhecidos)
+    if (coordenadaValida(ponto.lat, ponto.lng)) return { ...ponto, daSede: false }
   }
-  const achou = locais.find((local) => {
-    const mesmaCidade = semAcento(local.cidade) === semAcento(cidade)
-    const mesmoEstado = !estado || local.estado.toUpperCase() === estado.toUpperCase()
-    return mesmaCidade && mesmoEstado && Number.isFinite(local.lat) && Number.isFinite(local.lng)
-  })
-  if (achou) return { lat: achou.lat, lng: achou.lng }
-  return { lat: empresa.endereco.lat, lng: empresa.endereco.lng }
-}
-
-function dataLocal(offsetDias = 0) {
-  const d = new Date()
-  d.setDate(d.getDate() + offsetDias)
-  const z = new Date(d.getTime() - d.getTimezoneOffset() * 60000)
-  return z.toISOString().slice(0, 10)
+  // Cidade desconhecida (coordenadaDaCidade devolve NaN): cai para a sede e a tela avisa.
+  return { ...sede, daSede: !ehCidadeDaSede }
 }
 
 function semAcento(value: string) {
@@ -523,8 +558,8 @@ export function ContratarFreelancer({ onLogout }: { onLogout: () => void }) {
   const [cargoId, setCargoId] = useState('empilhadeira')
   const [requisitos, setRequisitos] = useState<string[]>(() => requisitosDoCargo('empilhadeira').padrao)
   const [diferenciais, setDiferenciais] = useState<string[]>([])
-  const [inicio, setInicio] = useState(dataLocal(1))
-  const [fim, setFim] = useState(dataLocal(5))
+  const [inicio, setInicio] = useState(() => somarDias(hojeLocal(), 1))
+  const [fim, setFim] = useState(() => somarDias(hojeLocal(), 5))
   const feriados = useFeriadosNoPeriodo(inicio, fim)
   const [horaInicio, setHoraInicio] = useState('08:00')
   const [horaFim, setHoraFim] = useState('18:00')
@@ -550,6 +585,23 @@ export function ContratarFreelancer({ onLogout }: { onLogout: () => void }) {
     () => [...new Set(locaisBusca.map((local) => local.estado.toUpperCase()).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'pt-BR')),
     [locaisBusca],
   )
+  const locaisComCoordenada = useMemo(
+    () => [...state.empresas.map((item) => item.endereco), ...state.profissionais.map((item) => item.endereco)],
+    [state.empresas, state.profissionais],
+  )
+  const cidadeOperacao = cidade.trim() || empresa.endereco.cidade
+  // Estado "Todos" com uma cidade escolhida: a vaga ficava com a UF da sede (ex.: Curitiba/SP).
+  const ufOperacao =
+    estado ||
+    (semAcento(cidadeOperacao) === semAcento(empresa.endereco.cidade)
+      ? empresa.endereco.estado
+      : locaisBusca.find((local) => semAcento(local.cidade) === semAcento(cidadeOperacao))?.estado.toUpperCase()) ||
+    empresa.endereco.estado
+  // Calculado uma vez por cidade escolhida: a busca e a vaga gravada usam o mesmo ponto.
+  const pontoBusca = useMemo(
+    () => pontoOperacao(cidadeOperacao, ufOperacao, empresa, locaisComCoordenada),
+    [cidadeOperacao, ufOperacao, empresa, locaisComCoordenada],
+  )
   const [observacoes, setObservacoes] = useState('')
   const [erro, setErro] = useState('')
   const [analisando, setAnalisando] = useState(false)
@@ -560,8 +612,12 @@ export function ContratarFreelancer({ onLogout }: { onLogout: () => void }) {
   const [modoResultado, setModoResultado] = useState<ModoBusca>('completa')
   const [analisados, setAnalisados] = useState(0)
   const [aberto, setAberto] = useState<string | null>(null)
+  /** Última vaga (demanda) usada por este formulário: criada ao publicar ou no primeiro convite. */
   const [missaoId, setMissaoId] = useState<string | null>(null)
-  const [vagaPublicadaChave, setVagaPublicadaChave] = useState('')
+  /** Vaga de cada pedido (chave do pedido → id da demanda). Outro pedido = outra vaga. */
+  const [vagasPorChave, setVagasPorChave] = useState<Record<string, string>>({})
+  /** Pedido usado na última busca completa: o convite usa exatamente o que foi analisado. */
+  const [pedidoBusca, setPedidoBusca] = useState<{ pedido: PedidoVaga; chave: string } | null>(null)
   const [avisoPublicacao, setAvisoPublicacao] = useState('')
   const publicando = useRef(false)
   const [modelos, setModelos] = useState<ModeloMissao[]>(() => lerModelos(empresa.id))
@@ -671,8 +727,19 @@ export function ContratarFreelancer({ onLogout }: { onLogout: () => void }) {
     setRaioKm(modelo.raioKm ?? null)
     setHoraInicio(modelo.horaInicio)
     setHoraFim(modelo.horaFim)
-    if (modelo.inicio) setInicio(modelo.inicio)
-    if (modelo.fim) setFim(modelo.fim)
+    // Publicação salva com datas que já passaram: começa hoje e mantém a mesma duração (antes
+    // restaurava o início no passado e a vaga podia ser publicada assim).
+    const hoje = hojeLocal()
+    let avisoDatas = ''
+    if (modelo.inicio && modelo.inicio < hoje) {
+      const duracao = modelo.fim && modelo.fim >= modelo.inicio ? diasEntre(modelo.inicio, modelo.fim) : 1
+      setInicio(hoje)
+      setFim(somarDias(hoje, duracao - 1))
+      avisoDatas = ` As datas salvas já tinham passado: o início foi ajustado para hoje, com os mesmos ${duracao} dia${duracao === 1 ? '' : 's'}.`
+    } else {
+      if (modelo.inicio) setInicio(modelo.inicio)
+      if (modelo.fim) setFim(modelo.fim)
+    }
     setObservacoes(modelo.observacoes)
     setMotivo(modelo.motivo)
     setAtividades(modelo.atividades)
@@ -681,7 +748,7 @@ export function ContratarFreelancer({ onLogout }: { onLogout: () => void }) {
     setQuantidade(modelo.quantidade)
     setResultados(null)
     setMissaoId(null)
-    setAvisoModelo(`Preenchido com ${modelo.titulo}.`)
+    setAvisoModelo(`Preenchido com ${modelo.titulo}.${avisoDatas}`)
     setErro('')
   }
 
@@ -744,8 +811,8 @@ export function ContratarFreelancer({ onLogout }: { onLogout: () => void }) {
       atividades,
       valorDiaria: valorNumero(remuneracaoFinal),
       beneficios: beneficiosTexto,
-      cidade: cidade || empresa.endereco.cidade,
-      estado: estado || empresa.endereco.estado,
+      cidade: cidadeOperacao,
+      estado: ufOperacao,
       observacoes,
     })
   }
@@ -776,8 +843,7 @@ export function ContratarFreelancer({ onLogout }: { onLogout: () => void }) {
     )
   }
 
-  function pedidoDaVaga(remuneracaoFinal: string) {
-    const cidadeMissao = cidade || empresa.endereco.cidade
+  function pedidoDaVaga(remuneracaoFinal: string): PedidoVaga {
     return {
       empresaId: empresa.id,
       cargo: cargoId,
@@ -788,12 +854,10 @@ export function ContratarFreelancer({ onLogout }: { onLogout: () => void }) {
       horaFim,
       endereco: {
         ...empresa.endereco,
-        cidade: cidadeMissao,
-        estado: estado || empresa.endereco.estado,
-        ...pontoOperacao(cidadeMissao, estado, empresa, [
-          ...state.empresas.map((item) => item.endereco),
-          ...state.profissionais.map((item) => item.endereco),
-        ]),
+        cidade: cidadeOperacao,
+        estado: ufOperacao,
+        lat: pontoBusca.lat,
+        lng: pontoBusca.lng,
       },
       valorDiaria: valorNumero(remuneracaoFinal),
       descricao: atividades,
@@ -830,12 +894,26 @@ export function ContratarFreelancer({ onLogout }: { onLogout: () => void }) {
       return null
     }
     setRemuneracao(remuneracaoFinal)
-    if (quantidade < 1) {
-      setErro('Informe quantos trabalhadores a missão precisa.')
+    // "R$ 0,00" passava: a vaga era publicada e o contrato gerado sem remuneração.
+    if (!(valorNumero(remuneracaoFinal) > 0)) {
+      setErro('Informe uma remuneração por dia maior que zero.')
+      return null
+    }
+    // 1,5 ou 0 trabalhadores passavam (o campo aceita qualquer número).
+    if (!Number.isInteger(quantidade) || quantidade < 1) {
+      setErro('Informe quantos trabalhadores a missão precisa: um número inteiro, a partir de 1.')
       return null
     }
     if (!horaInicio || !horaFim) {
       setErro('Informe a jornada.')
+      return null
+    }
+    if (!inicio || !fim) {
+      setErro('Informe o início e o término previsto da missão.')
+      return null
+    }
+    if (inicio < hojeLocal()) {
+      setErro('A data de início já passou. Escolha hoje ou uma data futura.')
       return null
     }
     const aviso = validarNecessidade('temporario', inicio, fim)
@@ -858,7 +936,19 @@ export function ContratarFreelancer({ onLogout }: { onLogout: () => void }) {
     setAnalisando(true)
     setResultados(null)
     const chave = chaveDaVaga(remuneracaoFinal)
-    setMissaoId((atual) => (atual && vagaPublicadaChave === chave ? atual : null))
+    // Mesmo pedido de uma vaga já criada (publicada ou com convites) e ainda aberta: continua nela.
+    const corrente = missaoCorrente(chave)
+    setMissaoId(corrente?.id ?? null)
+    if (!corrente && vagasPorChave[chave]) {
+      // A vaga deste pedido foi encerrada/cancelada: o próximo convite abre outra.
+      setVagasPorChave((atual) => {
+        const proximo = { ...atual }
+        delete proximo[chave]
+        return proximo
+      })
+    }
+    const pedidoVaga = pedidoDaVaga(remuneracaoFinal)
+    setPedidoBusca({ pedido: pedidoVaga, chave })
     if (esperaBusca.current) window.clearTimeout(esperaBusca.current)
     esperaBusca.current = window.setTimeout(() => {
       const busca = analisarCurriculos({
@@ -871,10 +961,7 @@ export function ContratarFreelancer({ onLogout }: { onLogout: () => void }) {
         cidade,
         estado,
         raioKm,
-        origem: pontoOperacao(cidade, estado, empresa, [
-          ...state.empresas.map((item) => item.endereco),
-          ...state.profissionais.map((item) => item.endereco),
-        ]),
+        origem: { lat: pedidoVaga.endereco.lat, lng: pedidoVaga.endereco.lng },
         observacoes,
         modalidade: 'temporario',
         quantidade,
@@ -890,6 +977,8 @@ export function ContratarFreelancer({ onLogout }: { onLogout: () => void }) {
       documentos: state.documentos,
       demandas: state.demandas,
       candidaturas: state.candidaturas,
+      // A própria vaga não conta no ciclo: quem já aceitou o convite dela não vira "Fora do ciclo".
+      demandaAtualId: corrente?.id ?? null,
     })
       setResultados(busca.pessoas)
       setModoResultado('completa')
@@ -930,10 +1019,7 @@ export function ContratarFreelancer({ onLogout }: { onLogout: () => void }) {
         cidade,
         estado,
         raioKm,
-        origem: pontoOperacao(cidade, estado, empresa, [
-          ...state.empresas.map((item) => item.endereco),
-          ...state.profissionais.map((item) => item.endereco),
-        ]),
+        origem: { lat: pontoBusca.lat, lng: pontoBusca.lng },
         empresa,
         profissionais: state.profissionais,
         documentos: state.documentos,
@@ -972,7 +1058,15 @@ export function ContratarFreelancer({ onLogout }: { onLogout: () => void }) {
         confirmarRepeticao || !missaoId
           ? undefined
           : state.demandas.find((item) => item.id === missaoId && item.empresaId === empresa.id && item.status === 'aberta')
-      if (aberta) {
+      // Editar no lugar só enquanto ninguém está ligado à vaga. Com convite, candidatura, contrato
+      // ou peça documental, mudar datas/valor/quantidade alteraria o que a pessoa aceitou e o que
+      // já está no contrato: os dados novos viram outra vaga e a anterior fica como estava.
+      const comVinculo =
+        aberta &&
+        (state.candidaturas.some((c) => c.demandaId === aberta.id) ||
+          state.contratos.some((c) => c.demandaId === aberta.id) ||
+          (state.pecas ?? []).some((p) => p.demandaId === aberta.id))
+      if (aberta && !comVinculo) {
         patchState((s) => ({
           ...s,
           demandas: s.demandas.map((item) =>
@@ -988,16 +1082,19 @@ export function ContratarFreelancer({ onLogout }: { onLogout: () => void }) {
               : item,
           ),
         }))
-        setMissaoId(aberta.id)
+        lembrarVaga(chave, aberta.id)
       } else {
         const criada = publicarVaga(pedido)
-        setMissaoId(criada.id)
+        // "Publicar de novo" é uma cópia pedida: os convites deste pedido seguem na vaga original.
+        if (confirmarRepeticao && missaoCorrente(chave)) setMissaoId(criada.id)
+        else lembrarVaga(chave, criada.id)
       }
-      setVagaPublicadaChave(chave)
       setAvisoPublicacao(
         confirmarRepeticao
           ? 'Vaga publicada de novo. Os colaboradores verão as duas.'
-          : 'Vaga publicada. Os colaboradores já podem ver e se candidatar.',
+          : comVinculo
+            ? 'A vaga anterior já tem convidados ou candidatos e continua com os dados originais. Os dados novos foram publicados como outra vaga. Se a anterior não serve mais, cancele-a em Vagas Publicadas.'
+            : 'Vaga publicada. Os colaboradores já podem ver e se candidatar.',
       )
       setAba('vagas')
     } finally {
@@ -1005,15 +1102,52 @@ export function ContratarFreelancer({ onLogout }: { onLogout: () => void }) {
     }
   }
 
+  /** Guarda a vaga deste pedido: nova busca + convite com o mesmo pedido reutiliza a mesma demanda. */
+  function lembrarVaga(chave: string, demandaId: string) {
+    setMissaoId(demandaId)
+    setVagasPorChave((atual) => {
+      // Uma demanda corresponde a um pedido só: se foi editada no lugar, a chave antiga sai.
+      const proximo: Record<string, string> = {}
+      for (const [k, id] of Object.entries(atual)) if (id !== demandaId) proximo[k] = id
+      proximo[chave] = demandaId
+      return proximo
+    })
+  }
+
+  /** Demanda já criada para este pedido, se existir. */
+  function vagaDoPedido(chave: string) {
+    const id = vagasPorChave[chave]
+    return id ? state.demandas.find((item) => item.id === id && item.empresaId === empresa.id) : undefined
+  }
+
+  /** Vaga do pedido se ela ainda aceita gente (não encerrada nem cancelada). */
+  function missaoCorrente(chave: string): Demanda | null {
+    const demanda = vagaDoPedido(chave)
+    return demanda && !vagaEncerrada(demanda.status) ? demanda : null
+  }
+
   function convidar(item: CurriculoAnalisado) {
+    if (!pedidoBusca) return
+    const corrente = missaoCorrente(pedidoBusca.chave)
+    if (!corrente && pedidoBusca.pedido.data < hojeLocal()) {
+      setErro('A data de início desta busca já passou. Ajuste o período e clique em Encontrar profissionais de novo.')
+      return
+    }
+    // Antes: a busca zerava `missaoId` e o convite não guardava a chave da vaga, então cada nova
+    // busca + convite criava outra demanda igual. Agora a vaga criada vira a vaga corrente.
     const resp = convidarParaMissao({
-      demandaId: missaoId,
+      demandaId: corrente?.id ?? null,
       profissionalId: item.profissional.id,
       score: item.score,
       distanciaKm: item.distanciaKm,
-      pedido: missaoId ? undefined : pedidoDaVaga(finalizarMoeda(remuneracao)),
+      pedido: corrente ? undefined : pedidoBusca.pedido,
     })
-    if (resp) setMissaoId(resp.demandaId)
+    if (!resp) {
+      setErro('Não foi possível enviar o convite: a vaga foi encerrada ou cancelada. Clique em Encontrar profissionais para abrir outra.')
+      return
+    }
+    setErro('')
+    lembrarVaga(pedidoBusca.chave, resp.demandaId)
   }
 
   const compativeis = resultados?.filter((r) => r.situacao !== 'bloqueado' && r.atendeObrigatorios) ?? []
@@ -1021,15 +1155,25 @@ export function ContratarFreelancer({ onLogout }: { onLogout: () => void }) {
   const bloqueadosPeriodo = resultados?.filter((r) => r.situacao === 'bloqueado') ?? []
   const atendemTudo = compativeis.length
   const iguaisAbertas = vagasIguaisAbertas(chaveDaVaga())
+  // Vaga dos resultados na tela (a do pedido analisado), não a última publicada.
+  const missaoAtual = pedidoBusca ? vagaDoPedido(pedidoBusca.chave) : undefined
+  const missaoFechada = missaoAtual ? vagaEncerrada(missaoAtual.status) : false
+  const missaoLotada = missaoAtual ? vagaLotada(missaoAtual, state.candidaturas) : false
 
   function conviteDe(profissionalId: string) {
-    if (!missaoId) return null
+    if (!missaoAtual) return null
     const cand = state.candidaturas.find(
-      (c) => c.demandaId === missaoId && c.profissionalId === profissionalId,
+      (c) => c.demandaId === missaoAtual.id && c.profissionalId === profissionalId,
     )
     if (!cand) return null
     const contrato = state.contratos.find((c) => c.candidaturaId === cand.id)
-    return { id: cand.id, status: cand.status, contratoNumero: contrato?.numero }
+    return {
+      id: cand.id,
+      status: cand.status,
+      contratoNumero: contrato?.numero,
+      // Vaga encerrada, cancelada ou com todos os confirmados: não gera mais contrato.
+      fechada: missaoFechada || missaoLotada,
+    }
   }
 
   const basica = modoResultado === 'basica'
@@ -1099,6 +1243,12 @@ export function ContratarFreelancer({ onLogout }: { onLogout: () => void }) {
           </button>
         </div>
       </div>
+      {pontoBusca.daSede && (
+        <p className="cf-local-aviso" role="note">
+          Não encontramos a localização de {cidadeOperacao}/{ufOperacao}. A distância e o raio serão medidos a partir
+          da sede ({empresa.endereco.cidade}/{empresa.endereco.estado}).
+        </p>
+      )}
     </div>
   )
 
@@ -1337,6 +1487,8 @@ export function ContratarFreelancer({ onLogout }: { onLogout: () => void }) {
                   <input
                     type="number"
                     min={1}
+                    step={1}
+                    inputMode="numeric"
                     value={quantidade}
                     onChange={(e) => setQuantidade(Number(e.target.value))}
                   />
@@ -1346,7 +1498,7 @@ export function ContratarFreelancer({ onLogout }: { onLogout: () => void }) {
                 <div className="cf-dates">
                   <label className="cf-field">
                     <span>Início</span>
-                    <input type="date" value={inicio} onChange={(e) => mudarInicio(e.target.value)} />
+                    <input type="date" value={inicio} min={hojeLocal()} onChange={(e) => mudarInicio(e.target.value)} />
                   </label>
                   <label className="cf-field">
                     <span>Término previsto</span>
@@ -1612,6 +1764,15 @@ export function ContratarFreelancer({ onLogout }: { onLogout: () => void }) {
                 </div>
               )}
 
+              {!basica && missaoFechada && (
+                <div className="cf-rule cf-rule--block" role="status">
+                  <p>
+                    A vaga desta busca foi {missaoAtual?.status === 'cancelada' ? 'cancelada' : 'encerrada'}. Para chamar
+                    mais gente, clique em Encontrar profissionais e uma nova vaga será aberta no primeiro convite.
+                  </p>
+                </div>
+              )}
+
               <h2 className="cf-section-title cf-section-title--green">
                 {basica ? 'Atividades e certificado aprovado' : 'Profissionais com encaixe completo'}
               </h2>
@@ -1628,7 +1789,7 @@ export function ContratarFreelancer({ onLogout }: { onLogout: () => void }) {
                     onToggle={() =>
                       setAberto((id) => (id === item.profissional.id ? null : item.profissional.id))
                     }
-                    onConvidar={basica ? undefined : () => convidar(item)}
+                    onConvidar={basica || missaoFechada ? undefined : () => convidar(item)}
                     onContrato={basica ? undefined : (candidaturaId) => confirmCandidato(candidaturaId)}
                   />
                 ))}
@@ -1860,6 +2021,9 @@ function PainelVagas({ empresaId, onPublicar }: { empresaId: string; onPublicar:
                   </div>
                 )}
                 <ContratoComMaoDeObra demandaId={vaga.id} />
+                <div className="cf-vaga-acoes">
+                  <BotaoCancelarVaga demanda={vaga} />
+                </div>
               </div>
               <aside className="cf-vaga-pessoas">
                 <h3>
@@ -1893,12 +2057,12 @@ function PainelVagas({ empresaId, onPublicar }: { empresaId: string; onPublicar:
                               {pessoa ? `${pessoa.endereco.cidade}/${pessoa.endereco.estado}` : 'Colaborador'}
                             </small>
                           </button>
-                          <span className={`cf-vaga-selo cf-vaga-selo--${inscrito.status}`}>{rotuloConvite(inscrito.status)}</span>
+                          <span className={`cf-vaga-selo cf-vaga-selo--${inscrito.status}`}>{rotuloConvite(inscrito.status, inscrito.recusadaPor)}</span>
                           <AceiteCandidatura
                             candidaturaId={inscrito.id}
                             status={inscrito.status}
                             profissionalId={inscrito.profissionalId}
-                            requisitos={vaga.requisitos}
+                            demanda={vaga}
                           />
                         </li>
                       )
@@ -2037,6 +2201,7 @@ function PainelMissoes({ empresaId }: { empresaId: string }) {
                   {periodo} · {missao.horaInicio}–{missao.horaFim} · {missao.endereco.cidade}/{missao.endereco.estado}
                 </p>
                 <ContratoComMaoDeObra demandaId={missao.id} />
+                <BotaoCancelarVaga demanda={missao} />
                 <div className="cf-missao-progresso">
                   <div className="cf-missao-trilha" aria-hidden>
                     <span style={{ width: `${progresso}%` }} />
@@ -2084,11 +2249,11 @@ function PainelMissoes({ empresaId }: { empresaId: string }) {
                         candidaturaId={convite.id}
                         status={convite.status}
                         profissionalId={convite.profissionalId}
-                        requisitos={missao.requisitos}
+                        demanda={missao}
                       />
                       </div>
                       {passo < 0 ? (
-                        <span className={`cf-vaga-selo cf-vaga-selo--${convite.status}`}>{rotuloConvite(convite.status)}</span>
+                        <span className={`cf-vaga-selo cf-vaga-selo--${convite.status}`}>{rotuloConvite(convite.status, convite.recusadaPor)}</span>
                       ) : (
                         <ol className="cf-missao-etapas">
                           {PASSOS_MISSAO.map((rotulo, indice) => (
@@ -2347,31 +2512,91 @@ function PainelDados() {
   )
 }
 
+/**
+ * Aprovar / recusar quem se candidatou ou foi convidado. Antes "Aprovar candidatura" aparecia
+ * também com a vaga encerrada, cancelada ou já completa, e não havia como recusar ninguém.
+ */
 function AceiteCandidatura({
   candidaturaId,
   status,
   profissionalId,
-  requisitos,
+  demanda,
 }: {
   candidaturaId: string
   status: string
   profissionalId: string
-  requisitos: string[]
+  demanda: Demanda
 }) {
-  const { state, confirmCandidato } = useStore()
-  if (status !== 'aceita') return null
+  const { state, confirmCandidato, refuseCandidato } = useStore()
+  if (status !== 'aceita' && status !== 'pendente') return null
+  if (vagaEncerrada(demanda.status)) return null
   const pessoa = state.profissionais.find((item) => item.id === profissionalId)
-  if (!pessoa) return null
-  const docs = resumoDocumental(checklistProfissional(pessoa, state.documentos, requisitos))
+  const nome = pessoa?.nome ?? 'este trabalhador'
+  const lotada = vagaLotada(demanda, state.candidaturas)
+  const docs = pessoa ? resumoDocumental(checklistProfissional(pessoa, state.documentos, demanda.requisitos)) : null
+  const convitePendente = status === 'pendente'
+
+  function recusar() {
+    const pergunta = convitePendente
+      ? `Retirar o convite de ${nome} para esta vaga?`
+      : `Recusar a candidatura de ${nome}? A pessoa deixa de concorrer a esta vaga.`
+    if (!window.confirm(pergunta)) return
+    refuseCandidato(candidaturaId)
+  }
+
   return (
     <div className="cf-vaga-aceite-bloco">
-      <button type="button" className="cf-btn cf-btn--yellow cf-vaga-aceite" onClick={() => confirmCandidato(candidaturaId)}>
-        Aprovar candidatura
-      </button>
-      {!docs.completo && (
+      <div className="cf-vaga-aceite-acoes">
+        {!convitePendente && pessoa && !lotada && (
+          <button type="button" className="cf-btn cf-btn--yellow cf-vaga-aceite" onClick={() => confirmCandidato(candidaturaId)}>
+            Aprovar candidatura
+          </button>
+        )}
+        <button type="button" className="cf-secondary cf-vaga-recusar" onClick={recusar}>
+          {convitePendente ? 'Retirar convite' : 'Recusar'}
+        </button>
+      </div>
+      {!convitePendente && lotada && (
+        <span className="cf-vaga-espera">
+          {demanda.quantidade === 1 ? 'A vaga já foi preenchida.' : `As ${demanda.quantidade} vagas já foram preenchidas.`}
+        </span>
+      )}
+      {!convitePendente && !lotada && docs && !docs.completo && (
         <span className="cf-vaga-espera">Documentação em {docs.pct}%. A validação dos arquivos segue no administrador.</span>
       )}
     </div>
+  )
+}
+
+/** Cancela a vaga (abre/em andamento). A store cancela convites e rescinde os contratos. */
+function BotaoCancelarVaga({ demanda }: { demanda: Demanda }) {
+  const { state, cancelDemanda } = useStore()
+  if (demanda.status !== 'aberta' && demanda.status !== 'em_andamento') return null
+
+  function cancelar() {
+    const daVaga = state.candidaturas.filter((c) => c.demandaId === demanda.id)
+    const abertos = daVaga.filter((c) => c.status === 'pendente' || c.status === 'aceita').length
+    const confirmados = daVaga.filter((c) => c.status === 'confirmada').length
+    const comPresenca = state.checkIns.some((c) => c.demandaId === demanda.id && c.checkInAt)
+    const linhas = [`Cancelar a vaga de ${cargoLabel(demanda.cargo)} (${rotuloPeriodo(demanda.data, demanda.dataFim)})?`]
+    if (abertos) {
+      linhas.push(abertos === 1 ? '1 convite ou candidatura em aberto será cancelado.' : `${abertos} convites ou candidaturas em aberto serão cancelados.`)
+    }
+    if (confirmados) {
+      linhas.push(confirmados === 1 ? 'O contrato de 1 trabalhador será rescindido.' : `Os contratos de ${confirmados} trabalhadores serão rescindidos.`)
+    }
+    if (comPresenca) {
+      linhas.push('Já há presença registrada: a missão será encerrada hoje e os dias trabalhados serão pagos, com recibo.')
+    }
+    linhas.push('Essa ação não pode ser desfeita.')
+    if (!window.confirm(linhas.join('\n\n'))) return
+    cancelDemanda(demanda.id)
+  }
+
+  return (
+    <button type="button" className="cf-secondary cf-vaga-cancelar" onClick={cancelar}>
+      Cancelar vaga
+    </button>
   )
 }
 
@@ -2407,10 +2632,14 @@ function statusDaVaga(
   return { rotulo: rotuloStatusMissao(status), classe: status }
 }
 
-function rotuloConvite(status: string) {
+function rotuloConvite(status: string, recusadaPor?: 'empresa' | 'profissional') {
   if (status === 'aceita') return 'Candidatou-se'
   if (status === 'confirmada') return 'Contrato gerado'
-  if (status === 'recusada') return 'Sem interesse'
+  if (status === 'recusada') {
+    if (recusadaPor === 'profissional') return 'Sem interesse'
+    if (recusadaPor === 'empresa') return 'Recusada pela empresa'
+    return 'Recusada'
+  }
   if (status === 'cancelada') return 'Cancelado'
   return 'Convite enviado'
 }
@@ -2432,7 +2661,7 @@ function PessoaCard({
   onToggle: () => void
   onConvidar?: () => void
   onContrato?: (candidaturaId: string) => void
-  convite?: { id: string; status: string; contratoNumero?: string } | null
+  convite?: { id: string; status: string; contratoNumero?: string; fechada?: boolean } | null
   documentos: DocumentoRegistro[]
   requisitos: string[]
 }) {
@@ -2440,7 +2669,7 @@ function PessoaCard({
   const [perfilAberto, setPerfilAberto] = useState(false)
   const docs = resumoDocumental(checklistProfissional(p, documentos, requisitos))
   const cursos = certificadosDoCurriculo(p, documentos)
-  const podeContrato = convite?.status === 'aceita' && docs.completo
+  const podeContrato = convite?.status === 'aceita' && docs.completo && !convite.fechada
   const bloqueado = item.situacao === 'bloqueado'
   const selo = bloqueado
     ? 'Fora do ciclo'
@@ -2547,10 +2776,14 @@ function PessoaCard({
             Gerar contrato temporário
           </button>
         )}
-        {convite?.status === 'aceita' && !docs.completo && (
+        {convite?.status === 'aceita' && convite.fechada && (
+          <span className="cf-note">A vaga já está completa ou encerrada. Não dá para gerar outro contrato nela.</span>
+        )}
+        {convite?.status === 'aceita' && !convite.fechada && !docs.completo && (
           <span className="cf-note">O contrato espera a validação documental.</span>
         )}
-        {convite?.status === 'recusada' && <span className="cf-note">O trabalhador não tem interesse nesta missão.</span>}
+        {convite?.status === 'recusada' && <span className="cf-note">Convite recusado. Esta pessoa não segue nesta missão.</span>}
+        {convite?.status === 'cancelada' && <span className="cf-note">Convite cancelado.</span>}
         {convite?.contratoNumero && <span className="cf-note">Contrato temporário {convite.contratoNumero} gerado.</span>}
       </div>
       {perfilAberto && (

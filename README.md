@@ -11,50 +11,28 @@ npm run dev
 
 Abra o endereço do Vite (geralmente `http://localhost:5173`).
 
-## Painel Empresa (estilo Painel PX)
+O site local usa a API real (Azure). Para explorar sem tocar em dados reais, use **Ver demonstração** na tela inicial: dados fictícios, só no seu navegador. As contas de demonstração aparecem na própria tela de login do modo demo.
 
-Login: `empresa@logexpress.com` / `demo123`
+## Como funciona
 
-Menu lateral branco com:
-- **Início** — CTA contratar, resumo financeiro, campanhas, Cruzeiro
-- **Operacional** — Contratos + Prestadores (favoritos/bloqueados)
-- **Ocorrências** — Infrações + Sinistros
-- **Financeiro** — Finanças, Campanhas, Calculadora
-- **Relatórios** — Relatório operacional
-- **Modelos** — Operações, Perfis ideais, Endereços, Veículos
-
-## Contas demo
-
-| Perfil | E-mail | Senha |
-|--------|--------|-------|
-| Admin | admin@docalivre.com | admin123 |
-| Empresa (Log Express) | empresa@logexpress.com | demo123 |
-| Empresa (CD Cajamar) | rh@cdcajamar.com | demo123 |
-| Profissional (motorista) | joao@email.com | demo123 |
-| Profissional (empilhadeira) | carlos@email.com | demo123 |
-| Profissional (conferente) | maria@email.com | demo123 |
-
-No painel admin há o botão **Reset demo** para restaurar o seed.
+- **Login e senhas** ficam na API (`api/`): a senha é guardada em hash, o login devolve um token de sessão e o banco só mostra a cada pessoa o que é dela. Admin vê tudo.
+- **Privacidade (LGPD)**: a empresa vê dos profissionais aprovados só o que a política de privacidade promete — nome, idade, cidade, cargos, experiência, certificações, CNH, disponibilidade, avaliação e a situação dos documentos (sem o arquivo). CPF, RG, telefone, endereço, PIX e foto ficam com a fazumfreela. O profissional vê das empresas aprovadas os dados da empresa, sem CPF do responsável nem dados financeiros.
+- **Cadastro**: portal Empresa ou Profissional → *Criar conta* → código por e-mail → formulário → aprovação no Admin.
+- **Marketplace**: vagas, candidaturas, contratos, ponto, pagamentos e avaliações vão para o banco e aparecem em qualquer aparelho.
+- **Admin**: aprova/recusa cadastros (com e-mail), abre os documentos, gera senha provisória para quem perdeu o acesso.
 
 ## Fluxo ponta a ponta
 
-1. Entre como **empresa** → Nova demanda → Publicar  
-2. Entre como **profissional** compatível → Vagas → Candidatar-se  
-3. Volte na empresa → Candidatos → Aceitar  
-4. No profissional → Agenda → Check-in / Check-out  
-5. Finalize a demanda na empresa (libera pagamento mock)  
-6. Avalie nos respectivos painéis  
+1. **Empresa** publica a vaga (ou convida profissionais encontrados na busca).
+2. **Profissional** vê a vaga, se candidata ou aceita o convite.
+3. **Empresa** aprova a candidatura → contrato e documentos da missão.
+4. **Profissional** registra entrada e saída em cada dia da missão.
+5. **Empresa** encerra a missão (Documentação → Encerrar) → pagamento pelos dias com presença e recibo.
+6. Os dois avaliam.
 
-## Stack (MVP)
+## Stack
 
-- Vite + React 19 + TypeScript  
-- Persistência em `localStorage` (sem backend)  
-- Identidade visual Doca Livre (logo, splash, amarelo `#f9db00`, sidebar)
+- Vite + React 19 + TypeScript (site, publicado no Render)
+- API Node + PostgREST + PostgreSQL + Azure Blob (pasta `api/`, publicada no Azure Container Apps)
 
-## Fase 2 (ainda não conectado)
-
-- Supabase (auth + banco)  
-- GitHub  
-- Render  
-
-Placeholders em `.env.example`.
+Publicação e variáveis: veja `DEPLOY.md`.

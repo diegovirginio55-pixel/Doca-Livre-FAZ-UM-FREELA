@@ -1,5 +1,3 @@
+-- Acesso do papel web (PostgREST). As permissões por tabela e as regras por usuário
+-- ficam em 003_seguranca.sql. Antes este arquivo dava ALL em todas as tabelas.
 grant usage on schema public to web;
-grant all privileges on all tables in schema public to web;
-grant all privileges on all sequences in schema public to web;
-alter default privileges in schema public grant all on tables to web;
-alter default privileges in schema public grant all on sequences to web;

@@ -5,6 +5,7 @@ import { AnexoCurriculo, CamposSobre, ListaExperiencias, conferirExperiencias } 
 import { CATEGORIES, cargoLabel } from '../../data/categories'
 import { LOCAIS_OPERACAO } from '../../data/cidades'
 import { coordenadaDaCidade } from '../../lib/coordenadaCidade'
+import { hojeLocal } from '../../lib/ponto'
 import { CERTIFICADOS_COMUNS, habilidadesDoTexto, mesclarCurriculo, nomeCertificado } from '../../lib/curriculo'
 import type { LeituraCurriculo } from '../../lib/lerCurriculo'
 import { validarChavePix } from '../../lib/pix'
@@ -146,7 +147,7 @@ export function EditorPerfil({
   }
 
   function atualizarCertificado(tipo: string, validade: string) {
-    const hoje = new Date().toISOString().slice(0, 10)
+    const hoje = hojeLocal()
     set(
       'certificados',
       form.certificados.map((item) =>

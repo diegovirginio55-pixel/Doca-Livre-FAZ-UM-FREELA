@@ -1,6 +1,6 @@
 // Service worker mínimo. Objetivo: deixar o app instalável.
 // HTML e o próprio SW vêm sempre da rede para não prender uma versão antiga.
-const CACHE = 'mao-de-obra-shell-v1'
+const CACHE = 'mao-de-obra-shell-v3'
 const SHELL = ['/manifest.webmanifest', '/icon-192.png', '/icon-512.png', '/apple-touch-icon.png']
 
 self.addEventListener('install', (event) => {

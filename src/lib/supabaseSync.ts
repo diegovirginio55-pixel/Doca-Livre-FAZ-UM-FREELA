@@ -1,41 +1,57 @@
+import { chamarApi } from './api'
 import { getSupabase } from './supabaseClient'
 import { isSupabaseConfigured, loadSupabaseConfig } from './supabaseConfig'
-import type {
-  DocumentoRegistro,
-  Empresa,
-  Profissional,
-  User,
-} from './types'
+import { emDemo } from './modo'
+import { tokenAtual } from './sessao'
+import type { DocumentoRegistro, Empresa, Profissional, User } from './types'
 
 const MAX_ARQUIVO_DADOS = 350_000
+
+export type RegistroNuvem = {
+  colecao: string
+  id: string
+  empresa_id: string | null
+  profissional_id: string | null
+  publico: boolean
+  payload: Record<string, unknown>
+}
 
 export type CloudBundle = {
   users: User[]
   empresas: Empresa[]
   profissionais: Profissional[]
   documentos: DocumentoRegistro[]
+  registros: RegistroNuvem[]
 }
 
+/** Há banco e sessão: só então vale ler/gravar (no modo demo, nunca). */
 export async function supabaseConfigured(): Promise<boolean> {
+  if (emDemo()) return false
   const cfg = await loadSupabaseConfig()
   return isSupabaseConfigured(cfg)
 }
 
-export function senhaParaHash(senha: string) {
-  return `local:${senha}`
-}
-
-export function senhaDoHash(hash: string | null | undefined): string | null {
-  if (!hash) return null
-  if (hash.startsWith('local:')) return hash.slice('local:'.length)
-  return null
+/** Troca o erro cru do banco (ex.: chave única violada) por uma frase que o usuário entende. */
+function erroAmigavel(error: { code?: string; message?: string; details?: string }): string {
+  const texto = `${error.message || ''} ${error.details || ''}`.toLowerCase()
+  if (error.code === '23505' || texto.includes('duplicate key')) {
+    if (texto.includes('usuario')) return 'Nome de usuário já existe.'
+    if (texto.includes('email')) return 'Este e-mail já está sendo utilizado.'
+    return 'Este cadastro já existe.'
+  }
+  if (error.code === '42501' || texto.includes('row-level security') || texto.includes('permission denied')) {
+    return 'Sem permissão para salvar isso.'
+  }
+  if (error.code === 'PGRST301' || texto.includes('jwt expired')) return 'Sua sessão expirou. Entre de novo.'
+  return error.message || 'Não foi possível salvar. Tente de novo em instantes.'
 }
 
 function contaParaUser(row: Record<string, unknown>): User {
   return {
     id: String(row.id),
     email: String(row.email),
-    senha: senhaDoHash(String(row.senha_hash ?? '')) ?? '',
+    // A senha nunca sai do servidor.
+    senha: '',
     role: row.role as User['role'],
     usuario: row.usuario ? String(row.usuario) : undefined,
     nivelHierarquia: (row.nivel_hierarquia as User['nivelHierarquia']) || 'operador',
@@ -47,6 +63,23 @@ function contaParaUser(row: Record<string, unknown>): User {
   }
 }
 
+/** Conta que a API devolve no login (já em camelCase). */
+export function contaDaApi(conta: Record<string, unknown>): User {
+  return {
+    id: String(conta.id),
+    email: String(conta.email),
+    senha: '',
+    role: conta.role as User['role'],
+    usuario: conta.usuario ? String(conta.usuario) : undefined,
+    nivelHierarquia: (conta.nivelHierarquia as User['nivelHierarquia']) || 'operador',
+    superiorUsuario: (conta.superiorUsuario as string | null | undefined) ?? undefined,
+    perfilCompleto: Boolean(conta.perfilCompleto),
+    ativo: conta.ativo !== false,
+    createdAt: String(conta.createdAt || new Date().toISOString()),
+    aceites: (conta.aceites as User['aceites']) ?? undefined,
+  }
+}
+
 function profissionalDaLinha(row: Record<string, unknown>): Profissional {
   const payload = (row.payload as Partial<Profissional>) || {}
   const motivo =
@@ -55,10 +88,25 @@ function profissionalDaLinha(row: Record<string, unknown>): Profissional {
     undefined
   return {
     ...(payload as Profissional),
+    // Linha incompleta (ou da vitrine, sem dados pessoais) não pode derrubar as telas.
+    cpf: payload.cpf ?? '',
+    rg: payload.rg ?? '',
+    telefone: payload.telefone ?? '',
+    nascimento: payload.nascimento ?? '',
+    pix: payload.pix ?? '',
+    profissoes: Array.isArray(payload.profissoes) ? payload.profissoes : [],
+    experiencia: Array.isArray(payload.experiencia) ? payload.experiencia : [],
+    certificados: Array.isArray(payload.certificados) ? payload.certificados : [],
+    endereco: payload.endereco ?? { cep: '', rua: '', numero: '', cidade: '', estado: '', lat: NaN, lng: NaN },
+    disponibilidade: payload.disponibilidade ?? ({} as Profissional['disponibilidade']),
+    avaliacaoMedia: Number(payload.avaliacaoMedia ?? 5),
+    nivel: payload.nivel ?? 'bronze',
+    saldo: Number(payload.saldo ?? 0),
+    ganhosMes: Number(payload.ganhosMes ?? 0),
     id: String(row.id),
     userId: String(row.user_id),
     status: row.status as Profissional['status'],
-    ...(motivo ? { motivoRecusa: motivo } : {}),
+    motivoRecusa: motivo,
   }
 }
 
@@ -70,10 +118,13 @@ function empresaDaLinha(row: Record<string, unknown>): Empresa {
     undefined
   return {
     ...(payload as Empresa),
+    endereco: payload.endereco ?? { cep: '', rua: '', numero: '', cidade: '', estado: '', lat: NaN, lng: NaN },
+    favoritos: Array.isArray(payload.favoritos) ? payload.favoritos : [],
+    bloqueados: Array.isArray(payload.bloqueados) ? payload.bloqueados : [],
     id: String(row.id),
     userId: String(row.user_id),
     status: row.status as Empresa['status'],
-    ...(motivo ? { motivoRecusa: motivo } : {}),
+    motivoRecusa: motivo,
   }
 }
 
@@ -105,82 +156,93 @@ function empresaSemIds(empresa: Empresa) {
   return resto
 }
 
-export async function pullCloudBundle(): Promise<CloudBundle | null> {
+export type ResultadoPull = CloudBundle | 'sessao_expirada' | null
+
+/** Tudo o que esta conta pode ver. Sem sessão não há o que ler (o banco não responde a anônimos). */
+export async function pullCloudBundle(): Promise<ResultadoPull> {
+  if (!tokenAtual()) return null
   const sb = await getSupabase()
   if (!sb) return null
-  const [contas, profissionais, empresas, documentos] = await Promise.all([
+  const [contas, profissionais, empresas, documentos, registros, vitProf, vitEmp, vitDocs] = await Promise.all([
     sb.from('mao_contas').select('*'),
     sb.from('mao_profissionais').select('*'),
     sb.from('mao_empresas').select('*'),
     sb.from('mao_documentos').select('*'),
+    sb.from('mao_registros').select('colecao, id, empresa_id, profissional_id, publico, payload'),
+    // O que a conta pode ver dos outros (sem CPF, RG, telefone, endereço, PIX, arquivos).
+    sb.from('mao_profissionais_vitrine').select('*'),
+    sb.from('mao_empresas_vitrine').select('*'),
+    sb.from('mao_documentos_vitrine').select('*'),
   ])
-  if (contas.error || profissionais.error || empresas.error || documentos.error) {
-    console.warn(
-      '[supabaseSync] falha ao puxar cadastros',
-      contas.error?.message ||
-        profissionais.error?.message ||
-        empresas.error?.message ||
-        documentos.error?.message,
-    )
+  const erro =
+    contas.error ||
+    profissionais.error ||
+    empresas.error ||
+    documentos.error ||
+    registros.error ||
+    vitProf.error ||
+    vitEmp.error ||
+    vitDocs.error
+  if (erro) {
+    if (erro.code === 'PGRST301' || /jwt/i.test(erro.message || '')) return 'sessao_expirada'
+    console.warn('[supabaseSync] falha ao puxar dados', erro.message)
     return null
   }
   return {
     users: (contas.data || []).map((row) => contaParaUser(row as Record<string, unknown>)),
-    profissionais: (profissionais.data || []).map((row) =>
-      profissionalDaLinha(row as Record<string, unknown>),
+    profissionais: juntarPorId(
+      (profissionais.data || []).map((row) => profissionalDaLinha(row as Record<string, unknown>)),
+      (vitProf.data || []).map((row) => profissionalDaLinha(row as Record<string, unknown>)),
     ),
-    empresas: (empresas.data || []).map((row) => empresaDaLinha(row as Record<string, unknown>)),
-    documentos: (documentos.data || []).map((row) => documentoDaLinha(row as Record<string, unknown>)),
+    empresas: juntarPorId(
+      (empresas.data || []).map((row) => empresaDaLinha(row as Record<string, unknown>)),
+      (vitEmp.data || []).map((row) => empresaDaLinha(row as Record<string, unknown>)),
+    ),
+    documentos: juntarPorId(
+      (documentos.data || []).map((row) => documentoDaLinha(row as Record<string, unknown>)),
+      (vitDocs.data || []).map((row) => documentoDaLinha(row as Record<string, unknown>)),
+    ),
+    registros: (registros.data || []) as RegistroNuvem[],
   }
 }
 
+/** Registro completo (dono/admin) tem prioridade sobre a versão da vitrine. */
+function juntarPorId<T extends { id: string }>(completos: T[], vitrine: T[]): T[] {
+  const ids = new Set(completos.map((x) => x.id))
+  return [...completos, ...vitrine.filter((x) => !ids.has(x.id))]
+}
+
+/** E-mail/usuário já cadastrados (a tabela de contas não é mais legível para quem não é dono). */
 export async function emailExisteNaNuvem(email: string): Promise<boolean | null> {
-  const sb = await getSupabase()
-  if (!sb) return null
-  const em = email.trim().toLowerCase()
-  const { data, error } = await sb.from('mao_contas').select('id').ilike('email', em).limit(1)
-  if (error) {
-    console.warn('[supabaseSync] emailExiste', error.message)
-    return null
-  }
-  return (data?.length ?? 0) > 0
+  if (emDemo()) return null
+  const res = await chamarApi<{ email: boolean }>('/api/auth/existe', { email: email.trim().toLowerCase() })
+  return res.ok ? Boolean(res.email) : null
 }
 
-export async function upsertConta(user: User): Promise<{ ok: true } | { ok: false; erro: string }> {
-  const sb = await getSupabase()
-  if (!sb) return { ok: false, erro: 'Supabase não configurado.' }
-  const { error } = await sb.from('mao_contas').upsert(
-    {
-      id: user.id,
-      usuario: user.usuario ?? null,
-      email: user.email.trim().toLowerCase(),
-      senha_hash: senhaParaHash(user.senha),
-      role: user.role,
-      nivel_hierarquia: user.nivelHierarquia || 'operador',
-      superior_usuario: user.superiorUsuario ?? null,
-      perfil_completo: user.perfilCompleto !== false,
-      ativo: user.ativo !== false,
-      aceites: user.aceites ?? null,
-      updated_at: new Date().toISOString(),
-      created_at: user.createdAt || new Date().toISOString(),
-    },
-    { onConflict: 'id' },
-  )
-  if (error) return { ok: false, erro: error.message }
-  return { ok: true }
+export async function usuarioExisteNaNuvem(usuario: string): Promise<boolean | null> {
+  if (emDemo()) return null
+  const res = await chamarApi<{ usuario: boolean }>('/api/auth/existe', { usuario: usuario.trim() })
+  return res.ok ? Boolean(res.usuario) : null
 }
 
-export async function atualizarSenhaConta(
-  email: string,
-  novaSenha: string,
-): Promise<{ ok: true } | { ok: false; erro: string }> {
+/** Atualiza a própria conta (ou qualquer uma, se admin). Contas novas só nascem pela API. */
+export async function atualizarConta(user: User): Promise<{ ok: true } | { ok: false; erro: string }> {
   const sb = await getSupabase()
-  if (!sb) return { ok: false, erro: 'Supabase nao configurado.' }
+  if (!sb) return { ok: false, erro: 'Banco não configurado.' }
   const { error } = await sb
     .from('mao_contas')
-    .update({ senha_hash: senhaParaHash(novaSenha), updated_at: new Date().toISOString() })
-    .ilike('email', email.trim().toLowerCase())
-  if (error) return { ok: false, erro: error.message }
+    .update({
+      usuario: user.usuario ?? null,
+      perfil_completo: user.perfilCompleto !== false,
+      aceites: user.aceites ?? null,
+      nivel_hierarquia: user.nivelHierarquia || 'operador',
+      superior_usuario: user.superiorUsuario ?? null,
+      ativo: user.ativo !== false,
+      role: user.role,
+      updated_at: new Date().toISOString(),
+    })
+    .eq('id', user.id)
+  if (error) return { ok: false, erro: erroAmigavel(error) }
   return { ok: true }
 }
 
@@ -188,7 +250,7 @@ export async function upsertProfissional(
   profissional: Profissional,
 ): Promise<{ ok: true } | { ok: false; erro: string }> {
   const sb = await getSupabase()
-  if (!sb) return { ok: false, erro: 'Supabase nao configurado.' }
+  if (!sb) return { ok: false, erro: 'Banco não configurado.' }
   const { error } = await sb.from('mao_profissionais').upsert(
     {
       id: profissional.id,
@@ -200,13 +262,13 @@ export async function upsertProfissional(
     },
     { onConflict: 'id' },
   )
-  if (error) return { ok: false, erro: error.message }
+  if (error) return { ok: false, erro: erroAmigavel(error) }
   return { ok: true }
 }
 
 export async function upsertEmpresa(empresa: Empresa): Promise<{ ok: true } | { ok: false; erro: string }> {
   const sb = await getSupabase()
-  if (!sb) return { ok: false, erro: 'Supabase nao configurado.' }
+  if (!sb) return { ok: false, erro: 'Banco não configurado.' }
   const { error } = await sb.from('mao_empresas').upsert(
     {
       id: empresa.id,
@@ -218,7 +280,7 @@ export async function upsertEmpresa(empresa: Empresa): Promise<{ ok: true } | { 
     },
     { onConflict: 'id' },
   )
-  if (error) return { ok: false, erro: error.message }
+  if (error) return { ok: false, erro: erroAmigavel(error) }
   return { ok: true }
 }
 
@@ -243,9 +305,16 @@ async function enviarArquivoStorage(
   } catch {
     return null
   }
-  const ext =
-    (arquivoNome && /\.([a-z0-9]+)$/i.exec(arquivoNome)?.[1]) ||
-    (mime.includes('pdf') ? 'pdf' : mime.includes('png') ? 'png' : 'jpg')
+  // A extensão segue o conteúdo real: o PDF do cadastro costuma virar JPEG antes do envio,
+  // e um "contrato.pdf" salvo como .pdf com imagem dentro não abria a prévia no admin.
+  const porMime: Record<string, string> = {
+    'application/pdf': 'pdf',
+    'image/jpeg': 'jpg',
+    'image/png': 'png',
+    'image/webp': 'webp',
+    'image/gif': 'gif',
+  }
+  const ext = porMime[mime] || (arquivoNome && /\.([a-z0-9]+)$/i.exec(arquivoNome)?.[1]) || 'bin'
   const path = `${donoTipo}/${donoId}/${docId}.${ext}`
   const { error } = await sb.storage.from('mao-documentos').upload(path, bin, {
     contentType: mime,
@@ -260,12 +329,14 @@ async function enviarArquivoStorage(
 
 export async function upsertDocumentos(
   docs: DocumentoRegistro[],
-): Promise<{ ok: true } | { ok: false; erro: string }> {
+  opts?: { exigirArquivo?: boolean },
+): Promise<{ ok: true; docs: DocumentoRegistro[] } | { ok: false; erro: string }> {
   const sb = await getSupabase()
-  if (!sb) return { ok: false, erro: 'Supabase nao configurado.' }
-  if (!docs.length) return { ok: true }
+  if (!sb) return { ok: false, erro: 'Banco não configurado.' }
+  if (!docs.length) return { ok: true, docs }
 
   const rows = []
+  const salvos: DocumentoRegistro[] = []
   for (const doc of docs) {
     let path = doc.meta?.storagePath || null
     if (doc.arquivoDados && doc.arquivoDados.length > 8_000) {
@@ -277,6 +348,13 @@ export async function upsertDocumentos(
       !path && doc.arquivoDados && doc.arquivoDados.length <= MAX_ARQUIVO_DADOS
         ? doc.arquivoDados
         : null
+    if (opts?.exigirArquivo && doc.arquivoDados && !path && !inline) {
+      // Sem isso o cadastro seguia "concluído" com o documento perdido e o admin não tinha o que validar.
+      return {
+        ok: false,
+        erro: `Não foi possível enviar o arquivo "${doc.arquivoNome || 'documento'}". Confira a internet e tente de novo.`,
+      }
+    }
     rows.push({
       id: doc.id,
       tipo_id: doc.tipoId,
@@ -298,146 +376,45 @@ export async function upsertDocumentos(
       },
       updated_at: new Date().toISOString(),
     })
+    salvos.push(path ? { ...doc, meta: { ...(doc.meta || {}), storagePath: path } } : doc)
   }
 
   const { error } = await sb.from('mao_documentos').upsert(rows, { onConflict: 'id' })
-  if (error) return { ok: false, erro: error.message }
+  if (error) return { ok: false, erro: erroAmigavel(error) }
+  return { ok: true, docs: salvos }
+}
+
+/** Grava (ou apaga) itens de vagas, candidaturas, contratos etc. na tabela única de registros. */
+export async function upsertRegistros(rows: RegistroNuvem[]): Promise<{ ok: true } | { ok: false; erro: string }> {
+  const sb = await getSupabase()
+  if (!sb) return { ok: false, erro: 'Banco não configurado.' }
+  if (!rows.length) return { ok: true }
+  const { error } = await sb.from('mao_registros').upsert(rows, { onConflict: 'colecao,id' })
+  if (error) return { ok: false, erro: erroAmigavel(error) }
   return { ok: true }
 }
 
-export async function setStatusProfissionalCloud(
-  id: string,
-  status: Profissional['status'],
-): Promise<{ ok: true } | { ok: false; erro: string }> {
+export async function apagarDocumentos(ids: string[]): Promise<{ ok: true } | { ok: false; erro: string }> {
   const sb = await getSupabase()
-  if (!sb) return { ok: false, erro: 'Supabase nao configurado.' }
-  const { error } = await sb
-    .from('mao_profissionais')
-    .update({ status, updated_at: new Date().toISOString() })
-    .eq('id', id)
-  if (error) return { ok: false, erro: error.message }
+  if (!sb) return { ok: false, erro: 'Banco não configurado.' }
+  if (!ids.length) return { ok: true }
+  const { error } = await sb.from('mao_documentos').delete().in('id', ids)
+  if (error) return { ok: false, erro: erroAmigavel(error) }
   return { ok: true }
 }
 
-export async function setStatusEmpresaCloud(
-  id: string,
-  status: Empresa['status'],
-): Promise<{ ok: true } | { ok: false; erro: string }> {
+export async function apagarRegistros(colecao: string, ids: string[]): Promise<{ ok: true } | { ok: false; erro: string }> {
   const sb = await getSupabase()
-  if (!sb) return { ok: false, erro: 'Supabase nao configurado.' }
-  const { error } = await sb
-    .from('mao_empresas')
-    .update({ status, updated_at: new Date().toISOString() })
-    .eq('id', id)
-  if (error) return { ok: false, erro: error.message }
+  if (!sb) return { ok: false, erro: 'Banco não configurado.' }
+  if (!ids.length) return { ok: true }
+  const { error } = await sb.from('mao_registros').delete().eq('colecao', colecao).in('id', ids)
+  if (error) return { ok: false, erro: erroAmigavel(error) }
   return { ok: true }
 }
-
-export async function buscarContaLogin(
-  usuarioOuEmail: string,
-  senha: string,
-): Promise<{ user: User; profissional?: Profissional; empresa?: Empresa } | null> {
-  const sb = await getSupabase()
-  if (!sb) return null
-  const key = usuarioOuEmail.trim().toLowerCase()
-  const { data, error } = await sb
-    .from('mao_contas')
-    .select('*')
-    .or(`email.ilike.${key},usuario.ilike.${key}`)
-    .eq('ativo', true)
-    .limit(5)
-  if (error || !data?.length) return null
-  const row = data.find((item) => senhaDoHash(String(item.senha_hash)) === senha)
-  if (!row) return null
-  const user = contaParaUser(row as Record<string, unknown>)
-  if (user.role === 'profissional') {
-    const { data: prof } = await sb.from('mao_profissionais').select('*').eq('user_id', user.id).maybeSingle()
-    return { user, profissional: prof ? profissionalDaLinha(prof as Record<string, unknown>) : undefined }
-  }
-  if (user.role === 'empresa') {
-    const { data: emp } = await sb.from('mao_empresas').select('*').eq('user_id', user.id).maybeSingle()
-    return { user, empresa: emp ? empresaDaLinha(emp as Record<string, unknown>) : undefined }
-  }
-  return { user }
-}
-
-export async function resolveEmailCloud(identificador: string): Promise<string | null> {
-  const sb = await getSupabase()
-  if (!sb) return null
-  const key = identificador.trim().toLowerCase()
-  const { data } = await sb
-    .from('mao_contas')
-    .select('email')
-    .or(`email.ilike.${key},usuario.ilike.${key}`)
-    .limit(1)
-    .maybeSingle()
-  return data?.email ? String(data.email) : null
-}
-
-/** Mescla cadastros da nuvem no estado local sem apagar seed/demo que ainda nao esta na nuvem. */
-export function mesclarCloudNoEstado<
-  T extends {
-    users: User[]
-    empresas: Empresa[]
-    profissionais: Profissional[]
-    documentos: DocumentoRegistro[]
-  },
->(local: T, cloud: CloudBundle): T {
-  const usersById = new Map(local.users.map((u) => [u.id, u]))
-  const usersByEmail = new Map(local.users.map((u) => [u.email.toLowerCase(), u]))
-  for (const remoto of cloud.users) {
-    const porId = usersById.get(remoto.id)
-    const porEmail = usersByEmail.get(remoto.email.toLowerCase())
-    const alvo = porId || porEmail
-    if (alvo) {
-      const merged = {
-        ...alvo,
-        ...remoto,
-        senha: remoto.senha || alvo.senha,
-      }
-      usersById.set(alvo.id, merged)
-      usersById.set(remoto.id, merged)
-    } else {
-      usersById.set(remoto.id, remoto)
-    }
-  }
-
-  const profById = new Map(local.profissionais.map((p) => [p.id, p]))
-  for (const remoto of cloud.profissionais) {
-    const atual = profById.get(remoto.id)
-    profById.set(remoto.id, atual ? { ...atual, ...remoto } : remoto)
-  }
-
-  const empById = new Map(local.empresas.map((e) => [e.id, e]))
-  for (const remoto of cloud.empresas) {
-    const atual = empById.get(remoto.id)
-    empById.set(remoto.id, atual ? { ...atual, ...remoto } : remoto)
-  }
-
-  const docById = new Map(local.documentos.map((d) => [d.id, d]))
-  for (const remoto of cloud.documentos) {
-    const atual = docById.get(remoto.id)
-    docById.set(
-      remoto.id,
-      atual
-        ? { ...atual, ...remoto, arquivoDados: remoto.arquivoDados || atual.arquivoDados }
-        : remoto,
-    )
-  }
-
-  return {
-    ...local,
-    users: Array.from(new Map([...usersById.values()].map((u) => [u.id, u])).values()),
-    profissionais: Array.from(profById.values()),
-    empresas: Array.from(empById.values()),
-    documentos: Array.from(docById.values()),
-  }
-}
-
 
 export async function excluirContaCloud(userId: string): Promise<{ ok: true } | { ok: false; erro: string }> {
   const sb = await getSupabase()
-  if (!sb) return { ok: false, erro: 'Supabase nao configurado.' }
+  if (!sb) return { ok: false, erro: 'Banco não configurado.' }
 
   const [{ data: profs }, { data: emps }] = await Promise.all([
     sb.from('mao_profissionais').select('id').eq('user_id', userId),
@@ -467,9 +444,8 @@ export async function excluirContaCloud(userId: string): Promise<{ ok: true } | 
     }
   }
 
-  await sb.from('mao_profissionais').delete().eq('user_id', userId)
-  await sb.from('mao_empresas').delete().eq('user_id', userId)
+  // Perfis, documentos e credenciais saem junto (on delete cascade no banco).
   const { error } = await sb.from('mao_contas').delete().eq('id', userId)
-  if (error) return { ok: false, erro: error.message }
+  if (error) return { ok: false, erro: erroAmigavel(error) }
   return { ok: true }
 }

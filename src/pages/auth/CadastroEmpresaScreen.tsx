@@ -57,10 +57,14 @@ const ETAPAS = [
 ]
 
 export function CadastroEmpresaScreen({ onBack, onDone }: Props) {
-  const { registerEmpresa, completeEmpresaPerfil, aceitarTermos, currentUser, state } = useStore()
-  const completing = currentUser?.role === 'empresa' && currentUser.perfilCompleto === false
+  const { registerEmpresa, completeEmpresaPerfil, currentUser, state } = useStore()
+  // Qualquer conta de empresa já logada completa o perfil. Antes exigia perfilCompleto === false:
+  // uma conta marcada "completa" sem empresa salva caía no cadastro novo, que pedia e-mail e senha
+  // de novo e respondia "Este e-mail já está sendo utilizado" para sempre.
+  const completing = currentUser?.role === 'empresa'
   const [step, setStep] = useState(1)
   const [error, setError] = useState('')
+  const [enviando, setEnviando] = useState(false)
   const [aceites, setAceites] = useState<TermoId[]>([])
   const [docs, setDocs] = useState<Record<DocEmpresaId, EstadoDoc>>({
     contrato_social: DOC_VAZIO,
@@ -310,15 +314,24 @@ export function CadastroEmpresaScreen({ onBack, onDone }: Props) {
       },
     }
     const documentos = documentosEnviados()
-    const res = await (completing
-      ? completeEmpresaPerfil(empresaPayload, documentos)
-      : registerEmpresa({ email: form.email, senha: form.senha }, empresaPayload, documentos))
-    if (!res.ok) {
-      setError(res.error ?? 'Erro no cadastro')
-      return
+    if (enviando) return
+    setEnviando(true)
+    try {
+      // Os termos vão junto para serem gravados na conta na nuvem; o aceitarTermos só gravava
+      // no navegador e a sincronização seguinte apagava o aceite.
+      const res = await (completing
+        ? completeEmpresaPerfil(empresaPayload, documentos, aceites)
+        : registerEmpresa({ email: form.email, senha: form.senha }, empresaPayload, documentos, aceites))
+      if (!res.ok) {
+        setError(res.error ?? 'Erro no cadastro')
+        return
+      }
+      onDone()
+    } catch {
+      setError('Não foi possível concluir o cadastro. Confira a internet e tente de novo.')
+    } finally {
+      setEnviando(false)
     }
-    aceitarTermos(aceites)
-    onDone()
   }
 
   return (
@@ -528,11 +541,20 @@ export function CadastroEmpresaScreen({ onBack, onDone }: Props) {
             </div>
           </dl>
         )}
-        {step === 7 && <AceiteCadastro role="empresa" marcados={aceites} onMarcar={setAceites} />}
+        {step === 7 && (
+          <AceiteCadastro
+            role="empresa"
+            marcados={aceites}
+            onMarcar={(marcados) => {
+              setAceites(marcados)
+              setError('')
+            }}
+          />
+        )}
 
         {error && <p className="error">{error}</p>}
-        <button type="submit" className="btn btn-accent btn-block">
-          {step === ETAPAS.length ? 'Concluir cadastro' : 'Continuar'}
+        <button type="submit" className="btn btn-accent btn-block" disabled={enviando}>
+          {step === ETAPAS.length ? (enviando ? 'Enviando cadastro…' : 'Concluir cadastro') : 'Continuar'}
         </button>
       </form>
     </div>

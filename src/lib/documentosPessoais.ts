@@ -44,8 +44,11 @@ export function erroRg(valor: string, estado?: string) {
   const r = limparRg(valor)
   if (r.length < 5) return 'Informe o RG completo.'
   if (/^(\d)\1+$/.test(r)) return 'RG inválido. Confira os números.'
-  if ((!estado || estado.toUpperCase() === 'SP') && r.length === 9 && /^\d{8}[\dX]$/.test(r)) {
-    if (digitoRgSp(r.slice(0, 8)) !== r[8]) return 'RG inválido. Confira o dígito final.'
+  // O dígito verificador é a regra de SP; RG de outro estado com 9 dígitos não pode ser barrado.
+  if (estado?.toUpperCase() === 'SP' && r.length === 9 && /^\d{8}[\dX]$/.test(r)) {
+    if (digitoRgSp(r.slice(0, 8)) !== r[8]) {
+      return 'RG inválido. Confira o dígito final. Se o RG não for de SP, escolha o estado que o emitiu.'
+    }
   }
   return ''
 }
