@@ -113,12 +113,15 @@ export async function notificarCadastro(payload) {
       }),
     })
     if (resposta.status === 200 || resposta.status === 201) return { ok: true, status: 200 }
+    const detalhe = await resposta.text().catch(() => '')
+    console.error(`[email] Resend recusou o aviso de cadastro (${resposta.status}), remetente ${from}: ${detalhe.slice(0, 400)}`)
     return {
       ok: false,
       status: 503,
       erro: 'Não foi possível enviar o e-mail. Tente de novo em instantes.',
     }
-  } catch {
+  } catch (erro) {
+    console.error(`[email] Falha ao falar com o Resend: ${erro?.message || erro}`)
     return {
       ok: false,
       status: 503,

@@ -65,8 +65,12 @@ async function enviarResend(email, codigo, finalidade) {
       body: JSON.stringify({ from, to: [email], subject: assunto, text: texto, html }),
     })
     if (resposta.status === 200 || resposta.status === 201) return { ok: true, status: 200 }
-  } catch {
-    /* cai no erro abaixo */
+    // O motivo do Resend (domínio não verificado, limite, chave inválida) só vai para o log do
+    // servidor; quem pediu o código recebe a mensagem genérica.
+    const detalhe = await resposta.text().catch(() => '')
+    console.error(`[email] Resend recusou o código (${resposta.status}), remetente ${from}: ${detalhe.slice(0, 400)}`)
+  } catch (erro) {
+    console.error(`[email] Falha ao falar com o Resend: ${erro?.message || erro}`)
   }
   return { ok: false, status: 503, erro: 'Não foi possível enviar o e-mail. Tente de novo em instantes.' }
 }
