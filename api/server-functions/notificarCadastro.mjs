@@ -9,6 +9,36 @@ function escaparHtml(texto) {
     .replace(/"/g, "&quot;")
 }
 
+/**
+ * Empresa cadastrada pela gestão: leva o login e a senha provisória, que acabou de ser gerada
+ * (o sistema não guarda senhas legíveis; esta só existe neste momento) e vale até a primeira troca.
+ */
+export function montarEmailContaCriada({ nome, usuario, email, senha }) {
+  const rotulo = String(nome || '').trim() || 'olá'
+  const assunto = 'Doca Livre fazumfreela — acesso da sua empresa'
+  const texto =
+    `Olá, ${rotulo}!\n\n` +
+    'Sua empresa foi cadastrada no Doca Livre fazumfreela.\n\n' +
+    'Como entrar: acesse https://fazumfreela.com.br e escolha "Empresa".\n' +
+    `  Usuário: ${usuario}\n` +
+    `  Ou o e-mail: ${email}\n` +
+    `  Senha provisória: ${senha}\n\n` +
+    'No primeiro acesso o sistema pede para você criar a sua própria senha. A provisória deixa de valer na hora.\n\n' +
+    'Se você não esperava este e-mail, ignore-o.'
+  const html =
+    `<p>Olá, <strong>${escaparHtml(rotulo)}</strong>!</p>` +
+    '<p>Sua empresa foi cadastrada no <strong>Doca Livre fazumfreela</strong>.</p>' +
+    '<p><strong>Como entrar:</strong> acesse <a href="https://fazumfreela.com.br">fazumfreela.com.br</a> e escolha <strong>Empresa</strong>.</p>' +
+    '<table style="border-collapse:collapse;margin:8px 0 12px;font-size:15px">' +
+    `<tr><td style="padding:4px 12px 4px 0;color:#64748b">Usuário</td><td style="padding:4px 0"><strong>${escaparHtml(usuario)}</strong></td></tr>` +
+    `<tr><td style="padding:4px 12px 4px 0;color:#64748b">Ou o e-mail</td><td style="padding:4px 0">${escaparHtml(email)}</td></tr>` +
+    `<tr><td style="padding:4px 12px 4px 0;color:#64748b">Senha provisória</td><td style="padding:4px 0;font-family:monospace;font-size:16px"><strong>${escaparHtml(senha)}</strong></td></tr>` +
+    '</table>' +
+    '<p>No primeiro acesso o sistema pede para você criar a sua própria senha. A provisória deixa de valer na hora.</p>' +
+    '<p style="color:#64748b;font-size:13px">Se você não esperava este e-mail, ignore-o.</p>'
+  return { assunto, texto, html }
+}
+
 export function montarEmailNotificacaoCadastro({ nome, tipo, decisao, motivo, usuario, email }) {
   const quem = tipo === 'empresa' ? 'da empresa' : 'de colaborador'
   const rotulo = String(nome || '').trim() || 'olá'

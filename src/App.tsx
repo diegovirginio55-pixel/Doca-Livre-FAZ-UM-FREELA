@@ -145,10 +145,7 @@ function AppRoutes() {
     role: string
   }) {
     writePortal(portal)
-    if (portal === 'admin' && (opts.precisaConfig || opts.isSuperuser)) {
-      setGate('config')
-      return
-    }
+    // O superusuário entra direto no painel; a hierarquia abre pelo botão "Hierarquia" de lá.
     if (opts.precisaPerfil) {
       if (opts.role === 'empresa' || portal === 'empresa') setGate('cadastro_empresa')
       else if (opts.role === 'profissional' || portal === 'profissional') {

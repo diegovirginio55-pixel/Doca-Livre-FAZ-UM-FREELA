@@ -219,10 +219,17 @@ begin
     if tg_op = 'INSERT' then
       new.status := 'pendente';
       new.motivo_recusa := null;
+      -- A empresa não se coloca na hierarquia sozinha: quem posiciona é a gestão.
+      new.payload := coalesce(new.payload, '{}'::jsonb) - 'orgTipo' - 'orgPaiId' - 'cadastradaPor';
     else
       new.status := old.status;
       new.motivo_recusa := old.motivo_recusa;
       new.user_id := old.user_id;
+      new.payload := (coalesce(new.payload, '{}'::jsonb) - 'orgTipo' - 'orgPaiId' - 'cadastradaPor')
+        || jsonb_strip_nulls(jsonb_build_object(
+             'orgTipo', old.payload -> 'orgTipo',
+             'orgPaiId', old.payload -> 'orgPaiId',
+             'cadastradaPor', old.payload -> 'cadastradaPor'));
     end if;
   end if;
   return new;

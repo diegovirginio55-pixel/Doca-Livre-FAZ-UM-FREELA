@@ -100,7 +100,16 @@ export type Empresa = {
   diasAgenciados: number
   rankingDias: number
   economiaTotal: number
+  /** Ponto da empresa na hierarquia (mesma do Oferta de Carga). Sem isso, fica fora da hierarquia. */
+  orgTipo?: OrgTipo
+  /** Empresa logo acima na hierarquia (null = topo). */
+  orgPaiId?: string | null
+  /** Usuário da gestão que cadastrou a empresa pelo painel. */
+  cadastradaPor?: string
 }
+
+/** Operador Logístico → Filial do Operador → Embarcador → Unidade → Transportadora. */
+export type OrgTipo = 'operador_logistico' | 'filial_operador' | 'embarcador' | 'unidade' | 'transportadora'
 
 export type Infracao = {
   id: string

@@ -1,0 +1,408 @@
+/* Árvore da hierarquia: mesmo desenho do Oferta de Carga (src/styles/cadastro.css de lá). */
+.org-tree {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.org-tree__node {
+  position: relative;
+  margin: 0 0 8px;
+}
+
+.org-tree__node:last-child {
+  margin-bottom: 0;
+}
+
+.org-tree--nested {
+  margin: 8px 0 0 28px;
+  padding: 0;
+}
+
+.org-tree--nested > .org-tree__node {
+  position: relative;
+  padding-left: 22px;
+}
+
+.org-tree--nested > .org-tree__node::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 22px;
+  height: 26px;
+  border-left: 1.5px solid #d0d5dd;
+  border-bottom: 1.5px solid #d0d5dd;
+  border-bottom-left-radius: 10px;
+  pointer-events: none;
+}
+
+.org-tree--nested > .org-tree__node::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 26px;
+  bottom: -8px;
+  width: 1.5px;
+  background: #d0d5dd;
+  pointer-events: none;
+}
+
+.org-tree--nested > .org-tree__node:first-child::after {
+  top: -8px;
+  height: 34px;
+}
+
+.org-tree--nested > .org-tree__node:last-child::before {
+  display: none;
+}
+
+.org-tree__toolbar {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: 12px;
+}
+
+.org-tree__empty {
+  margin: 10px 0 0;
+  font-size: 0.85rem;
+  color: #64748b;
+}
+
+.org-tree__card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 14px 10px 12px;
+  background: #fff;
+  border: 1px solid #e8ecf1;
+  border-radius: 10px;
+  border-left-width: 5px;
+  box-shadow: 0 1px 3px rgb(15 23 42 / 0.06);
+}
+
+.org-tree__card.is-selected {
+  outline: 2px solid #2f9e6a;
+  outline-offset: 2px;
+}
+
+.org-tree__select {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-weight: 800;
+  cursor: pointer;
+  text-align: left;
+}
+
+.org-tree__card--super,
+.org-tree__card--operador {
+  border-left-color: #7c3aed;
+}
+
+.org-tree__card--filial {
+  border-left-color: #4338ca;
+}
+
+.org-tree__card--embarcador {
+  border-left-color: #0891b2;
+}
+
+.org-tree__card--unidade {
+  border-left-color: #16a34a;
+}
+
+.org-tree__card--transportadora {
+  border-left-color: #d97706;
+}
+
+.org-tree__left {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  flex: 1;
+}
+
+.org-tree__toggle {
+  width: 26px;
+  height: 26px;
+  flex-shrink: 0;
+  display: grid;
+  place-items: center;
+  border: 1px solid #e2e8f0;
+  border-radius: 7px;
+  background: #fff;
+  color: #475569;
+  cursor: pointer;
+  padding: 0;
+}
+
+.org-tree__toggle:hover {
+  background: #f8fafc;
+  color: #0f172a;
+}
+
+.org-tree__logo {
+  width: 40px;
+  height: 40px;
+  border-radius: 8px;
+  object-fit: cover;
+  border: 1px solid #e2e8f0;
+  background: #fff;
+  flex-shrink: 0;
+}
+
+.org-tree__logo--empty {
+  display: grid;
+  place-items: center;
+  font-size: 0.78rem;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+}
+
+.org-tree__logo--super,
+.org-tree__logo--operador {
+  background: #ede9fe;
+  color: #6d28d9;
+  border-color: #ddd6fe;
+}
+
+.org-tree__logo--filial {
+  background: #e0e7ff;
+  color: #3730a3;
+  border-color: #c7d2fe;
+}
+
+.org-tree__logo--embarcador {
+  background: #cffafe;
+  color: #0e7490;
+  border-color: #a5f3fc;
+}
+
+.org-tree__logo--unidade {
+  background: #dcfce7;
+  color: #15803d;
+  border-color: #bbf7d0;
+}
+
+.org-tree__logo--transportadora {
+  background: #fef3c7;
+  color: #b45309;
+  border-color: #fde68a;
+}
+
+.org-tree__meta {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.org-tree__name {
+  font-size: 0.95rem;
+  font-weight: 800;
+  color: #1e293b;
+  line-height: 1.25;
+}
+
+.org-tree__cnpj {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: #64748b;
+}
+
+.org-tree__cnpj svg {
+  flex-shrink: 0;
+  color: #94a3b8;
+}
+
+.org-tree__right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.org-tree__badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.org-tree__badge--super,
+.org-tree__badge--operador {
+  background: #ede9fe;
+  color: #6d28d9;
+}
+
+.org-tree__badge--filial {
+  background: #e0e7ff;
+  color: #3730a3;
+}
+
+.org-tree__badge--embarcador {
+  background: #cffafe;
+  color: #0e7490;
+}
+
+.org-tree__badge--unidade {
+  background: #dcfce7;
+  color: #15803d;
+}
+
+.org-tree__badge--transportadora {
+  background: #fef3c7;
+  color: #b45309;
+}
+
+.org-tree__users {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 2.2rem;
+  color: #94a3b8;
+  font-size: 0.82rem;
+  font-weight: 700;
+}
+
+.org-tree__icon-btn {
+  width: 30px;
+  height: 30px;
+  display: grid;
+  place-items: center;
+  border: 1px solid #e2e8f0;
+  border-radius: 999px;
+  background: #fff;
+  color: #64748b;
+  cursor: pointer;
+  padding: 0;
+}
+
+.org-tree__icon-btn:hover {
+  background: #f8fafc;
+  color: #0f172a;
+  border-color: #cbd5e1;
+}
+
+.org-tree__icon-btn--danger {
+  color: #dc2626;
+  border-color: #fecaca;
+}
+
+.org-tree__icon-btn--danger:hover {
+  background: #fef2f2;
+  color: #b91c1c;
+}
+
+@media (max-width: 720px) {
+  .org-tree__card {
+    flex-wrap: wrap;
+    align-items: flex-start;
+  }
+
+  .org-tree__right {
+    width: 100%;
+    justify-content: flex-end;
+    flex-wrap: wrap;
+    padding-left: 36px;
+  }
+
+  .org-tree--nested {
+    margin-left: 12px;
+    padding-left: 12px;
+  }
+}
+
+/* ---------- fazumfreela ---------- */
+.hq-dica {
+  margin: 0 0 12px;
+}
+
+.org-tree__toolbar {
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.org-tree__right .px-status {
+  font-size: 0.72rem;
+}
+
+.hq-fora {
+  margin-top: 28px;
+}
+
+.hq-fora h2 {
+  margin: 0 0 4px;
+  font-size: 1.05rem;
+}
+
+.hq-fora > p {
+  margin: 0 0 12px;
+}
+
+.hq-card--fora {
+  border-left-color: #94a3b8;
+  border-left-style: dashed;
+}
+
+.hq-logo--fora {
+  background: #f1f5f9;
+  color: #475569;
+  border-color: #e2e8f0;
+}
+
+.hq-modal {
+  max-height: 90vh;
+  overflow-y: auto;
+}
+
+.hq-secao {
+  margin: 18px 0 8px;
+  font-size: 0.95rem;
+}
+
+.hq-grade {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 10px 14px;
+}
+
+.hq-grade .field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.hq-grade .field input,
+.hq-grade .field select {
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.hq-acoes {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 16px;
+  flex-wrap: wrap;
+}
+
+.hq-senha {
+  font-size: 1.05rem;
+  padding: 2px 8px;
+  border-radius: 6px;
+  background: #f1f5f9;
+  user-select: all;
+}
