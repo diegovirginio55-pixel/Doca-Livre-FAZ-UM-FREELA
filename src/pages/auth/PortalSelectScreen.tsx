@@ -2,6 +2,14 @@ import { LOGO_DOCA_LIVRE_SRC, BRAND_SLOGAN } from '../../lib/brandAssets'
 import { emDemo, trocarModo } from '../../lib/modo'
 import './PortalSelectScreen.css'
 
+function linkDeDemonstracao() {
+  try {
+    return new URLSearchParams(window.location.search).has('demo')
+  } catch {
+    return false
+  }
+}
+
 type Props = {
   onEmpresa: () => void
   onProfissional: () => void
@@ -42,9 +50,13 @@ export function PortalSelectScreen({ onEmpresa, onProfissional, onAdmin }: Props
             Sair da demonstração e voltar ao sistema real
           </button>
         ) : (
-          <button type="button" className="portal-select__demo" onClick={() => trocarModo('demo')}>
-            Ver demonstração (dados fictícios, só neste aparelho)
-          </button>
+          // Fechado para o público desde a abertura dos cadastros (12/11/2026): a demonstração
+          // só aparece para quem abre o site com ?demo no endereço (fazumfreela.com.br/?demo).
+          linkDeDemonstracao() && (
+            <button type="button" className="portal-select__demo" onClick={() => trocarModo('demo')}>
+              Ver demonstração (dados fictícios, só neste aparelho)
+            </button>
+          )
         )}
       </div>
     </div>
