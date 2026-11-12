@@ -42,6 +42,7 @@ import {
   validarNecessidade,
   type MotivoTemporario,
 } from '../../lib/modalidadeContratacao'
+import { BoasVindas, BotaoAtualizar, RelogioTopo, UsuarioTopo } from '../../components/TopoDocaLivre'
 import { BRAND_PRODUCT_NAME, LOGO_DOCA_LIVRE_SRC } from '../../lib/brandAssets'
 import { useStore } from '../../lib/store'
 import './contratar.css'
@@ -427,6 +428,7 @@ function chaveVaga(dados: {
 }
 
 const ABAS_EMPRESA = [
+  { id: 'inicio', label: 'Início', icon: <IconeInicio /> },
   { id: 'missao', label: 'Vaga temporária', icon: <IconeVaga /> },
   { id: 'vagas', label: 'Vagas Publicadas', icon: <IconeVagasLista /> },
   { id: 'missoes', label: 'Convites enviados', icon: <IconeMissoes /> },
@@ -456,6 +458,14 @@ function IconeBase({ children }: { children: ReactNode }) {
     <svg viewBox="0 0 24 24" fill="none" aria-hidden>
       {children}
     </svg>
+  )
+}
+
+function IconeInicio() {
+  return (
+    <IconeBase>
+      <path d="M4 11.5 12 4l8 7.5V20a1 1 0 0 1-1 1h-5v-6H10v6H5a1 1 0 0 1-1-1v-8.5z" stroke="currentColor" strokeWidth="1.75" strokeLinejoin="round" />
+    </IconeBase>
   )
 }
 
@@ -553,7 +563,8 @@ function somarDias(iso: string, quantidade: number) {
 }
 
 export function ContratarFreelancer({ onLogout }: { onLogout: () => void }) {
-  const { currentEmpresa, state, convidarParaMissao, confirmCandidato, publicarVaga, patchState } = useStore()
+  const { currentEmpresa, state, convidarParaMissao, confirmCandidato, publicarVaga, patchState, refreshFromCloud } =
+    useStore()
   const empresa = currentEmpresa!
   const [cargoId, setCargoId] = useState('empilhadeira')
   const [requisitos, setRequisitos] = useState<string[]>(() => requisitosDoCargo('empilhadeira').padrao)
@@ -622,7 +633,8 @@ export function ContratarFreelancer({ onLogout }: { onLogout: () => void }) {
   const publicando = useRef(false)
   const [modelos, setModelos] = useState<ModeloMissao[]>(() => lerModelos(empresa.id))
   const [avisoModelo, setAvisoModelo] = useState('')
-  const [aba, setAba] = useState<AbaEmpresa>('missao')
+  // Abre na tela de boas-vindas, como o Oferta de Carga.
+  const [aba, setAba] = useState<AbaEmpresa>('inicio')
   const [menuFixo, setMenuFixo] = useState(false)
   const [menuHover, setMenuHover] = useState(false)
   const [telaEstreita, setTelaEstreita] = useState(false)
@@ -1272,15 +1284,9 @@ export function ContratarFreelancer({ onLogout }: { onLogout: () => void }) {
         </div>
         <div className="cf-topbar-right">
           <SinoEmpresa empresaId={empresa.id} onIr={setAba} />
-          <div className="cf-topbar-user">
-            <span>
-              <strong>{empresa.nomeFantasia}</strong>
-              <small>Empresa tomadora</small>
-            </span>
-            <span className="cf-avatar-topo" aria-hidden>
-              {iniciais(empresa.nomeFantasia)}
-            </span>
-          </div>
+          <BotaoAtualizar onAtualizar={refreshFromCloud} />
+          <RelogioTopo />
+          <UsuarioTopo nome={empresa.nomeFantasia} papel="Empresa tomadora" />
           <button type="button" className="cf-sair" onClick={onLogout}>
             Sair
           </button>
@@ -1325,6 +1331,7 @@ export function ContratarFreelancer({ onLogout }: { onLogout: () => void }) {
 
       <main className="cf-main">
         <div className="cf-wrap">
+          {aba === 'inicio' && <BoasVindas />}
           {aba === 'documentos' && <BibliotecaDocumental modo="tomadora" empresaId={empresa.id} />}
           {aba === 'vagas' && <PainelVagas empresaId={empresa.id} onPublicar={() => setAba('missao')} />}
           {aba === 'missoes' && <PainelMissoes empresaId={empresa.id} />}

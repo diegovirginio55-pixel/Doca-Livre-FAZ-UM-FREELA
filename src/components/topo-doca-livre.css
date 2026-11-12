@@ -1,0 +1,147 @@
+/* Topo e tela inicial como no Oferta de Carga. */
+
+.dl-topo-meta {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  flex-shrink: 0;
+  line-height: 1.15;
+  padding: 0 12px 0 4px;
+  border-right: 1px solid #e5e7eb;
+  margin-right: 4px;
+}
+
+.dl-topo-meta-hora {
+  font-size: 0.82rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: #000;
+}
+
+.dl-topo-meta-data,
+.dl-topo-meta-versao {
+  font-size: 0.68rem;
+  color: #1a1d21;
+}
+
+.dl-topo-atualizar {
+  width: 36px;
+  height: 36px;
+  flex-shrink: 0;
+  border: 1px solid #d0d7de;
+  border-radius: 8px;
+  background: #fff;
+  color: #000;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.dl-topo-atualizar:hover {
+  background: #eceef0;
+}
+
+.dl-topo-atualizar--girando svg {
+  animation: dl-topo-girar 0.7s linear infinite;
+}
+
+@keyframes dl-topo-girar {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.dl-topo-usuario {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-shrink: 0;
+  padding: 4px 6px 4px 10px;
+  text-align: right;
+}
+
+.dl-topo-usuario-texto {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  line-height: 1.2;
+}
+
+.dl-topo-usuario-texto strong {
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: #0f172a;
+}
+
+.dl-topo-usuario-texto span {
+  font-size: 0.72rem;
+  color: #1a1d21;
+}
+
+.dl-topo-avatar {
+  width: 36px;
+  height: 36px;
+  flex-shrink: 0;
+  border-radius: 50%;
+  border: 2px solid #f5c518;
+  background: #5c6670;
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.72rem;
+  font-weight: 800;
+}
+
+/* —— Tela inicial "Bem Vindo" —— */
+.px-shell .px-main:has(> .dl-boas-vindas),
+.cf-shell .cf-main:has(.dl-boas-vindas) {
+  position: relative;
+  background: #eef1f4;
+}
+
+.dl-boas-vindas {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 18px;
+  padding: 0 24px 10vh;
+  pointer-events: none;
+  user-select: none;
+}
+
+.dl-boas-vindas-logo {
+  width: min(380px, 62%);
+  height: auto;
+  opacity: 0.28;
+}
+
+.dl-boas-vindas-texto {
+  margin: 0;
+  font-size: clamp(1.35rem, 2.4vw, 1.85rem);
+  font-weight: 700;
+  letter-spacing: -0.03em;
+  color: #475569;
+  opacity: 0.82;
+}
+
+/* telas menores: some primeiro o relógio, depois o nome ao lado do avatar */
+@media (max-width: 1000px) {
+  .dl-topo-meta {
+    display: none;
+  }
+}
+
+@media (max-width: 700px) {
+  .dl-topo-usuario-texto {
+    display: none;
+  }
+
+  .dl-topo-usuario {
+    padding: 2px;
+  }
+}

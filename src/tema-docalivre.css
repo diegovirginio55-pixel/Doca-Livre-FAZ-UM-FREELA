@@ -118,48 +118,44 @@ body {
   }
 }
 
-/* usuário em "pílula", como o chip do WMS */
+/* usuário como no Oferta de Carga: nome e cargo à direita, avatar redondo com borda amarela */
 .cf-shell .cf-topbar-user {
-  padding: 4px 12px 4px 4px;
-  border: 1px solid var(--dl-borda);
-  border-radius: 999px;
-  flex-direction: row-reverse;
-  text-align: left;
+  padding: 4px 6px 4px 10px;
+  text-align: right;
 }
 
 .cf-shell .cf-topbar-user strong {
-  font-size: 0.85rem;
-  font-weight: 600;
-  color: var(--dl-texto);
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: var(--dl-titulo);
 }
 
 .cf-shell .cf-topbar-user small {
-  font-size: 0.7rem;
-  font-weight: 500;
-  color: var(--dl-texto-sec);
+  font-size: 0.72rem;
+  color: #1a1d21;
 }
 
 .cf-shell .cf-avatar-topo {
-  width: 30px;
-  height: 30px;
-  border: none;
-  background: var(--dl-primaria);
+  width: 36px;
+  height: 36px;
+  border: 2px solid var(--dl-menu-ativo);
+  background: #5c6670;
   color: #fff;
-  font-size: 0.8rem;
-  font-weight: 700;
+  font-size: 0.72rem;
+  font-weight: 800;
 }
 
 .cf-shell .cf-sair {
-  border: 1px solid var(--dl-borda);
-  border-radius: 10px;
-  background: transparent;
-  color: var(--dl-texto-medio);
-  font-weight: 600;
+  border: 1px solid #d0d7de;
+  border-radius: 8px;
+  background: #fff;
+  color: #000;
+  font-size: 0.78rem;
+  font-weight: 700;
 }
 
 .cf-shell .cf-sair:hover {
-  background: var(--dl-suave);
-  color: var(--dl-titulo);
+  background: #eceef0;
 }
 
 /* menu lateral grafite, recolhido em 70px e aberto em 260px */
@@ -299,6 +295,20 @@ body {
   border-radius: 10px;
 }
 
+/* "Sair" igual ao do Oferta de Carga e ao dos outros portais */
+.px-shell .px-topbar-right .px-btn-ghost {
+  border: 1px solid #d0d7de;
+  border-radius: 8px;
+  background: #fff;
+  color: #000;
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+
+.px-shell .px-topbar-right .px-btn-ghost:hover {
+  background: #eceef0;
+}
+
 .px-shell .px-body {
   position: relative;
 }
@@ -417,7 +427,33 @@ body {
   }
 
   .px-shell .px-topbar {
-    padding-left: 12px;
+    padding: 0 10px 0 12px;
+    gap: 8px;
+    flex-wrap: nowrap;
+  }
+
+  /* topo numa linha só, como na Empresa: some o nome do produto e os botões encolhem */
+  .px-shell .px-topbar-left {
+    min-width: 0;
+    flex-shrink: 1;
+  }
+
+  .px-shell .px-topbar-logo {
+    height: 28px;
+  }
+
+  .px-shell .px-topbar-brand {
+    display: none;
+  }
+
+  .px-shell .px-topbar-right {
+    gap: 6px;
+    flex-shrink: 0;
+  }
+
+  .px-shell .px-topbar-right .px-btn {
+    padding: 7px 10px;
+    font-size: 0.78rem;
   }
 
   .px-shell--admin .px-sidebar {
