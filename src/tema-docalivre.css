@@ -59,7 +59,7 @@ body {
 
 .cf-shell .cf-topbar {
   height: var(--dl-header-h);
-  padding: 0 16px 0 0;
+  padding: 0 16px 0 10px;
   background: var(--dl-card);
   border-bottom: 1px solid var(--dl-borda);
   box-shadow: none;
@@ -69,18 +69,18 @@ body {
   gap: 12px;
 }
 
-/* botão de menu: quadrado escuro na largura do menu recolhido, como no WMS */
+/* topo numa faixa branca só, como no Oferta de Carga: botão de menu simples, logo e o produto em cinza */
 .cf-shell .cf-topbar-menu {
-  width: var(--dl-menu-w-recolhido);
-  height: var(--dl-header-h);
-  border-radius: 0;
-  background: var(--dl-menu-bg);
-  color: #fff;
+  width: 38px;
+  height: 38px;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--dl-titulo);
 }
 
 .cf-shell .cf-topbar-menu:hover {
-  background: var(--dl-menu-bg);
-  color: var(--dl-menu-ativo);
+  background: var(--dl-suave);
+  color: var(--dl-titulo);
 }
 
 .cf-shell .cf-topbar-logo {
@@ -88,10 +88,10 @@ body {
 }
 
 .cf-shell .cf-product {
-  font-size: 1.2rem;
-  font-weight: 900;
-  letter-spacing: 0.02em;
-  color: var(--dl-titulo);
+  font-size: 0.95rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: var(--dl-texto-medio);
 }
 
 @media (min-width: 861px) {
@@ -101,10 +101,6 @@ body {
 }
 
 @media (max-width: 860px) {
-  .cf-shell .cf-topbar-menu {
-    width: 56px;
-  }
-
   .cf-shell .cf-topbar-logo {
     height: 28px;
   }
@@ -250,26 +246,27 @@ body {
 
 .px-shell .px-topbar {
   height: var(--dl-header-h);
-  padding: 0 16px 0 0;
+  padding: 0 16px 0 10px;
   gap: 12px;
   background: var(--dl-card);
   border-bottom: 1px solid var(--dl-borda);
 }
 
 .px-shell .px-topbar-menu {
-  width: var(--dl-menu-w-recolhido);
-  height: var(--dl-header-h);
+  width: 38px;
+  height: 38px;
   flex-shrink: 0;
   display: grid;
   place-items: center;
   border: none;
-  background: var(--dl-menu-bg);
-  color: #fff;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--dl-titulo);
   cursor: pointer;
 }
 
 .px-shell .px-topbar-menu:hover {
-  color: var(--dl-menu-ativo);
+  background: var(--dl-suave);
 }
 
 .px-shell .px-topbar-menu svg {
@@ -287,10 +284,10 @@ body {
 }
 
 .px-shell .px-topbar-brand {
-  font-size: 1.2rem;
-  font-weight: 900;
-  letter-spacing: 0.02em;
-  color: var(--dl-titulo);
+  font-size: 0.95rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: var(--dl-texto-medio);
 }
 
 .px-shell .px-topbar-sub {
