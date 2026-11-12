@@ -752,11 +752,16 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         if (avaliado.contaId) update((s) => ({ ...s, sessionUserId: avaliado.contaId! }))
         return avaliado.resultado
       }
+      // Contas de teste da equipe no sistema real (pedido do Diego, 12/11/2026): "admin" nos
+      // portais Empresa e Profissional entra em "admin.empresa" e "admin.profissional". O usuário
+      // "admin" de verdade é o da gestão, e só o portal Admin chega nele.
+      const identificador =
+        portal !== 'admin' && usuarioOuEmail.trim().toLowerCase() === 'admin' ? `admin.${portal}` : usuarioOuEmail.trim()
       // Modo real: a senha é conferida no servidor (antes o navegador baixava todas as contas
       // com a senha em texto puro e comparava ele mesmo).
       const r = await chamarApi<RespostaSessao>(
         '/api/auth/entrar',
-        { identificador: usuarioOuEmail.trim(), senha },
+        { identificador, senha },
         { erroPadrao: 'Não foi possível entrar agora. Tente de novo em instantes.' },
       )
       if (!r.ok) return { ok: false, error: r.erro }
