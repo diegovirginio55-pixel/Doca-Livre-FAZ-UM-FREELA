@@ -14,9 +14,19 @@ import {
   tiposFilhos,
   type NoEmpresa,
 } from '../../lib/orgHierarquia'
+import {
+  arvoreDoGrupo,
+  contarNosDoGrupo,
+  criarGrupo,
+  excluirGrupo,
+  posicionarNoGrupo,
+  renomearGrupo,
+  tirarDoGrupo,
+  type NoDoGrupo,
+} from '../../lib/gruposHierarquia'
 import { emDemo } from '../../lib/modo'
 import { useStore } from '../../lib/store'
-import type { Empresa, EmpresaTipo, OrgTipo } from '../../lib/types'
+import type { Empresa, EmpresaTipo, GrupoHierarquia, OrgTipo } from '../../lib/types'
 import './hierarquia.css'
 
 // ---------- ícones (mesmo desenho do Oferta de Carga, em SVG para não trazer biblioteca) ----------
@@ -100,6 +110,9 @@ export function HierarquiaEmpresas() {
         Operador Logístico → Filial do Operador → Embarcador → Unidade → Transportadora. Use a seta para abrir ou
         fechar cada grupo; o <strong>+</strong> cadastra uma empresa logo abaixo.
       </p>
+      <PainelGrupos />
+
+      <h2 className="hq-subtitulo">Empresas na hierarquia</h2>
       <div className="org-tree__toolbar">
         {TIPOS_NO_TOPO.map((tipo) => (
           <button key={tipo} type="button" className="px-btn px-btn-outline" onClick={() => setNovo({ paiId: null, tipos: [tipo] })}>
@@ -532,6 +545,361 @@ export function NovaEmpresaModal({
           </form>
         )}
       </div>
+    </div>
+  )
+}
+
+// ---------- grupos de hierarquia (mesmo modelo do Oferta de Carga) ----------
+function PainelGrupos() {
+  const store = useStore()
+  const { state } = store
+  const grupos = useMemo(() => state.gruposHierarquia ?? [], [state.gruposHierarquia])
+  const [aberto, setAberto] = useState<string | null>(null)
+  const [criando, setCriando] = useState(false)
+  const [editando, setEditando] = useState<GrupoHierarquia | null>(null)
+  const [posicionar, setPosicionar] = useState<{ grupoId: string; empresaId?: string } | null>(null)
+  const grupoAberto = grupos.find((g) => g.id === aberto) ?? null
+
+  function salvar(novos: GrupoHierarquia[]) {
+    store.patchState((s) => ({ ...s, gruposHierarquia: novos }))
+  }
+
+  return (
+    <section className="hq-grupos">
+      <div className="hq-grupos-topo">
+        <div>
+          <h2 className="hq-subtitulo">Grupos de hierarquia</h2>
+          <p className="muted">
+            Cada grupo tem o próprio desenho. A mesma empresa pode estar em vários grupos, com outra empresa acima dela em
+            cada um. O desenho abre ao clicar no grupo.
+          </p>
+        </div>
+        <button type="button" className="px-btn px-btn-primary" onClick={() => setCriando(true)}>
+          + Novo grupo
+        </button>
+      </div>
+
+      {grupos.length === 0 ? (
+        <p className="org-tree__empty">Nenhum grupo ainda. Use + Novo grupo.</p>
+      ) : (
+        <div className="hq-grupos-cards">
+          {grupos.map((g) => {
+            const total = contarNosDoGrupo(arvoreDoGrupo(g, state.empresas))
+            const principal = state.empresas.find((e) => e.id === g.empresaId)
+            return (
+              <button
+                key={g.id}
+                type="button"
+                className={`hq-grupo-card${aberto === g.id ? ' is-aberto' : ''}`}
+                aria-expanded={aberto === g.id}
+                onClick={() => setAberto(aberto === g.id ? null : g.id)}
+              >
+                <span className="org-tree__logo org-tree__logo--empty org-tree__logo--operador" aria-hidden>
+                  {iniciais(g.nome)}
+                </span>
+                <span className="hq-grupo-texto">
+                  <strong>{g.nome}</strong>
+                  <small>{g.descricao || (principal ? `Empresa principal: ${principal.nomeFantasia}` : 'Sem descrição')}</small>
+                </span>
+                <span className="org-tree__users" title="Empresas no grupo">
+                  <IconeContas />
+                  {total}
+                </span>
+              </button>
+            )
+          })}
+        </div>
+      )}
+
+      {grupoAberto && (
+        <div className="hq-grupo-desenho">
+          <div className="hq-grupos-topo">
+            <div>
+              <h3>{grupoAberto.nome}</h3>
+              {grupoAberto.descricao && <p className="muted">{grupoAberto.descricao}</p>}
+            </div>
+            <div className="hq-acoes">
+              <button type="button" className="px-btn px-btn-primary" onClick={() => setPosicionar({ grupoId: grupoAberto.id })}>
+                + Adicionar empresa
+              </button>
+              <button type="button" className="px-btn px-btn-outline" onClick={() => setEditando(grupoAberto)}>
+                Editar grupo
+              </button>
+              <button
+                type="button"
+                className="px-btn px-btn-ghost"
+                onClick={() => {
+                  if (!window.confirm(`Excluir o grupo "${grupoAberto.nome}"? As empresas continuam existindo.`)) return
+                  salvar(excluirGrupo(grupos, grupoAberto.id))
+                  setAberto(null)
+                }}
+              >
+                Excluir grupo
+              </button>
+            </div>
+          </div>
+          <DesenhoDoGrupo
+            nos={arvoreDoGrupo(grupoAberto, state.empresas)}
+            aninhado={false}
+            onMover={(empresaId) => setPosicionar({ grupoId: grupoAberto.id, empresaId })}
+            onTirar={(empresa) => {
+              if (!window.confirm(`Tirar "${empresa.nomeFantasia}" do grupo? Quem estava abaixo dela sobe um nível.`)) return
+              salvar(tirarDoGrupo(grupos, grupoAberto.id, empresa.id))
+            }}
+          />
+          {grupoAberto.membros.length === 0 && <p className="org-tree__empty">Grupo vazio. Use + Adicionar empresa.</p>}
+        </div>
+      )}
+
+      {(criando || editando) && (
+        <GrupoModal
+          grupo={editando}
+          empresas={state.empresas}
+          onFechar={() => {
+            setCriando(false)
+            setEditando(null)
+          }}
+          onSalvar={(dados) => {
+            const r = editando ? renomearGrupo(grupos, editando.id, dados) : criarGrupo(grupos, dados)
+            if (r.erro) return r.erro
+            salvar(r.grupos)
+            if (!editando) setAberto(r.grupos[r.grupos.length - 1]?.id ?? null)
+            setCriando(false)
+            setEditando(null)
+            return ''
+          }}
+        />
+      )}
+
+      {posicionar && (
+        <MembroGrupoModal
+          grupo={grupos.find((g) => g.id === posicionar.grupoId)!}
+          empresaFixa={posicionar.empresaId}
+          empresas={state.empresas}
+          onFechar={() => setPosicionar(null)}
+          onSalvar={(empresaId, paiId) => {
+            const r = posicionarNoGrupo(grupos, posicionar.grupoId, empresaId, paiId)
+            if (r.erro) return r.erro
+            salvar(r.grupos)
+            setPosicionar(null)
+            return ''
+          }}
+        />
+      )}
+    </section>
+  )
+}
+
+function DesenhoDoGrupo({
+  nos,
+  aninhado = true,
+  onMover,
+  onTirar,
+}: {
+  nos: NoDoGrupo[]
+  aninhado?: boolean
+  onMover: (empresaId: string) => void
+  onTirar: (empresa: Empresa) => void
+}) {
+  return (
+    <ul className={`org-tree${aninhado ? ' org-tree--nested' : ''}`}>
+      {nos.map(({ empresa, filhos }) => {
+        const classe = empresa.orgTipo ? CLASSE_TIPO[empresa.orgTipo] : 'operador'
+        const Icone = empresa.orgTipo ? ICONE_TIPO[empresa.orgTipo] : null
+        return (
+          <li key={empresa.id} className="org-tree__node">
+            <div className={`org-tree__card org-tree__card--${classe}`}>
+              <div className="org-tree__left">
+                <span className={`org-tree__logo org-tree__logo--empty org-tree__logo--${classe}`} aria-hidden>
+                  {iniciais(empresa.nomeFantasia)}
+                </span>
+                <div className="org-tree__meta">
+                  <strong className="org-tree__name">{empresa.nomeFantasia}</strong>
+                  {empresa.cnpj && (
+                    <span className="org-tree__cnpj">
+                      <IconeDocumento />
+                      {empresa.cnpj}
+                    </span>
+                  )}
+                </div>
+              </div>
+              <div className="org-tree__right">
+                {empresa.orgTipo && Icone && (
+                  <span className={`org-tree__badge org-tree__badge--${classe}`}>
+                    <Icone />
+                    {ORG_TIPO_LABEL[empresa.orgTipo]}
+                  </span>
+                )}
+                <button type="button" className="org-tree__icon-btn" title="Mudar a posição neste grupo" onClick={() => onMover(empresa.id)}>
+                  <IconeLapis />
+                </button>
+                <button type="button" className="org-tree__icon-btn org-tree__icon-btn--danger" title="Tirar do grupo" onClick={() => onTirar(empresa)}>
+                  <IconeMenos />
+                </button>
+              </div>
+            </div>
+            {filhos.length > 0 && <DesenhoDoGrupo nos={filhos} onMover={onMover} onTirar={onTirar} />}
+          </li>
+        )
+      })}
+    </ul>
+  )
+}
+
+function GrupoModal({
+  grupo,
+  empresas,
+  onFechar,
+  onSalvar,
+}: {
+  grupo: GrupoHierarquia | null
+  empresas: Empresa[]
+  onFechar: () => void
+  onSalvar: (dados: { nome: string; descricao: string; empresaId?: string }) => string
+}) {
+  const [nome, setNome] = useState(grupo?.nome ?? '')
+  const [descricao, setDescricao] = useState(grupo?.descricao ?? '')
+  const [empresaId, setEmpresaId] = useState('')
+  const [erro, setErro] = useState('')
+  const ordenadas = [...empresas].sort((a, b) => a.nomeFantasia.localeCompare(b.nomeFantasia, 'pt-BR'))
+  return (
+    <div className="px-modal-backdrop" onClick={onFechar}>
+      <form
+        className="px-modal hq-modal"
+        onClick={(e) => e.stopPropagation()}
+        role="dialog"
+        aria-modal="true"
+        onSubmit={(e) => {
+          e.preventDefault()
+          setErro(onSalvar({ nome, descricao, empresaId: grupo ? undefined : empresaId }))
+        }}
+      >
+        <div className="px-modal-head">
+          <h2 style={{ margin: 0 }}>{grupo ? 'Editar grupo' : 'Novo grupo de hierarquia'}</h2>
+          <button type="button" className="px-btn px-btn-ghost" onClick={onFechar}>
+            Fechar
+          </button>
+        </div>
+        <div className="hq-grade">
+          <label className="field">
+            <span>Nome do grupo *</span>
+            <input value={nome} onChange={(e) => setNome(e.target.value)} autoFocus />
+          </label>
+          {!grupo && (
+            <label className="field">
+              <span>Empresa principal</span>
+              <select value={empresaId} onChange={(e) => setEmpresaId(e.target.value)}>
+                <option value="">— Nenhuma por enquanto —</option>
+                {ordenadas.map((e) => (
+                  <option key={e.id} value={e.id}>
+                    {e.nomeFantasia}
+                  </option>
+                ))}
+              </select>
+            </label>
+          )}
+        </div>
+        <label className="field hq-campo-largo">
+          <span>Descrição</span>
+          <input value={descricao} onChange={(e) => setDescricao(e.target.value)} placeholder="Ex.: Operação Ultrafrio em Guarulhos" />
+        </label>
+        {erro && <p className="error">{erro}</p>}
+        <div className="hq-acoes">
+          <button type="button" className="px-btn px-btn-ghost" onClick={onFechar}>
+            Cancelar
+          </button>
+          <button type="submit" className="px-btn px-btn-primary">
+            {grupo ? 'Salvar' : 'Criar grupo'}
+          </button>
+        </div>
+      </form>
+    </div>
+  )
+}
+
+function MembroGrupoModal({
+  grupo,
+  empresaFixa,
+  empresas,
+  onFechar,
+  onSalvar,
+}: {
+  grupo: GrupoHierarquia
+  empresaFixa?: string
+  empresas: Empresa[]
+  onFechar: () => void
+  onSalvar: (empresaId: string, paiId: string | null) => string
+}) {
+  const noGrupo = new Set(grupo.membros.map((m) => m.empresaId))
+  const atual = empresaFixa ? grupo.membros.find((m) => m.empresaId === empresaFixa) : undefined
+  const [empresaId, setEmpresaId] = useState(empresaFixa ?? '')
+  const [paiId, setPaiId] = useState(atual?.paiEmpresaId ?? '')
+  const [erro, setErro] = useState('')
+  const ordenar = (lista: Empresa[]) => [...lista].sort((a, b) => a.nomeFantasia.localeCompare(b.nomeFantasia, 'pt-BR'))
+  const candidatas = ordenar(empresas.filter((e) => !noGrupo.has(e.id)))
+  const pais = ordenar(empresas.filter((e) => noGrupo.has(e.id) && e.id !== empresaId))
+  const fixa = empresaFixa ? empresas.find((e) => e.id === empresaFixa) : undefined
+  return (
+    <div className="px-modal-backdrop" onClick={onFechar}>
+      <form
+        className="px-modal hq-modal"
+        onClick={(e) => e.stopPropagation()}
+        role="dialog"
+        aria-modal="true"
+        onSubmit={(e) => {
+          e.preventDefault()
+          setErro(onSalvar(empresaId, paiId || null))
+        }}
+      >
+        <div className="px-modal-head">
+          <div>
+            <h2 style={{ margin: 0 }}>{fixa ? 'Posição no grupo' : 'Adicionar empresa ao grupo'}</h2>
+            <p className="muted" style={{ margin: '4px 0 0' }}>
+              {grupo.nome}
+              {fixa ? ` · ${fixa.nomeFantasia}` : ''}
+            </p>
+          </div>
+          <button type="button" className="px-btn px-btn-ghost" onClick={onFechar}>
+            Fechar
+          </button>
+        </div>
+        <div className="hq-grade">
+          {!fixa && (
+            <label className="field">
+              <span>Empresa *</span>
+              <select value={empresaId} onChange={(e) => setEmpresaId(e.target.value)}>
+                <option value="">Escolha...</option>
+                {candidatas.map((e) => (
+                  <option key={e.id} value={e.id}>
+                    {e.nomeFantasia}
+                  </option>
+                ))}
+              </select>
+              {candidatas.length === 0 && <small className="muted">Todas as empresas já estão neste grupo.</small>}
+            </label>
+          )}
+          <label className="field">
+            <span>Fica abaixo de</span>
+            <select value={paiId} onChange={(e) => setPaiId(e.target.value)}>
+              <option value="">— Topo do grupo —</option>
+              {pais.map((e) => (
+                <option key={e.id} value={e.id}>
+                  {e.nomeFantasia}
+                </option>
+              ))}
+            </select>
+          </label>
+        </div>
+        {erro && <p className="error">{erro}</p>}
+        <div className="hq-acoes">
+          <button type="button" className="px-btn px-btn-ghost" onClick={onFechar}>
+            Cancelar
+          </button>
+          <button type="submit" className="px-btn px-btn-primary">
+            {fixa ? 'Salvar' : 'Adicionar'}
+          </button>
+        </div>
+      </form>
     </div>
   )
 }
