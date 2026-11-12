@@ -42,7 +42,7 @@ import {
   validarNecessidade,
   type MotivoTemporario,
 } from '../../lib/modalidadeContratacao'
-import { BoasVindas, BotaoAtualizar, RelogioTopo, UsuarioTopo } from '../../components/TopoDocaLivre'
+import { BoasVindas, BotaoAtualizar, BotaoTema, RelogioTopo, UsuarioTopo } from '../../components/TopoDocaLivre'
 import { BRAND_PRODUCT_NAME, LOGO_DOCA_LIVRE_SRC } from '../../lib/brandAssets'
 import { useStore } from '../../lib/store'
 import './contratar.css'
@@ -563,8 +563,16 @@ function somarDias(iso: string, quantidade: number) {
 }
 
 export function ContratarFreelancer({ onLogout }: { onLogout: () => void }) {
-  const { currentEmpresa, state, convidarParaMissao, confirmCandidato, publicarVaga, patchState, refreshFromCloud } =
-    useStore()
+  const {
+    currentEmpresa,
+    currentUser,
+    state,
+    convidarParaMissao,
+    confirmCandidato,
+    publicarVaga,
+    patchState,
+    refreshFromCloud,
+  } = useStore()
   const empresa = currentEmpresa!
   const [cargoId, setCargoId] = useState('empilhadeira')
   const [requisitos, setRequisitos] = useState<string[]>(() => requisitosDoCargo('empilhadeira').padrao)
@@ -1285,8 +1293,34 @@ export function ContratarFreelancer({ onLogout }: { onLogout: () => void }) {
         <div className="cf-topbar-right">
           <SinoEmpresa empresaId={empresa.id} onIr={setAba} />
           <BotaoAtualizar onAtualizar={refreshFromCloud} />
+          <BotaoTema />
           <RelogioTopo />
-          <UsuarioTopo nome={empresa.nomeFantasia} papel="Empresa tomadora" />
+          <UsuarioTopo
+            perfil={{
+              nome: empresa.nomeFantasia,
+              papel: 'Empresa tomadora',
+              usuario: currentUser?.usuario,
+              email: currentUser?.email,
+              criadoEm: currentUser?.createdAt,
+              ativo: currentUser?.ativo !== false,
+              foto: empresa.logo,
+              estatisticas: [
+                { valor: state.demandas.filter((d) => d.empresaId === empresa.id).length, rotulo: 'Vagas publicadas' },
+                { valor: state.contratos.filter((c) => c.empresaId === empresa.id).length, rotulo: 'Contratações' },
+              ],
+              verificacoes: [
+                { ok: currentUser?.ativo !== false, texto: 'Usuário ativo no sistema' },
+                { ok: Boolean(currentUser?.email), texto: currentUser?.email || 'E-mail não informado' },
+                {
+                  ok: empresa.status === 'aprovada',
+                  texto: empresa.status === 'aprovada' ? 'Cadastro aprovado' : 'Cadastro em análise',
+                },
+              ],
+              onIrPainel: () => setAba('inicio'),
+              editar: { rotulo: 'Ver dados da empresa', onClick: () => setAba('dados') },
+              onSair: onLogout,
+            }}
+          />
           <button type="button" className="cf-sair" onClick={onLogout}>
             Sair
           </button>
@@ -1513,7 +1547,7 @@ export function ContratarFreelancer({ onLogout }: { onLogout: () => void }) {
                   </label>
                 </div>
                 {feriados.length > 0 && (
-                  <p className="cf-feriado" style={{ background: '#fff7ed', border: '1px solid #fdba74', borderRadius: 8, padding: '8px 10px', color: '#9a3412' }}>
+                  <p className="cf-feriado">
                     Feriado nacional no período:{' '}
                     {feriados.map((f) => `${f.data.split('-').reverse().join('/')} (${f.nome})`).join(', ')}. Trabalho em feriado costuma ter
                     adicional (em geral 100% sobre a diária). Combine o valor antes de confirmar.

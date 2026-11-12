@@ -1,4 +1,5 @@
-/* Topo e tela inicial como no Oferta de Carga. */
+/* Topo e tela inicial como no Oferta de Carga; painel do usuário e tema como no WMS Doca Livre.
+   As cores usam os tokens do tema (--dl-*), que mudam sozinhos no tema escuro. */
 
 .dl-topo-meta {
   display: flex;
@@ -7,7 +8,7 @@
   flex-shrink: 0;
   line-height: 1.15;
   padding: 0 12px 0 4px;
-  border-right: 1px solid #e5e7eb;
+  border-right: 1px solid var(--dl-borda, #e5e7eb);
   margin-right: 4px;
 }
 
@@ -15,31 +16,39 @@
   font-size: 0.82rem;
   font-weight: 700;
   font-variant-numeric: tabular-nums;
-  color: #000;
+  color: var(--dl-titulo, #000);
 }
 
 .dl-topo-meta-data,
 .dl-topo-meta-versao {
   font-size: 0.68rem;
-  color: #1a1d21;
+  color: var(--dl-texto-sec, #1a1d21);
 }
 
-.dl-topo-atualizar {
+.dl-topo-atualizar,
+.dl-topo-tema {
   width: 36px;
   height: 36px;
   flex-shrink: 0;
-  border: 1px solid #d0d7de;
+  border: 1px solid var(--dl-borda, #d0d7de);
   border-radius: 8px;
-  background: #fff;
-  color: #000;
+  background: var(--dl-card, #fff);
+  color: var(--dl-titulo, #000);
   cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
 }
 
-.dl-topo-atualizar:hover {
-  background: #eceef0;
+.dl-topo-tema {
+  border-radius: 10px;
+  color: var(--dl-texto-medio, #475569);
+}
+
+.dl-topo-atualizar:hover,
+.dl-topo-tema:hover {
+  background: var(--dl-suave, #eceef0);
+  color: var(--dl-titulo, #000);
 }
 
 .dl-topo-atualizar--girando svg {
@@ -52,13 +61,30 @@
   }
 }
 
+/* —— usuário no canto e painel do perfil —— */
+.dl-topo-usuario-wrap {
+  position: relative;
+  flex-shrink: 0;
+}
+
 .dl-topo-usuario {
   display: flex;
   align-items: center;
   gap: 10px;
-  flex-shrink: 0;
   padding: 4px 6px 4px 10px;
+  border: 0;
+  border-radius: 12px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
   text-align: right;
+  cursor: pointer;
+  transition: background 0.2s ease;
+}
+
+.dl-topo-usuario:hover,
+.dl-topo-usuario[aria-expanded='true'] {
+  background: var(--dl-suave, #f1f5f9);
 }
 
 .dl-topo-usuario-texto {
@@ -71,18 +97,21 @@
 .dl-topo-usuario-texto strong {
   font-size: 0.82rem;
   font-weight: 700;
-  color: #0f172a;
+  color: var(--dl-titulo, #0f172a);
+  white-space: nowrap;
 }
 
 .dl-topo-usuario-texto span {
   font-size: 0.72rem;
-  color: #1a1d21;
+  color: var(--dl-texto-medio, #1a1d21);
+  white-space: nowrap;
 }
 
 .dl-topo-avatar {
   width: 36px;
   height: 36px;
   flex-shrink: 0;
+  overflow: hidden;
   border-radius: 50%;
   border: 2px solid #f5c518;
   background: #5c6670;
@@ -94,11 +123,355 @@
   font-weight: 800;
 }
 
+.dl-topo-avatar img,
+.dl-perfil-hero-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: 50%;
+}
+
+.dl-perfil-painel {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  z-index: 1100;
+  width: min(360px, calc(100vw - 20px));
+  max-height: min(75dvh, 600px);
+  overflow-x: hidden;
+  overflow-y: auto;
+  padding: 14px 14px 16px;
+  border: 1px solid var(--dl-borda, #e2e8f0);
+  border-radius: 14px;
+  background: var(--dl-card, #fff);
+  color: var(--dl-texto, #1e293b);
+  box-shadow: 0 12px 40px rgba(15, 23, 42, 0.16);
+  text-align: left;
+}
+
+.dl-perfil-abas {
+  display: flex;
+  gap: 14px;
+  margin-bottom: 14px;
+  border-bottom: 1px solid var(--dl-borda, #e2e8f0);
+}
+
+.dl-perfil-abas button {
+  appearance: none;
+  margin-bottom: -1px;
+  padding: 6px 2px 10px;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  background: transparent;
+  font: inherit;
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: var(--dl-texto-medio, #475569);
+  cursor: pointer;
+}
+
+.dl-perfil-abas button.is-ativa {
+  color: var(--dl-titulo, #0f172a);
+  border-bottom-color: var(--dl-titulo, #0f172a);
+}
+
+.dl-perfil-conteudo {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.dl-perfil-hero {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 4px 0;
+}
+
+.dl-perfil-hero-avatar {
+  position: relative;
+  width: 56px;
+  height: 56px;
+  flex-shrink: 0;
+  border-radius: 50%;
+  border: 2px solid var(--dl-borda-forte, #cbd5e1);
+  background: var(--dl-suave, #f1f5f9);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 800;
+  color: var(--dl-titulo, #0f172a);
+}
+
+.dl-perfil-hero-selo {
+  position: absolute;
+  right: -2px;
+  bottom: -2px;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  border: 2px solid var(--dl-card, #fff);
+  background: #2563eb;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
+}
+
+.dl-perfil-hero-selo::after {
+  content: '✓';
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  font-size: 10px;
+  font-weight: 800;
+  font-style: normal;
+}
+
+.dl-perfil-hero-texto {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  min-width: 0;
+  flex: 1;
+}
+
+.dl-perfil-hero-texto strong {
+  font-size: 1.05rem;
+  font-weight: 800;
+  color: var(--dl-titulo, #0f172a);
+  overflow-wrap: anywhere;
+}
+
+.dl-perfil-hero-texto > span {
+  font-size: 0.92rem;
+  color: var(--dl-texto-medio, #475569);
+}
+
+.dl-perfil-acao-foto {
+  margin-top: 6px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  font: inherit;
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--dl-link, #2563eb);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: pointer;
+}
+
+.dl-perfil-numeros {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  padding: 12px 10px;
+  border: 1px solid var(--dl-borda, #e2e8f0);
+  border-radius: 14px;
+  text-align: center;
+}
+
+.dl-perfil-numeros-valor {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 800;
+  color: var(--dl-titulo, #0f172a);
+}
+
+.dl-perfil-numeros-rotulo {
+  margin: 4px 0 0;
+  font-size: 0.75rem;
+  color: var(--dl-texto-medio, #475569);
+}
+
+.dl-perfil-links {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+}
+
+.dl-perfil-link {
+  appearance: none;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  font: inherit;
+  font-size: 0.92rem;
+  font-weight: 700;
+  color: var(--dl-link, #2563eb);
+  cursor: pointer;
+}
+
+.dl-perfil-link:hover {
+  text-decoration: underline;
+}
+
+.dl-perfil-verificado {
+  padding-top: 14px;
+  border-top: 1px solid var(--dl-borda, #e2e8f0);
+}
+
+.dl-perfil-verificado h3,
+.dl-perfil-conta-titulo {
+  margin: 0 0 12px;
+  font-size: 0.9rem;
+  font-weight: 800;
+  color: var(--dl-titulo, #0f172a);
+}
+
+.dl-perfil-conta-titulo {
+  margin: 0;
+  font-size: 1.05rem;
+}
+
+.dl-perfil-verificado ul {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.dl-perfil-verificado li {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 0.9rem;
+  color: var(--dl-texto, #1e293b);
+  overflow-wrap: anywhere;
+}
+
+.dl-perfil-verificado li::before {
+  content: '';
+  width: 22px;
+  height: 22px;
+  flex-shrink: 0;
+  border-radius: 50%;
+  border: 2px solid var(--dl-borda-forte, #cbd5e1);
+}
+
+.dl-perfil-verificado li.is-ok::before {
+  content: '✓';
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-color: #2563eb;
+  background: #2563eb;
+  box-shadow: inset 0 0 0 3px var(--dl-card, #fff);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.dl-perfil-dados {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin: 0;
+}
+
+.dl-perfil-dados > div {
+  display: grid;
+  gap: 2px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--dl-borda, #e2e8f0);
+}
+
+.dl-perfil-dados dt {
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--dl-texto-sec, #64748b);
+}
+
+.dl-perfil-dados dd {
+  margin: 0;
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: var(--dl-titulo, #0f172a);
+  overflow-wrap: anywhere;
+}
+
+.dl-perfil-senha {
+  display: grid;
+  gap: 10px;
+}
+
+.dl-perfil-senha label {
+  display: grid;
+  gap: 4px;
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: var(--dl-texto-medio, #475569);
+}
+
+.dl-perfil-senha input {
+  padding: 9px 10px;
+  border: 1px solid var(--dl-borda-forte, #cbd5e1);
+  border-radius: 8px;
+  background: var(--dl-card, #fff);
+  color: var(--dl-titulo, #0f172a);
+  font: inherit;
+  font-size: 0.9rem;
+}
+
+.dl-perfil-erro,
+.dl-perfil-aviso {
+  margin: 0;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: #dc2626;
+}
+
+.dl-perfil-aviso {
+  color: #16a34a;
+}
+
+.dl-perfil-acoes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 4px;
+}
+
+.dl-perfil-btn {
+  appearance: none;
+  padding: 9px 14px;
+  border: 1px solid var(--dl-primaria, #1a237e);
+  border-radius: 10px;
+  background: var(--dl-primaria, #1a237e);
+  color: #fff;
+  font: inherit;
+  font-size: 0.85rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.dl-perfil-btn:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.dl-perfil-btn--leve {
+  border-color: var(--dl-borda-forte, #cbd5e1);
+  background: var(--dl-card, #fff);
+  color: var(--dl-titulo, #0f172a);
+}
+
+.dl-perfil-btn--leve:hover {
+  background: var(--dl-suave, #f1f5f9);
+}
+
 /* —— Tela inicial "Bem Vindo" —— */
 .px-shell .px-main:has(> .dl-boas-vindas),
 .cf-shell .cf-main:has(.dl-boas-vindas) {
   position: relative;
-  background: #eef1f4;
+  background: var(--dl-boas-vindas-fundo, #eef1f4);
 }
 
 .dl-boas-vindas {
@@ -125,7 +498,7 @@
   font-size: clamp(1.35rem, 2.4vw, 1.85rem);
   font-weight: 700;
   letter-spacing: -0.03em;
-  color: #475569;
+  color: var(--dl-texto-medio, #475569);
   opacity: 0.82;
 }
 
@@ -143,5 +516,39 @@
 
   .dl-topo-usuario {
     padding: 2px;
+  }
+
+  .dl-perfil-painel {
+    position: fixed;
+    top: calc(var(--dl-header-h, 60px) + 6px);
+    right: 10px;
+    left: 10px;
+    width: auto;
+  }
+}
+
+/* celular: o topo cabe numa linha (o botão de atualizar e o nível saem; o tema continua) */
+@media (max-width: 600px) {
+  .dl-topo-atualizar,
+  .cf-shell .cf-topbar-right .level-badge {
+    display: none;
+  }
+
+  .cf-shell .cf-topbar-right,
+  .px-shell .px-topbar-right {
+    gap: 6px;
+  }
+
+  .cf-shell .cf-topbar-left {
+    gap: 8px;
+    min-width: 0;
+  }
+
+  .cf-shell .cf-topbar-logo {
+    height: 26px;
+  }
+
+  .cf-shell .cf-sair {
+    padding: 7px 10px;
   }
 }

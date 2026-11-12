@@ -2583,3 +2583,12 @@ button.cf-vaga-nome:disabled {
   background: #fee2e2;
   color: #991b1b;
 }
+
+/* aviso de feriado no período da vaga */
+.cf-feriado {
+  padding: 8px 10px;
+  border: 1px solid #fdba74;
+  border-radius: 8px;
+  background: #fff7ed;
+  color: #9a3412;
+}

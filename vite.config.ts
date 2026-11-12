@@ -1,6 +1,7 @@
 import type { ServerResponse } from 'node:http'
 import { defineConfig, loadEnv, type Plugin } from 'vite'
 import react from '@vitejs/plugin-react'
+import { temaEscuroPostcss } from './scripts/temaEscuroPostcss.ts'
 
 function responderJson(res: ServerResponse, status: number, corpo: unknown) {
   res.statusCode = status
@@ -132,6 +133,10 @@ function portalApiDev(): Plugin {
 // https://vite.dev/config/
 export default defineConfig({
   plugins: [react(), portalApiDev()],
+  css: {
+    // Tema escuro (botão da lua no topo), gerado a partir das cores do tema claro.
+    postcss: { plugins: [temaEscuroPostcss()] },
+  },
   server: {
     allowedHosts: true,
   },

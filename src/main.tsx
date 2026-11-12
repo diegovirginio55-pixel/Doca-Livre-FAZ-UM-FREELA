@@ -6,6 +6,7 @@ import App from './App.tsx'
 import './mobile.css'
 // Tema no padrão do WMS Doca Livre: por último, para valer sobre os estilos de cada tela.
 import './tema-docalivre.css'
+import './tema-escuro.css'
 
 const TelaMapaTokens = lazy(() => import('./pages/mapaTokens/TelaMapaTokens'))
 const naTelaDeTokens = window.location.pathname.replace(/\/+$/, '') === '/mapa-tokens'

@@ -89,6 +89,46 @@ const PORTAL_TAG: Record<PortalRole | 'admin', string> = {
   admin: 'Administração · hierarquia · permissões',
 }
 
+/**
+ * Ajuda na tela do código: onde procurar o e-mail e o botão de reenviar. O servidor só aceita um
+ * código novo a cada 60 segundos, então o botão espera esse tempo.
+ */
+function AjudaCodigo({ onReenviar }: { onReenviar: () => Promise<void> }) {
+  const [liberaEm, setLiberaEm] = useState(() => Date.now() + 60_000)
+  const [agora, setAgora] = useState(() => Date.now())
+  const [enviando, setEnviando] = useState(false)
+  useEffect(() => {
+    const id = window.setInterval(() => setAgora(Date.now()), 1000)
+    return () => window.clearInterval(id)
+  }, [])
+  const faltam = Math.max(0, Math.ceil((liberaEm - agora) / 1000))
+  async function reenviar() {
+    setEnviando(true)
+    try {
+      await onReenviar()
+    } finally {
+      setEnviando(false)
+      setLiberaEm(Date.now() + 60_000)
+    }
+  }
+  return (
+    <div className="portal-login__ajuda-codigo">
+      <p>
+        Não chegou? Pode levar alguns minutos. Procure por <strong>fazumfreela</strong> também na pasta{' '}
+        <strong>Spam</strong> (ou Lixo eletrônico) e marque como "Não é spam".
+      </p>
+      <button
+        type="button"
+        className="portal-login__link"
+        disabled={faltam > 0 || enviando}
+        onClick={() => void reenviar()}
+      >
+        {enviando ? 'Reenviando…' : faltam > 0 ? `Reenviar código em ${faltam}s` : 'Reenviar código'}
+      </button>
+    </div>
+  )
+}
+
 export function PortalLoginScreen({ portal, avisoInicial, onSuccess, onBack }: Props) {
   const store = useStore()
   const [mode, setMode] = useState<Mode>('login')
@@ -221,6 +261,29 @@ export function PortalLoginScreen({ portal, avisoInicial, onSuccess, onBack }: P
     } finally {
       setLoading(false)
     }
+  }
+
+  async function reenviarCodigoCadastro() {
+    resetMessages()
+    if (portal === 'admin') return
+    const result = await portalCadastroEnviarCodigo(email.trim(), portal)
+    if (!result.ok) {
+      setErro(result.erro)
+      return
+    }
+    setCodigo('')
+    setInfo(result.mensagem.startsWith('Modo demonstração') ? result.mensagem : 'Enviamos um código novo. Use o último que chegar.')
+  }
+
+  async function reenviarCodigoSenha() {
+    resetMessages()
+    const result = await portalSenhaEnviarCodigo(identificador.trim(), (id) => store.resolveEmailByIdentificador(id))
+    if (!result.ok) {
+      setErro(result.erro)
+      return
+    }
+    setCodigo('')
+    setInfo(result.mensagem.startsWith('Modo demonstração') ? result.mensagem : 'Enviamos um código novo. Use o último que chegar.')
   }
 
   async function handleCadastroVerificar(e: FormEvent) {
@@ -440,9 +503,11 @@ export function PortalLoginScreen({ portal, avisoInicial, onSuccess, onBack }: P
               required
             />
             {erro && <p className="portal-login__erro">{erro}</p>}
+            {info && <p className="portal-login__info">{info}</p>}
             <button type="submit" className="portal-login__submit" disabled={loading || codigo.length < 6}>
               {loading ? 'Verificando…' : 'Verificar código'}
             </button>
+            <AjudaCodigo onReenviar={reenviarCodigoCadastro} />
           </form>
         )}
 
@@ -529,9 +594,11 @@ export function PortalLoginScreen({ portal, avisoInicial, onSuccess, onBack }: P
               required
             />
             {erro && <p className="portal-login__erro">{erro}</p>}
+            {info && <p className="portal-login__info">{info}</p>}
             <button type="submit" className="portal-login__submit" disabled={loading || codigo.length < 6}>
               {loading ? 'Verificando…' : 'Verificar código'}
             </button>
+            <AjudaCodigo onReenviar={reenviarCodigoSenha} />
           </form>
         )}
 
