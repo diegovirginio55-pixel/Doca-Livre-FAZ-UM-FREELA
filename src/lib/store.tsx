@@ -321,6 +321,8 @@ type StoreApi = {
   loginPortal: (usuarioOuEmail: string, senha: string, portal: PortalLogin) => Promise<ResultadoLogin>
   /** Troca obrigatória (senha provisória) e conclusão do login. */
   concluirTrocaSenha: (senhaAtual: string, novaSenha: string, portal: PortalLogin) => Promise<ResultadoLogin>
+  /** Quem está logado troca a própria senha (painel do usuário, aba Conta). */
+  trocarMinhaSenha: (senhaAtual: string, novaSenha: string) => Promise<{ ok: boolean; error?: string }>
   logout: () => void
   refreshFromCloud: () => Promise<void>
   excluirUsuario: (userId: string) => Promise<{ ok: boolean; error?: string }>
@@ -784,6 +786,25 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       if (!r.ok) return { ok: false, error: r.erro }
       const conta = await abrirSessaoReal(r)
       return concluirEntrada(conta, portal)
+    },
+
+    async trocarMinhaSenha(senhaAtual, novaSenha) {
+      if (emDemo()) return { ok: false, error: 'Indisponível no modo demonstração.' }
+      const r = await chamarApi<RespostaSessao>(
+        '/api/auth/trocar-senha',
+        { senhaAtual, novaSenha },
+        { erroPadrao: 'Não foi possível trocar a senha. Tente de novo.' },
+      )
+      if (!r.ok) return { ok: false, error: r.erro }
+      // A API devolve uma sessão nova; o resto da tela continua como está.
+      const atual = lerSessao()
+      salvarSessao({
+        token: r.token,
+        expira: r.expira,
+        contaId: atual?.contaId ?? String(r.conta.id ?? ''),
+        trocarSenha: false,
+      })
+      return { ok: true }
     },
 
     async adminRedefinirSenha(userId) {

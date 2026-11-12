@@ -3,7 +3,14 @@ import { CentralDocumentacaoAdmin } from '../../components/DocumentacaoPanel'
 import { BibliotecaDocumental } from '../../components/BibliotecaDocumental'
 import { LevelBadge } from '../../components/LevelBadge'
 import { cargoLabel } from '../../data/categories'
-import { BoasVindas, BotaoAtualizar, RelogioTopo, UsuarioTopo } from '../../components/TopoDocaLivre'
+import {
+  BoasVindas,
+  BotaoAtualizar,
+  BotaoTema,
+  RelogioTopo,
+  UsuarioTopo,
+  type PerfilDoTopo,
+} from '../../components/TopoDocaLivre'
 import { LOGO_DOCA_LIVRE_SRC } from '../../lib/brandAssets'
 import { emDemo } from '../../lib/modo'
 import { useStore } from '../../lib/store'
@@ -94,6 +101,25 @@ export function AdminApp({
   const nomeUsuario = usuarioLogado?.usuario || usuarioLogado?.email.split('@')[0] || 'Doca Livre'
   const papelUsuario =
     usuarioLogado?.role === 'super' || usuarioLogado?.nivelHierarquia === 'super' ? 'Super Usuário' : 'Administrador'
+  const perfilTopo: PerfilDoTopo = {
+    nome: nomeUsuario,
+    papel: papelUsuario,
+    usuario: usuarioLogado?.usuario,
+    email: usuarioLogado?.email,
+    criadoEm: usuarioLogado?.createdAt,
+    ativo: usuarioLogado?.ativo !== false,
+    estatisticas: [
+      { valor: store.state.empresas.length, rotulo: 'Empresas' },
+      { valor: store.state.profissionais.length, rotulo: 'Profissionais' },
+    ],
+    verificacoes: [
+      { ok: usuarioLogado?.ativo !== false, texto: 'Usuário ativo no sistema' },
+      { ok: Boolean(usuarioLogado?.email), texto: usuarioLogado?.email || 'E-mail não informado' },
+      { ok: true, texto: papelUsuario === 'Super Usuário' ? 'Acesso de superusuário' : 'Acesso de administrador' },
+    ],
+    onIrPainel: () => setSection('dashboard'),
+    onSair: onLogout,
+  }
   const alertaAba: Record<string, number> = {
     empresas: store.state.empresas.filter((empresa) => empresa.status === 'pendente').length,
     profissionais: store.state.profissionais.filter((pessoa) => pessoa.status === 'pendente').length,
@@ -136,8 +162,9 @@ export function AdminApp({
             </button>
           )}
           <BotaoAtualizar onAtualizar={refreshFromCloud} />
+          <BotaoTema />
           <RelogioTopo />
-          <UsuarioTopo nome={nomeUsuario} papel={papelUsuario} />
+          <UsuarioTopo perfil={perfilTopo} />
           <button type="button" className="px-btn px-btn-ghost" onClick={onLogout}>
             Sair
           </button>

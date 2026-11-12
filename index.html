@@ -14,6 +14,10 @@
     <meta name="apple-mobile-web-app-title" content="fazumfreela" />
     <meta name="mobile-web-app-capable" content="yes" />
     <title>Doca Livre fazumfreela</title>
+    <script>
+      // Tema salvo (claro/escuro) antes de desenhar a página, para não piscar claro no F5.
+      try { document.documentElement.setAttribute('data-tema', localStorage.getItem('fazumfreela.tema') === 'escuro' ? 'escuro' : 'claro') } catch (e) {}
+    </script>
     <!-- Doca Livre Control Center Analytics Tracker -->
     <script src="https://doca-livre-control-center.onrender.com/api/t.js" data-system="mao-de-obra" async defer></script>
       <link rel="preconnect" href="https://fonts.googleapis.com" />

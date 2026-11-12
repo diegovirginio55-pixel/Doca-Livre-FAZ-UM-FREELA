@@ -11,7 +11,7 @@ import { formatarDistancia, rotuloPeriodo } from '../../lib/periodoMissao'
 import { checklistProfissional, resumoDocumental } from '../../lib/documentos'
 import { pendenciasParaIniciar } from '../../lib/dossieTemporario'
 import { diasComPresenca, diasEntre, hojeLocal, horasRegistradas, missaoNoDia, pontoDeHoje, pontosDe } from '../../lib/ponto'
-import { BotaoAtualizar, RelogioTopo } from '../../components/TopoDocaLivre'
+import { BotaoAtualizar, BotaoTema, RelogioTopo, UsuarioTopo } from '../../components/TopoDocaLivre'
 import { BRAND_PRODUCT_NAME, LOGO_DOCA_LIVRE_SRC } from '../../lib/brandAssets'
 import { validarChavePix } from '../../lib/pix'
 import { useStore } from '../../lib/store'
@@ -95,17 +95,42 @@ export function ProfissionalApp({ onLogout }: { onLogout: () => void }) {
             }}
           />
           <BotaoAtualizar onAtualizar={store.refreshFromCloud} />
+          <BotaoTema />
           <RelogioTopo />
-          <div className="cf-topbar-user">
-            <span>
-              <strong>{prof.nome.split(' ')[0]}</strong>
-              <small>Trabalhador</small>
-            </span>
-            <LevelBadge nivel={prof.nivel} />
-            <span className="cf-avatar-topo" aria-hidden>
-              {iniciais(prof.nome)}
-            </span>
-          </div>
+          <LevelBadge nivel={prof.nivel} />
+          <UsuarioTopo
+            perfil={{
+              nome: prof.nome,
+              papel: 'Trabalhador',
+              usuario: store.currentUser?.usuario,
+              email: store.currentUser?.email,
+              criadoEm: store.currentUser?.createdAt,
+              ativo: store.currentUser?.ativo !== false,
+              foto: prof.foto,
+              estatisticas: [
+                {
+                  valor: store.state.candidaturas.filter((c) => c.profissionalId === prof.id && c.status === 'confirmada')
+                    .length,
+                  rotulo: 'Vagas aceitas',
+                },
+                {
+                  valor: prof.avaliacaoMedia ? prof.avaliacaoMedia.toFixed(1).replace('.', ',') : '—',
+                  rotulo: 'Avaliação',
+                },
+              ],
+              verificacoes: [
+                { ok: store.currentUser?.ativo !== false, texto: 'Usuário ativo no sistema' },
+                { ok: Boolean(store.currentUser?.email), texto: store.currentUser?.email || 'E-mail não informado' },
+                {
+                  ok: prof.status === 'aprovado',
+                  texto: prof.status === 'aprovado' ? 'Cadastro aprovado' : 'Cadastro em análise',
+                },
+              ],
+              onIrPainel: () => setTab('inicio'),
+              editar: { rotulo: prof.foto ? 'Alterar foto' : 'Adicionar foto', onClick: () => setTab('perfil') },
+              onSair: onLogout,
+            }}
+          />
           <button type="button" className="cf-sair" onClick={onLogout}>
             Sair
           </button>
