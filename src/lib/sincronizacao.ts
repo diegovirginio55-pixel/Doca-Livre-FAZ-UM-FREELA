@@ -183,6 +183,16 @@ export function mesclarNuvem(local: AppState, cloud: CloudBundle, ref: ReadonlyM
       base.set(chave, assinaturaItem(loadPermissoesMatriz()))
     }
   }
+  const grupos = cloud.registros.find((r) => r.colecao === 'config' && r.id === 'gruposHierarquia')
+  if (grupos) {
+    const chave = 'config:gruposHierarquia'
+    const referencia = ref.get(chave)
+    if (referencia === undefined || referencia === assinaturaItem(local.gruposHierarquia ?? [])) {
+      const lista = (grupos.payload as { grupos?: unknown }).grupos
+      next.gruposHierarquia = Array.isArray(lista) ? (lista as AppState['gruposHierarquia']) : []
+      base.set(chave, assinaturaItem(next.gruposHierarquia ?? []))
+    }
+  }
   const ett = cloud.registros.find((r) => r.colecao === 'config' && r.id === 'cadastroEtt')
   if (ett) {
     const chave = 'config:cadastroEtt'
@@ -405,6 +415,27 @@ async function enviarAgora(state: AppState): Promise<string[]> {
       ])
       if (!r.ok) erros.push(`permissões: ${r.erro}`)
       base.set('config:permissoes', sigPerms)
+    }
+  }
+
+  if (eu.admin) {
+    // Grupos de hierarquia: registro de configuração sem "publico", então só a gestão lê.
+    const chave = 'config:gruposHierarquia'
+    const lista = state.gruposHierarquia ?? []
+    const sig = assinaturaItem(lista)
+    if (base.get(chave) !== sig && (lista.length || base.get(chave) !== undefined)) {
+      const r = await upsertRegistros([
+        {
+          colecao: 'config',
+          id: 'gruposHierarquia',
+          empresa_id: null,
+          profissional_id: null,
+          publico: false,
+          payload: { grupos: lista } as unknown as Record<string, unknown>,
+        },
+      ])
+      if (!r.ok) erros.push(`grupos de hierarquia: ${r.erro}`)
+      else base.set(chave, sig)
     }
   }
 

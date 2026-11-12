@@ -111,6 +111,27 @@ export type Empresa = {
 /** Operador Logístico → Filial do Operador → Embarcador → Unidade → Transportadora. */
 export type OrgTipo = 'operador_logistico' | 'filial_operador' | 'embarcador' | 'unidade' | 'transportadora'
 
+/** Empresa dentro de um grupo de hierarquia: em cada grupo ela tem o próprio "pai". */
+export type MembroGrupo = {
+  empresaId: string
+  paiEmpresaId: string | null
+  posicao: number
+}
+
+/**
+ * Grupo de hierarquia, no mesmo modelo do Oferta de Carga: a empresa existe uma vez e pode estar
+ * em vários grupos, cada um com o seu desenho. Só a gestão vê e altera.
+ */
+export type GrupoHierarquia = {
+  id: string
+  nome: string
+  descricao: string
+  /** Empresa principal do grupo (opcional). */
+  empresaId: string
+  criadoEm: string
+  membros: MembroGrupo[]
+}
+
 export type Infracao = {
   id: string
   empresaId: string
@@ -439,5 +460,7 @@ export type AppState = {
   documentos: DocumentoRegistro[]
   pecas: PecaDocumental[]
   cadastroEtt: CadastroEtt
+  /** Grupos de hierarquia das empresas (só a gestão). */
+  gruposHierarquia?: GrupoHierarquia[]
   sessionUserId: string | null
 }
