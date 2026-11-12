@@ -453,6 +453,12 @@ body {
   background: var(--dl-fundo);
 }
 
+/* páginas do Admin (Dashboard, Empresas, Hierarquia…) ocupam a largura inteira, como no WMS */
+.px-shell .px-page,
+.px-shell .ad-dash {
+  max-width: none;
+}
+
 /* ======================================================= Conteúdo: títulos, cartões, tabelas, ações */
 .px-shell .px-title,
 .cf-shell .cf-main h1 {
