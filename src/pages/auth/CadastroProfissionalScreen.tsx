@@ -6,13 +6,13 @@ import { AvailabilityToggle } from '../../components/AvailabilityToggle'
 import { AceiteCadastro, todosAceitos } from '../../components/AceiteTermos'
 import { AnexoCurriculo, CamposSobre, ListaExperiencias, conferirExperiencias } from '../../components/CurriculoCampos'
 import type { TermoId } from '../../lib/termos'
-import { ACCEPT_DOCUMENTO_CADASTRO, analisarDocumentoCadastro, lerArquivoCadastro, type FotoDocumento, type PapelDocumento } from '../../lib/analisarDocumentoCadastro'
+import { ACCEPT_DOCUMENTO_CADASTRO, lerArquivoCadastro, type FotoDocumento, type PapelDocumento } from '../../lib/analisarDocumentoCadastro'
 import { coordenadaDaCidade } from '../../lib/coordenadaCidade'
 import { hojeLocal } from '../../lib/ponto'
 import { CERTIFICADOS_COMUNS, habilidadesDoTexto, mesclarCurriculo, nomeCertificado, semContato } from '../../lib/curriculo'
 import type { LeituraCurriculo } from '../../lib/lerCurriculo'
 import { validarChavePix } from '../../lib/pix'
-import { erroCpf, erroRg, erroTelefone, soDigitos, mascararCpf, mascararRg, mascararTelefone } from '../../lib/documentosPessoais'
+import { erroCpf, erroTelefone, soDigitos, mascararCpf, mascararRg, mascararTelefone } from '../../lib/documentosPessoais'
 import { useStore } from '../../lib/store'
 import { emailExisteNaNuvem } from '../../lib/supabaseSync'
 import type { Certificado, Disponibilidade, Experiencia } from '../../lib/types'
@@ -31,12 +31,6 @@ type LinhaDoc = {
 }
 
 const LINHA_VAZIA: LinhaDoc = { arquivo: null, status: 'vazio', motivo: '' }
-
-const NOME_PAPEL: Record<PapelDocumento, string> = {
-  documento: 'documento',
-  verso: 'verso do documento',
-  selfie: 'selfie',
-}
 
 function observacaoDoc(linha: LinhaDoc) {
   if (linha.status === 'aceito') return `Conferido automaticamente${linha.motivo ? `: ${linha.motivo}` : '.'} Aguardando validação manual.`
@@ -233,19 +227,12 @@ export function CadastroProfissionalScreen({ onBack, onDone }: Props) {
   }
 
   function problemaDocumentos() {
-    const papeis: PapelDocumento[] = ['documento', 'verso', 'selfie']
-    if (papeis.some((p) => linhas[p].status === 'analisando')) return 'Aguarde a conferência dos arquivos terminar.'
-    for (const p of papeis) {
-      if (linhas[p].status === 'recusado') {
-        return `O arquivo enviado como ${NOME_PAPEL[p]} não foi aceito: ${linhas[p].motivo || 'não deu para conferir'}. Envie outro arquivo.`
-      }
-    }
+    // Os arquivos não são conferidos aqui: quem valida é a equipe, no painel (pedido do Diego).
     if (!linhas.documento.arquivo) return 'Envie o documento com foto (RG, CIN ou CNH).'
     if (!linhas.selfie.arquivo) return 'Envie a selfie para continuar.'
     if (form.cnhCategoria.trim()) {
       if (!/^(ACC|A|B|C|D|E|AB|AC|AD|AE)$/.test(form.cnhCategoria.trim())) return 'Categoria da CNH inválida. Use ACC, A, B, C, D, E, AB, AC, AD ou AE.'
       if (!form.cnhValidade) return 'Informe a validade da CNH.'
-      if (form.cnhValidade < hojeLocal()) return 'A CNH informada está vencida.'
     }
     return ''
   }
@@ -300,24 +287,8 @@ export function CadastroProfissionalScreen({ onBack, onDone }: Props) {
     try {
       const foto = await lerArquivoCadastro(file)
       if (geracaoDoc.current[papel] !== vez) return
-      setLinhas((atual) => ({ ...atual, [papel]: { arquivo: foto, status: 'analisando', motivo: '' } }))
-      const res = await analisarDocumentoCadastro({
-        nome: form.nome,
-        cpf: soDigitos(form.cpf),
-        contexto: 'trabalhador',
-        arquivos: [{ papel, mime: foto.mime, dados: foto.dados }],
-      })
-      if (geracaoDoc.current[papel] !== vez) return
-      if (res.ok) {
-        setLinhas((atual) => ({
-          ...atual,
-          [papel]: { arquivo: foto, status: res.aceito ? 'aceito' : 'recusado', motivo: res.motivo },
-        }))
-        if (res.aceito && res.cnh && !form.cnhCategoria.trim()) set('cnhCategoria', res.cnh)
-      } else {
-        // Conferência automática indisponível: segue para a validação manual no painel.
-        setLinhas((atual) => ({ ...atual, [papel]: { arquivo: foto, status: 'manual', motivo: '' } }))
-      }
+      // Sem conferência automática: o arquivo segue direto para a validação manual no painel.
+      setLinhas((atual) => ({ ...atual, [papel]: { arquivo: foto, status: 'manual', motivo: '' } }))
     } catch (falha) {
       if (geracaoDoc.current[papel] !== vez) return
       setLinhas((atual) => ({ ...atual, [papel]: LINHA_VAZIA }))
@@ -331,9 +302,8 @@ export function CadastroProfissionalScreen({ onBack, onDone }: Props) {
       const falhaDados =
         (form.nome.trim().split(/\s+/).length < 2 ? 'Informe o nome completo (nome e sobrenome).' : '') ||
         erroCpf(form.cpf) ||
-        // Antes usava o estado do endereço, que só é preenchido na etapa 8 (até lá valia SP):
-        // RG de outro estado com 9 dígitos continuava barrado.
-        erroRg(form.rg, form.rgUf) ||
+        // O RG não é mais conferido pelo dígito: a equipe confere com o documento na validação.
+        (form.rg.replace(/[^0-9Xx]/g, '').length < 5 ? 'Informe o RG completo.' : '') ||
         erroTelefone(form.telefone) ||
         (!completing && state.users.some((u) => u.email.trim().toLowerCase() === form.email.trim().toLowerCase())
           ? 'Este e-mail já tem uma conta. Use outro e-mail ou entre com ele na tela de login.'
@@ -540,7 +510,7 @@ export function CadastroProfissionalScreen({ onBack, onDone }: Props) {
         )}
         {step === PASSO.documentos && (
           <div className="docs-mock">
-            <p>Anexe foto (JPG, PNG) ou PDF. Itens com * são obrigatórios. Cada arquivo é conferido na hora com o nome e o CPF que você informou, e depois passa pela validação manual no painel administrativo.</p>
+            <p>Anexe foto (JPG, PNG) ou PDF. Itens com * são obrigatórios. Os arquivos são conferidos pela equipe na validação do cadastro.</p>
             <CampoDoc titulo="Documento com foto (RG, CIN ou CNH)" obrigatorio dica="Frente legível, com nome e CPF." papel="documento" linha={linhas.documento} onEscolher={escolherFoto} />
             <CampoDoc titulo="Verso do documento" dica="Opcional. Envie se o CPF estiver no verso." papel="verso" linha={linhas.verso} onEscolher={escolherFoto} />
             <CampoDoc titulo="Selfie" obrigatorio dica="Rosto visível, sem óculos escuros ou boné." papel="selfie" linha={linhas.selfie} onEscolher={escolherFoto} />

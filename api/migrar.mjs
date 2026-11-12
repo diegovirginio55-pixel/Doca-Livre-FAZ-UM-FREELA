@@ -11,32 +11,16 @@ const arquivos = ['001_tabelas.sql', '002_permissoes.sql', '003_seguranca.sql']
 // Contas de gestão que já existiam no app (antes só no código do site, com a senha à vista).
 // Entram no banco real com a senha inicial de sempre, em hash, e são obrigadas a trocar por
 // uma senha forte no primeiro login. Se a conta já existe, nada é alterado.
+// Único acesso de gestão do sistema real (decisão do Diego em 12/11/2026: as contas Diego e
+// Elder saíram). Só é criado num banco novo; num banco que já tem a conta, nada muda aqui.
 const CONTAS_INICIAIS = [
-  {
-    id: 'user_diego',
-    usuario: 'Diego',
-    email: 'diego@docalivre.com',
-    role: 'super',
-    nivel: 'super',
-    superior: null,
-    hash: 'scrypt$16384$8$1$VYmlKv2KvXv2i4KfMuf2Jw==$6b/bMfr/cqbWtpIRbubsYgl4qfo7DttCrvUBjl4ni1AEjRVpzBN03zK4L/raroZbxrj0xI6QfSJVYbirsR+yug==',
-  },
-  {
-    id: 'user_elder',
-    usuario: 'Elder',
-    email: 'elder@docalivre.com',
-    role: 'super',
-    nivel: 'super',
-    superior: null,
-    hash: 'scrypt$16384$8$1$XOeFoQAuMi1WqCYztLAgwQ==$QkEVsHXxljFZ39p8vLBVO6GRINaIY6En7cSnRpyjQCDPqsv/XQCjaqatrzoixh3gvGEalPydqtAYQGsm/wHl7g==',
-  },
   {
     id: 'user_admin',
     usuario: 'admin',
     email: 'admin@docalivre.com',
-    role: 'admin',
-    nivel: 'gestor',
-    superior: 'Diego',
+    role: 'super',
+    nivel: 'super',
+    superior: null,
     hash: 'scrypt$16384$8$1$BUvJGxzORgc4wgIcLcRT7w==$6gPbzXWWwTWMLc2th6Y+T/Y/Z4j+2+QsiYXWWHE02poXpZpNjLPqNcjDzhy4afDmPi9AgXJ3A+c6mc33J8sVng==',
   },
 ]
