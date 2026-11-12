@@ -179,6 +179,35 @@ async function contagens() {
   return out
 }
 
+/**
+ * Registra no log um pedido recusado pelo banco: método, tabela, status, código e mensagem do
+ * PostgREST. Fica de fora o "details" (traz os valores da linha) e qualquer dado enviado.
+ * Sem isso, um cadastro recusado não deixava rastro nenhum no servidor.
+ */
+function registrarRecusa(req, alvo, up) {
+  const partes = []
+  let total = 0
+  up.on('data', (p) => {
+    if (total < 4000) partes.push(p)
+    total += p.length
+  })
+  up.on('end', () => {
+    let codigo = ''
+    let mensagem = ''
+    try {
+      const j = JSON.parse(Buffer.concat(partes).toString('utf8'))
+      codigo = j.code || ''
+      mensagem = j.message || ''
+    } catch {
+      /* corpo não é JSON */
+    }
+    const quem = pareceJwt(tokenDoPedido(req)) ? 'com sessão' : 'sem sessão'
+    console.error(
+      `[rest] ${req.method} ${alvo.pathname} ${up.statusCode} ${quem} ${codigo} ${String(mensagem).slice(0, 200)}`.trim(),
+    )
+  })
+}
+
 function encaminhar(req, res, base, caminho) {
   const alvo = new URL(caminho, base)
   const lib = alvo.protocol === 'https:' ? https : http
@@ -189,6 +218,7 @@ function encaminhar(req, res, base, caminho) {
   const pre = lib.request(alvo, { method: req.method, headers }, (up) => {
     const saida = { ...up.headers, ...cors(req.headers.origin) }
     res.writeHead(up.statusCode || 502, saida)
+    if ((up.statusCode || 502) >= 400) registrarRecusa(req, alvo, up)
     up.pipe(res)
   })
   pre.on('error', () => {
@@ -203,7 +233,9 @@ async function rotaJson(req, res, limite, executar, falha) {
   try {
     const corpo = req.method === 'GET' ? {} : await lerCorpo(req, limite)
     const resultado = await executar(corpo)
-    responder(req, res, resultado.status || (resultado.ok ? 200 : 503), semStatus(resultado))
+    const status = resultado.status || (resultado.ok ? 200 : 503)
+    if (!resultado.ok) console.error(`[rota] ${req.method} ${req.url?.split('?')[0]} ${status} ${String(resultado.erro || '').slice(0, 160)}`)
+    responder(req, res, status, semStatus(resultado))
   } catch (erro) {
     console.error('[rota]', req.url, erro?.message || erro)
     responder(req, res, 400, { ok: false, erro: falha })
@@ -426,6 +458,10 @@ const server = http.createServer(async (req, res) => {
     const corsArquivo = cors(req.headers.origin)
     const writeHeadOriginal = res.writeHead.bind(res)
     res.writeHead = (status, ...resto) => {
+      if (status >= 400) {
+        const quem = pareceJwt(tokenDoPedido(req)) ? 'com sessão' : 'sem sessão'
+        console.error(`[storage] ${req.method} ${caminho.split('/').slice(0, 6).join('/')} ${status} ${quem}`)
+      }
       const ultimo = resto[resto.length - 1]
       if (ultimo && typeof ultimo === 'object' && !Array.isArray(ultimo)) {
         resto[resto.length - 1] = { ...corsArquivo, ...ultimo }
