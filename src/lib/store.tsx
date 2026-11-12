@@ -725,6 +725,24 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     async loginPortal(usuarioOuEmail, senha, portal) {
       if (emDemo()) {
         const key = usuarioOuEmail.trim().toLowerCase()
+        // Só na demonstração: "admin" / "admin" abre os três portais com as contas de exemplo
+        // (pedido do Diego para conferir as telas). No sistema real isso não existe.
+        if (key === 'admin' && senha === 'admin') {
+          const exemplo =
+            portal === 'empresa'
+              ? state.users.find((u) => u.email === 'empresa@logexpress.com') ||
+                state.users.find((u) => u.role === 'empresa' && u.ativo)
+              : portal === 'profissional'
+                ? state.users.find((u) => u.email === 'joao@email.com') ||
+                  state.users.find(
+                    (u) => u.role === 'profissional' && state.profissionais.some((p) => p.userId === u.id && p.status === 'aprovado'),
+                  )
+                : state.users.find((u) => (u.usuario || '').toLowerCase() === 'admin' && u.ativo)
+          if (!exemplo) return { ok: false, error: 'Conta de exemplo não encontrada na demonstração.' }
+          const avaliadoDemo = avaliarEntradaDemo(exemplo, portal, state)
+          if (avaliadoDemo.contaId) update((s) => ({ ...s, sessionUserId: avaliadoDemo.contaId! }))
+          return avaliadoDemo.resultado
+        }
         const user = state.users.find(
           (u) =>
             u.ativo && u.senha === senha && (u.email.toLowerCase() === key || (u.usuario || '').toLowerCase() === key),
