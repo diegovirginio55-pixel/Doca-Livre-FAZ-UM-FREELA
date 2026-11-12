@@ -436,3 +436,88 @@
 .ad-titulo-acoes .px-title {
   margin-bottom: 0;
 }
+
+/* ---------- Demandas, Financeiro e Auditoria ---------- */
+.ad-vazio {
+  padding: 20px 22px;
+}
+
+.ad-vazio strong {
+  display: block;
+  margin-bottom: 4px;
+  color: #0f172a;
+}
+
+.ad-vazio p {
+  margin: 0;
+}
+
+.ad-filtros {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 0 0 14px;
+}
+
+.ad-filtro {
+  padding: 6px 12px;
+  border: 1px solid #cbd5e1;
+  border-radius: 999px;
+  background: #fff;
+  color: #475569;
+  font: inherit;
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.ad-filtro:hover {
+  border-color: #1a237e;
+  color: #1a237e;
+}
+
+.ad-filtro.is-on {
+  background: #1a237e;
+  border-color: #1a237e;
+  color: #fff;
+}
+
+.ad-tabela-card {
+  padding: 0;
+  overflow: hidden;
+}
+
+.ad-tabela-rolagem {
+  overflow-x: auto;
+}
+
+.ad-tabela {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.875rem;
+}
+
+.ad-tabela thead th {
+  padding: 12px 14px;
+  text-align: left;
+  white-space: nowrap;
+}
+
+.ad-tabela tbody td {
+  padding: 10px 14px;
+  border-top: 1px solid #e2e8f0;
+  vertical-align: middle;
+}
+
+.ad-tabela tbody tr:hover td {
+  background: #f8fafc;
+}
+
+.ad-num {
+  text-align: right !important;
+  white-space: nowrap;
+}
+
+.ad-nowrap {
+  white-space: nowrap;
+}

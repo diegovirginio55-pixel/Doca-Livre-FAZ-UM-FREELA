@@ -35,6 +35,7 @@ function BotaoSenhaProvisoria({ userId, rotulo }: { userId: string; rotulo: stri
 import { AdminDashboard } from './AdminDashboard'
 import { CadastroEmpresaDetalhe, CadastroProfissionalDetalhe } from './CadastroDetalheModal'
 import { HierarquiaEmpresas, NovaEmpresaModal } from './HierarquiaEmpresas'
+import { AuditoriaAdmin, DemandasAdmin, FinanceiroAdmin } from './PaginasOperacao'
 import { ORG_TIPO_LABEL } from '../../lib/orgHierarquia'
 import '../empresa/empresa-px.css'
 import './admin.css'
@@ -493,78 +494,3 @@ function ProfissionaisAdmin() {
   )
 }
 
-function DemandasAdmin() {
-  const { state, cancelDemanda } = useStore()
-  return (
-    <div className="px-page">
-      <h1 className="px-title">Demandas</h1>
-      <ul className="px-list">
-        {state.demandas.map((d) => {
-          const emp = state.empresas.find((e) => e.id === d.empresaId)
-          return (
-            <li key={d.id} className="px-list-card">
-              <div>
-                <strong>{cargoLabel(d.cargo)}</strong>
-                <p className="muted">
-                  {emp?.nomeFantasia} · {d.data} · {d.endereco.cidade} · R$ {d.valorDiaria}
-                </p>
-              </div>
-              <div className="px-row-actions">
-                <span className={`px-status px-status--${d.status}`}>{d.status}</span>
-                {d.status === 'aberta' && (
-                  <button type="button" className="px-btn px-btn-ghost" onClick={() => cancelDemanda(d.id)}>
-                    Cancelar
-                  </button>
-                )}
-              </div>
-            </li>
-          )
-        })}
-      </ul>
-    </div>
-  )
-}
-
-function FinanceiroAdmin() {
-  const { state } = useStore()
-  const total = state.pagamentos.reduce((s, p) => s + p.valor, 0)
-  const comissao = state.pagamentos.reduce((s, p) => s + p.comissao, 0)
-  return (
-    <div className="px-page">
-      <h1 className="px-title">Financeiro</h1>
-      <div className="px-stat-3" style={{ marginBottom: 16 }}>
-        <div className="px-mini-card"><span className="muted">Volume diárias</span><strong>R$ {total}</strong></div>
-        <div className="px-mini-card"><span className="muted">Comissões</span><strong>R$ {comissao}</strong></div>
-        <div className="px-mini-card"><span className="muted">Pagamentos</span><strong>{state.pagamentos.length}</strong></div>
-      </div>
-      <ul className="px-list">
-        {state.pagamentos.map((p) => (
-          <li key={p.id} className="px-list-card">
-            <span>R$ {p.valor} (comissão R$ {p.comissao})</span>
-            <span className="muted">{p.status}</span>
-          </li>
-        ))}
-      </ul>
-    </div>
-  )
-}
-
-function AuditoriaAdmin() {
-  const { state } = useStore()
-  return (
-    <div className="px-page">
-      <h1 className="px-title">Auditoria</h1>
-      <ul className="px-list">
-        {state.auditLogs.map((l) => (
-          <li key={l.id} className="px-list-card">
-            <div>
-              <strong>{l.action}</strong>
-              <p className="muted">{l.detail}</p>
-            </div>
-            <span className="muted">{new Date(l.at).toLocaleString()}</span>
-          </li>
-        ))}
-      </ul>
-    </div>
-  )
-}
