@@ -54,12 +54,14 @@ import type {
   DocumentoRegistro,
   DocumentoStatus,
   Empresa,
+  OrgTipo,
   Pagamento,
   PecaDocumental,
   Profissional,
   User,
   UserRole,
 } from './types'
+import { podeFicarAbaixo } from './orgHierarquia'
 
 type DocumentoCadastro = {
   tipoId: string
@@ -324,6 +326,23 @@ type StoreApi = {
   excluirUsuario: (userId: string) => Promise<{ ok: boolean; error?: string }>
   /** Admin gera senha provisória para alguém (a pessoa troca no próximo login). */
   adminRedefinirSenha: (userId: string) => Promise<{ ok: true; senha: string } | { ok: false; error: string }>
+  /** Gestão cadastra uma empresa já aprovada, no ponto escolhido da hierarquia. */
+  adminCriarEmpresa: (dados: {
+    usuario: string
+    email: string
+    orgTipo: OrgTipo
+    orgPaiId: string | null
+    empresa: Partial<Empresa>
+  }) => Promise<
+    { ok: true; usuario: string; email: string; senha: string; emailEnviado: boolean } | { ok: false; error: string }
+  >
+  /** Muda o tipo e a empresa acima (null tira da hierarquia). */
+  adminPosicionarEmpresa: (
+    empresaId: string,
+    posicao: { orgTipo: OrgTipo | null; orgPaiId: string | null },
+  ) => Promise<{ ok: boolean; error?: string }>
+  /** Tira da hierarquia; quem estava abaixo sobe para o lugar dela (ou para o topo). */
+  adminTirarDaHierarquia: (empresaId: string) => Promise<{ ok: boolean; error?: string }>
   resolveEmailByIdentificador: (id: string) => Promise<string | null>
   portalRegisterUser: (data: {
     email: string
@@ -749,6 +768,52 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       const r = await chamarApi<{ senhaTemporaria: string }>('/api/auth/admin/redefinir-senha', { contaId: userId })
       if (!r.ok) return { ok: false, error: r.erro }
       return { ok: true, senha: r.senhaTemporaria }
+    },
+
+    async adminCriarEmpresa(dados) {
+      if (emDemo()) return { ok: false, error: 'Indisponível no modo demonstração.' }
+      const r = await chamarApi<{ usuario: string; email: string; senhaTemporaria: string; emailEnviado: boolean }>(
+        '/api/auth/admin/criar-empresa',
+        dados as unknown as Record<string, unknown>,
+        { erroPadrao: 'Não foi possível cadastrar a empresa. Tente de novo em instantes.' },
+      )
+      if (!r.ok) return { ok: false, error: r.erro }
+      await refreshFromCloud()
+      return { ok: true, usuario: r.usuario, email: r.email, senha: r.senhaTemporaria, emailEnviado: r.emailEnviado }
+    },
+
+    async adminPosicionarEmpresa(empresaId, { orgTipo, orgPaiId }) {
+      const atual = state.empresas.find((e) => e.id === empresaId)
+      if (!atual) return { ok: false, error: 'Empresa não encontrada.' }
+      const next: Empresa = { ...atual, orgTipo: orgTipo ?? undefined, orgPaiId: orgTipo ? orgPaiId : null }
+      if (await supabaseConfigured()) {
+        const remoto = await upsertEmpresa(next)
+        if (!remoto.ok) return { ok: false, error: remoto.erro }
+      }
+      update((s) => ({ ...s, empresas: s.empresas.map((e) => (e.id === empresaId ? next : e)) }))
+      return { ok: true }
+    },
+
+    async adminTirarDaHierarquia(empresaId) {
+      const alvo = state.empresas.find((e) => e.id === empresaId)
+      if (!alvo) return { ok: false, error: 'Empresa não encontrada.' }
+      const pai = alvo.orgPaiId ? state.empresas.find((e) => e.id === alvo.orgPaiId) : undefined
+      const mudadas: Empresa[] = state.empresas
+        .filter((e) => e.orgPaiId === empresaId && e.orgTipo)
+        .map((filho) => ({
+          ...filho,
+          orgPaiId: pai && podeFicarAbaixo(filho.orgTipo!, pai.orgTipo) ? pai.id : null,
+        }))
+      mudadas.push({ ...alvo, orgTipo: undefined, orgPaiId: null })
+      if (await supabaseConfigured()) {
+        for (const empresa of mudadas) {
+          const remoto = await upsertEmpresa(empresa)
+          if (!remoto.ok) return { ok: false, error: remoto.erro }
+        }
+      }
+      const porId = new Map(mudadas.map((e) => [e.id, e]))
+      update((s) => ({ ...s, empresas: s.empresas.map((e) => porId.get(e.id) ?? e) }))
+      return { ok: true }
     },
 
     async resolveEmailByIdentificador(id) {

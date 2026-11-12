@@ -423,3 +423,16 @@
   }
 }
 
+
+/* Título com botão ao lado (ex.: Empresas + Cadastrar empresa). */
+.ad-titulo-acoes {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.ad-titulo-acoes .px-title {
+  margin-bottom: 0;
+}

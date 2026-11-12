@@ -5,6 +5,7 @@ import { pool } from './migrar.mjs'
 import { atenderArquivo } from './arquivos.mjs'
 import { pareceJwt, tokenDoPedido } from './auth.mjs'
 import {
+  adminCriarEmpresa,
   adminRedefinirSenha,
   contaDoPedido,
   criarConta,
@@ -359,6 +360,16 @@ const server = http.createServer(async (req, res) => {
       4000,
       (c) => redefinirSenha(campos(c, ['verify_token', 'novaSenha'])),
       'Não foi possível trocar a senha.',
+    )
+    return
+  }
+  if (caminho === '/api/auth/admin/criar-empresa' && req.method === 'POST') {
+    await rotaJson(
+      req,
+      res,
+      20000,
+      (c) => adminCriarEmpresa(req, campos(c, ['usuario', 'email', 'orgTipo', 'orgPaiId', 'empresa'])),
+      'Não foi possível cadastrar a empresa.',
     )
     return
   }

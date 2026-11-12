@@ -44,7 +44,9 @@ function isHidden(usuario: string, email: string, role: string) {
 
 export function PortalConfigScreen({ onContinuar, onSair }: Props) {
   const store = useStore()
-  const [tab, setTab] = useState<'hierarquia' | 'permissoes'>('hierarquia')
+  // A hierarquia das empresas foi para o painel (menu "Hierarquia", no desenho do Oferta de Carga).
+  // Aqui ficam as permissões de cada conta.
+  const [tab, setTab] = useState<'hierarquia' | 'permissoes'>('permissoes')
   const [selected, setSelected] = useState('')
   const [filtro, setFiltro] = useState('')
   const [okMsg, setOkMsg] = useState<string | null>(null)
@@ -208,10 +210,10 @@ export function PortalConfigScreen({ onContinuar, onSair }: Props) {
     <div className="pconfig">
       <header className="pconfig-header">
         <div>
-          <h1>Hierarquia e permissões</h1>
+          <h1>Permissões</h1>
           <p>
             Controle de acesso dos portais Empresa, Profissional e Admin. Superusuários têm acesso
-            total.
+            total. A hierarquia das empresas fica no painel, no menu Hierarquia.
           </p>
         </div>
         <div className="pconfig-actions">
@@ -225,13 +227,6 @@ export function PortalConfigScreen({ onContinuar, onSair }: Props) {
       </header>
 
       <div className="pconfig-tabs">
-        <button
-          type="button"
-          className={tab === 'hierarquia' ? 'is-active' : ''}
-          onClick={() => setTab('hierarquia')}
-        >
-          Hierarquia
-        </button>
         <button
           type="button"
           className={tab === 'permissoes' ? 'is-active' : ''}

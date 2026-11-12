@@ -34,12 +34,15 @@ function BotaoSenhaProvisoria({ userId, rotulo }: { userId: string; rotulo: stri
 }
 import { AdminDashboard } from './AdminDashboard'
 import { CadastroEmpresaDetalhe, CadastroProfissionalDetalhe } from './CadastroDetalheModal'
+import { HierarquiaEmpresas, NovaEmpresaModal } from './HierarquiaEmpresas'
+import { ORG_TIPO_LABEL } from '../../lib/orgHierarquia'
 import '../empresa/empresa-px.css'
 import './admin.css'
 
 const ITEMS = [
   { id: 'dashboard', label: 'Dashboard' },
   { id: 'empresas', label: 'Empresas' },
+  { id: 'hierarquia', label: 'Hierarquia' },
   { id: 'profissionais', label: 'Profissionais' },
   { id: 'documentacao', label: 'Documentação' },
   { id: 'demandas', label: 'Demandas' },
@@ -80,10 +83,7 @@ export function AdminApp({
     window.location.reload()
   }
 
-  const navItems = [
-    ...ITEMS,
-    ...(onOpenConfig ? [{ id: 'config', label: 'Hierarquia' }] : []),
-  ]
+  const navItems = ITEMS
   const alertaAba: Record<string, number> = {
     empresas: store.state.empresas.filter((empresa) => empresa.status === 'pendente').length,
     profissionais: store.state.profissionais.filter((pessoa) => pessoa.status === 'pendente').length,
@@ -113,7 +113,7 @@ export function AdminApp({
         <div className="px-topbar-right" style={{ marginLeft: 'auto' }}>
           {onOpenConfig && (
             <button type="button" className="px-btn px-btn-outline" onClick={onOpenConfig}>
-              Hierarquia / Permissões
+              Permissões
             </button>
           )}
           <button type="button" className="px-btn px-btn-ghost" onClick={onLogout}>
@@ -154,6 +154,7 @@ export function AdminApp({
         <main className="px-main">
           {section === 'dashboard' && <AdminDashboard />}
           {section === 'empresas' && <EmpresasAdmin />}
+          {section === 'hierarquia' && <HierarquiaEmpresas />}
           {section === 'profissionais' && <ProfissionaisAdmin />}
           {section === 'documentacao' && (
             <>
@@ -232,6 +233,14 @@ function IconeAba({ id }: { id: string }) {
           <path d="M8.8 12.1l2.1 2.1 4.3-4.4" {...traco} />
         </>
       )}
+      {id === 'hierarquia' && (
+        <>
+          <rect x="9" y="3.5" width="6" height="4.5" rx="1.2" {...traco} />
+          <rect x="3.5" y="16" width="6" height="4.5" rx="1.2" {...traco} />
+          <rect x="14.5" y="16" width="6" height="4.5" rx="1.2" {...traco} />
+          <path d="M12 8v4M6.5 16v-2a2 2 0 0 1 2-2h7a2 2 0 0 1 2 2v2" {...traco} />
+        </>
+      )}
       {id === 'config' && (
         <>
           <circle cx="8" cy="8" r="2.2" {...traco} />
@@ -252,6 +261,7 @@ function ordemAprovacao(status: string) {
 function EmpresasAdmin() {
   const { state, setEmpresaStatus, excluirUsuario, currentUser } = useStore()
   const [detalheId, setDetalheId] = useState<string | null>(null)
+  const [cadastrando, setCadastrando] = useState(false)
   const empresas = [...state.empresas].sort((a, b) => ordemAprovacao(a.status) - ordemAprovacao(b.status))
   const pendentes = empresas.filter((empresa) => empresa.status === 'pendente').length
   const detalhe = detalheId ? empresas.find((e) => e.id === detalheId) : undefined
@@ -275,7 +285,14 @@ function EmpresasAdmin() {
 
   return (
     <div className="px-page">
-      <h1 className="px-title">Empresas</h1>
+      <div className="ad-titulo-acoes">
+        <h1 className="px-title">Empresas</h1>
+        {!emDemo() && (
+          <button type="button" className="px-btn px-btn-primary" onClick={() => setCadastrando(true)}>
+            + Cadastrar empresa
+          </button>
+        )}
+      </div>
       {pendentes > 0 && (
         <p className="ad-pendente-nota">
           {pendentes === 1 ? '1 empresa aguardando aprovação.' : `${pendentes} empresas aguardando aprovação.`}
@@ -294,6 +311,7 @@ function EmpresasAdmin() {
                 )}
                 <p className="muted">
                   {e.cnpj} · {e.tipo} · {e.plano} · {e.endereco.cidade}
+                  {e.orgTipo ? ` · ${ORG_TIPO_LABEL[e.orgTipo]}` : ' · fora da hierarquia'}
                 </p>
               </div>
               <div className="px-row-actions">
@@ -330,6 +348,7 @@ function EmpresasAdmin() {
           )
         })}
       </ul>
+      {cadastrando && <NovaEmpresaModal onFechar={() => setCadastrando(false)} />}
       {detalhe && (
         <CadastroEmpresaDetalhe
           empresa={detalhe}
