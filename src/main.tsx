@@ -3,6 +3,8 @@ import { createRoot } from 'react-dom/client'
 import './index.css'
 import App from './App.tsx'
 import './mobile.css'
+// Tema no padrão do WMS Doca Livre: por último, para valer sobre os estilos de cada tela.
+import './tema-docalivre.css'
 
 const TelaMapaTokens = lazy(() => import('./pages/mapaTokens/TelaMapaTokens'))
 const naTelaDeTokens = window.location.pathname.replace(/\/+$/, '') === '/mapa-tokens'

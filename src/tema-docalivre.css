@@ -1,0 +1,572 @@
+/* Tema Doca Livre: o mesmo desenho do WMS Doca Livre e do sistema.docalivre.com.br
+   (topo branco com o botão de menu escuro, menu lateral grafite que abre ao passar o mouse,
+   item ativo em amarelo, conteúdo em cartões brancos, ações e tabelas em azul-marinho, fonte Inter).
+   Carregado por último: muda a aparência, não o funcionamento. A intro e a logo continuam as mesmas. */
+
+:root {
+  --dl-header-h: 60px;
+  --dl-menu-w: 260px;
+  --dl-menu-w-recolhido: 70px;
+
+  --dl-menu-bg: #1a1f2e;
+  --dl-menu-texto: rgba(255, 255, 255, 0.55);
+  --dl-menu-hover-bg: rgba(255, 255, 255, 0.07);
+  --dl-menu-hover-texto: rgba(255, 255, 255, 0.9);
+  --dl-menu-ativo-bg: rgba(245, 197, 24, 0.1);
+  --dl-menu-ativo: #f5c518;
+
+  --dl-fundo: #f8fafc;
+  --dl-card: #ffffff;
+  --dl-suave: #f1f5f9;
+  --dl-borda: #e2e8f0;
+  --dl-borda-forte: #cbd5e1;
+  --dl-titulo: #0f172a;
+  --dl-texto: #1e293b;
+  --dl-texto-medio: #475569;
+  --dl-texto-sec: #64748b;
+  --dl-primaria: #1a237e;
+  --dl-primaria-media: #283593;
+  --dl-primaria-suave: #e8eaf6;
+  --dl-primaria-borda: #c5cae9;
+  --dl-sombra-card: 0 1px 3px rgba(15, 23, 42, 0.06), 0 1px 2px rgba(15, 23, 42, 0.04);
+
+  /* variáveis que o resto do app já usa */
+  --sidebar-bg: var(--dl-menu-bg);
+  --sidebar-border: #2a3142;
+  --bg: var(--dl-fundo);
+  --content-bg: var(--dl-fundo);
+  --bg-panel: var(--dl-card);
+  --bg-elevated: var(--dl-suave);
+  --border: var(--dl-borda);
+  --text: var(--dl-texto);
+  --text-muted: var(--dl-texto-sec);
+  --app-topbar-h: var(--dl-header-h);
+  font-family: 'Inter', 'Segoe UI', Roboto, system-ui, sans-serif;
+  color: var(--dl-texto);
+  background: var(--dl-fundo);
+}
+
+body {
+  background: var(--dl-fundo);
+  color: var(--dl-texto);
+}
+
+/* ======================================================= Empresa e Profissional (cf-shell) */
+.cf-shell {
+  background: var(--dl-fundo);
+  color: var(--dl-texto);
+}
+
+.cf-shell .cf-topbar {
+  height: var(--dl-header-h);
+  padding: 0 16px 0 0;
+  background: var(--dl-card);
+  border-bottom: 1px solid var(--dl-borda);
+  box-shadow: none;
+}
+
+.cf-shell .cf-topbar-left {
+  gap: 12px;
+}
+
+/* botão de menu: quadrado escuro na largura do menu recolhido, como no WMS */
+.cf-shell .cf-topbar-menu {
+  width: var(--dl-menu-w-recolhido);
+  height: var(--dl-header-h);
+  border-radius: 0;
+  background: var(--dl-menu-bg);
+  color: #fff;
+}
+
+.cf-shell .cf-topbar-menu:hover {
+  background: var(--dl-menu-bg);
+  color: var(--dl-menu-ativo);
+}
+
+.cf-shell .cf-topbar-logo {
+  height: 34px;
+}
+
+.cf-shell .cf-product {
+  font-size: 1.2rem;
+  font-weight: 900;
+  letter-spacing: 0.02em;
+  color: var(--dl-titulo);
+}
+
+@media (min-width: 861px) {
+  .cf-shell .cf-product {
+    display: inline;
+  }
+}
+
+@media (max-width: 860px) {
+  .cf-shell .cf-topbar-menu {
+    width: 56px;
+  }
+
+  .cf-shell .cf-topbar-logo {
+    height: 28px;
+  }
+
+  .cf-shell .cf-topbar-user {
+    padding: 4px;
+  }
+
+  .cf-shell .cf-topbar-user > span:not(.cf-avatar-topo) {
+    display: none;
+  }
+
+  .cf-shell .cf-main {
+    padding: 16px;
+  }
+}
+
+/* usuário em "pílula", como o chip do WMS */
+.cf-shell .cf-topbar-user {
+  padding: 4px 12px 4px 4px;
+  border: 1px solid var(--dl-borda);
+  border-radius: 999px;
+  flex-direction: row-reverse;
+  text-align: left;
+}
+
+.cf-shell .cf-topbar-user strong {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--dl-texto);
+}
+
+.cf-shell .cf-topbar-user small {
+  font-size: 0.7rem;
+  font-weight: 500;
+  color: var(--dl-texto-sec);
+}
+
+.cf-shell .cf-avatar-topo {
+  width: 30px;
+  height: 30px;
+  border: none;
+  background: var(--dl-primaria);
+  color: #fff;
+  font-size: 0.8rem;
+  font-weight: 700;
+}
+
+.cf-shell .cf-sair {
+  border: 1px solid var(--dl-borda);
+  border-radius: 10px;
+  background: transparent;
+  color: var(--dl-texto-medio);
+  font-weight: 600;
+}
+
+.cf-shell .cf-sair:hover {
+  background: var(--dl-suave);
+  color: var(--dl-titulo);
+}
+
+/* menu lateral grafite, recolhido em 70px e aberto em 260px */
+.cf-shell .cf-menu {
+  width: var(--dl-menu-w-recolhido);
+  padding: 8px 0 0;
+  background: var(--dl-menu-bg);
+  border-right: none;
+  box-shadow: 2px 0 12px rgba(0, 0, 0, 0.35);
+}
+
+.cf-shell .cf-menu--wide {
+  width: var(--dl-menu-w);
+  padding: 8px 0 10px;
+}
+
+.cf-shell .cf-menu-rail {
+  width: var(--dl-menu-w-recolhido);
+}
+
+.cf-shell .cf-menu-link,
+.cf-shell .cf-menu--wide .cf-menu-link {
+  justify-content: flex-start;
+  gap: 0;
+  padding: 11px 20px;
+  color: var(--dl-menu-texto);
+  border-left: 3px solid transparent;
+  font-weight: 500;
+}
+
+.cf-shell .cf-menu-link:hover {
+  background: var(--dl-menu-hover-bg);
+  color: var(--dl-menu-hover-texto);
+  border-left-color: rgba(255, 255, 255, 0.15);
+}
+
+.cf-shell .cf-menu-link--on,
+.cf-shell .cf-menu-link--on:hover {
+  background: var(--dl-menu-ativo-bg);
+  color: var(--dl-menu-ativo);
+  border-left-color: var(--dl-menu-ativo);
+  font-weight: 600;
+}
+
+.cf-shell .cf-menu-icon {
+  width: 24px;
+  min-width: 24px;
+  margin-right: 20px;
+  color: inherit;
+}
+
+.cf-shell .cf-menu-link:hover .cf-menu-icon,
+.cf-shell .cf-menu-link--on .cf-menu-icon {
+  color: inherit;
+}
+
+.cf-shell .cf-menu--wide .cf-menu-label {
+  font-size: 0.9rem;
+  font-weight: inherit;
+  letter-spacing: 0;
+}
+
+.cf-shell .cf-menu--wide .cf-menu-chevron,
+.cf-shell .cf-menu--wide .cf-menu-link--on .cf-menu-chevron {
+  color: inherit;
+  opacity: 0.6;
+}
+
+.cf-shell .cf-main {
+  padding: 24px;
+}
+
+/* ======================================================= Admin (px-shell) */
+.px-shell {
+  --px-bg: var(--dl-fundo);
+  --px-card: var(--dl-card);
+  --px-border: var(--dl-borda);
+  --px-text: var(--dl-titulo);
+  --px-muted: var(--dl-texto-sec);
+  --px-blue: var(--dl-primaria);
+  --px-blue-soft: var(--dl-primaria-suave);
+  background: var(--dl-fundo);
+}
+
+.px-shell .px-topbar {
+  height: var(--dl-header-h);
+  padding: 0 16px 0 0;
+  gap: 12px;
+  background: var(--dl-card);
+  border-bottom: 1px solid var(--dl-borda);
+}
+
+.px-shell .px-topbar-menu {
+  width: var(--dl-menu-w-recolhido);
+  height: var(--dl-header-h);
+  flex-shrink: 0;
+  display: grid;
+  place-items: center;
+  border: none;
+  background: var(--dl-menu-bg);
+  color: #fff;
+  cursor: pointer;
+}
+
+.px-shell .px-topbar-menu:hover {
+  color: var(--dl-menu-ativo);
+}
+
+.px-shell .px-topbar-menu svg {
+  width: 20px;
+  height: 20px;
+}
+
+.px-shell .px-topbar-left {
+  min-width: 0;
+  gap: 10px;
+}
+
+.px-shell .px-topbar-logo {
+  height: 34px;
+}
+
+.px-shell .px-topbar-brand {
+  font-size: 1.2rem;
+  font-weight: 900;
+  letter-spacing: 0.02em;
+  color: var(--dl-titulo);
+}
+
+.px-shell .px-topbar-sub {
+  font-size: 0.72rem;
+  color: var(--dl-texto-sec);
+}
+
+.px-shell .px-topbar-right .px-btn {
+  border-radius: 10px;
+}
+
+.px-shell .px-body {
+  position: relative;
+}
+
+@media (min-width: 801px) {
+  /* menu lateral do Admin: grafite, recolhido em 70px; abre ao passar o mouse ou fixado pelo botão */
+  .px-shell--admin .px-sidebar {
+    width: var(--dl-menu-w-recolhido);
+    background: var(--dl-menu-bg);
+    border-right: none;
+    box-shadow: 2px 0 12px rgba(0, 0, 0, 0.35);
+    overflow-x: hidden;
+    overflow-y: auto;
+    white-space: nowrap;
+    transition: width 0.3s ease;
+    z-index: 30;
+  }
+
+  .px-shell--admin .px-sidebar:hover,
+  .px-shell--admin.px-shell--menu-fixo .px-sidebar {
+    width: var(--dl-menu-w);
+  }
+
+  /* aberto com o mouse, o menu passa por cima do conteúdo (não empurra a página) */
+  .px-shell--admin:not(.px-shell--menu-fixo) .px-sidebar:hover {
+    position: absolute;
+    left: 0;
+    top: 0;
+    bottom: 0;
+  }
+
+  .px-shell--admin:not(.px-shell--menu-fixo) .px-sidebar:hover + .px-main {
+    margin-left: var(--dl-menu-w-recolhido);
+  }
+
+  .px-shell--admin .px-sidebar-nav {
+    padding: 8px 0;
+    gap: 0;
+  }
+
+  .px-shell--admin .px-sidebar-kicker {
+    display: none;
+  }
+
+  .px-shell--admin .px-nav-link {
+    min-height: 0;
+    gap: 0;
+    padding: 11px 20px;
+    border-radius: 0;
+    border-left: 3px solid transparent;
+    background: none;
+    color: var(--dl-menu-texto);
+    font-size: 0.9rem;
+    font-weight: 500;
+  }
+
+  .px-shell--admin .px-nav-link:hover {
+    background: var(--dl-menu-hover-bg);
+    color: var(--dl-menu-hover-texto);
+    border-left-color: rgba(255, 255, 255, 0.15);
+  }
+
+  .px-shell--admin .px-nav-link--active,
+  .px-shell--admin .px-nav-link--active:hover {
+    background: var(--dl-menu-ativo-bg);
+    color: var(--dl-menu-ativo);
+    border-left-color: var(--dl-menu-ativo);
+    font-weight: 600;
+  }
+
+  .px-shell--admin .px-nav-ico,
+  .px-shell--admin .px-nav-link--active .px-nav-ico {
+    width: 24px;
+    min-width: 24px;
+    height: 24px;
+    margin-right: 20px;
+    border-radius: 0;
+    background: none;
+    color: inherit;
+  }
+
+  .px-shell--admin .px-nav-link > span:not(.px-nav-ico):not(.ad-nav-alerta) {
+    opacity: 0;
+    transition: opacity 0.1s ease;
+  }
+
+  .px-shell--admin .px-sidebar:hover .px-nav-link > span:not(.px-nav-ico):not(.ad-nav-alerta),
+  .px-shell--admin.px-shell--menu-fixo .px-nav-link > span:not(.px-nav-ico):not(.ad-nav-alerta) {
+    opacity: 1;
+    transition-delay: 0.1s;
+  }
+
+  /* contador de pendências: no canto do ícone quando o menu está recolhido */
+  .px-shell--admin .px-nav-link {
+    position: relative;
+  }
+
+  .px-shell--admin .ad-nav-alerta {
+    position: absolute;
+    left: 36px;
+    top: 4px;
+    margin: 0;
+    min-width: 18px;
+    height: 18px;
+    padding: 0 5px;
+    font-size: 0.68rem;
+    background: var(--dl-menu-ativo);
+    color: var(--dl-menu-bg);
+  }
+}
+
+/* celular: o menu do Admin vira uma barra horizontal escura */
+@media (max-width: 800px) {
+  .px-shell .px-topbar-menu {
+    display: none;
+  }
+
+  .px-shell .px-topbar {
+    padding-left: 12px;
+  }
+
+  .px-shell--admin .px-sidebar {
+    background: var(--dl-menu-bg);
+    border-bottom: none;
+  }
+
+  .px-shell--admin .px-nav-link {
+    min-height: 0;
+    padding: 8px 12px;
+    border-radius: 999px;
+    color: var(--dl-menu-texto);
+    font-weight: 500;
+  }
+
+  .px-shell--admin .px-nav-link--active {
+    background: var(--dl-menu-ativo-bg);
+    color: var(--dl-menu-ativo);
+    font-weight: 600;
+  }
+
+  .px-shell--admin .px-nav-ico,
+  .px-shell--admin .px-nav-link--active .px-nav-ico {
+    width: 20px;
+    height: 20px;
+    background: none;
+    color: inherit;
+  }
+}
+
+.px-shell .px-main {
+  padding: 24px;
+  background: var(--dl-fundo);
+}
+
+/* ======================================================= Conteúdo: títulos, cartões, tabelas, ações */
+.px-shell .px-title,
+.cf-shell .cf-main h1 {
+  font-size: 1.5rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: var(--dl-titulo);
+}
+
+.px-shell .px-list-card,
+.px-shell .px-modal {
+  border-color: var(--dl-borda);
+  border-radius: 12px;
+  box-shadow: var(--dl-sombra-card);
+}
+
+.px-shell .px-main table thead th,
+.cf-shell .cf-main table thead th {
+  background: var(--dl-primaria);
+  color: #fff;
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  border: none;
+}
+
+/* ações principais em azul-marinho, como os botões do WMS */
+.px-shell .px-btn-primary,
+.cf-shell .cf-primary,
+.cf-shell .cf-btn--dark,
+.cf-shell .cf-btn--yellow,
+.btn-accent,
+.td-vaga-btn,
+.td-editor-pri {
+  background: var(--dl-primaria);
+  border-color: var(--dl-primaria);
+  color: #fff;
+}
+
+.px-shell .px-btn-primary:hover,
+.cf-shell .cf-primary:hover,
+.cf-shell .cf-btn--dark:hover,
+.cf-shell .cf-btn--yellow:hover,
+.btn-accent:hover,
+.td-vaga-btn:hover,
+.td-editor-pri:hover {
+  background: var(--dl-primaria-media);
+  border-color: var(--dl-primaria-media);
+  color: #fff;
+  filter: none;
+}
+
+.px-shell .px-btn-outline {
+  color: var(--dl-primaria);
+  border-color: var(--dl-primaria-borda);
+}
+
+.px-shell .px-btn-outline:hover {
+  background: var(--dl-primaria-suave);
+  border-color: var(--dl-primaria);
+}
+
+/* opções marcadas (filtros, raios, cargos) */
+.cf-shell .cf-opcoes button.on,
+.cf-shell .cf-chip--on,
+.chip--on,
+.td-chip--on,
+.td-fin-filtros button.on {
+  background: var(--dl-primaria);
+  border-color: var(--dl-primaria);
+  color: #fff;
+}
+
+/* botões de opção com borda fina, como os do WMS */
+.cf-shell .cf-opcoes button {
+  border: 1px solid var(--dl-borda-forte);
+  color: var(--dl-texto-medio);
+  font-weight: 600;
+}
+
+.cf-shell .cf-opcoes button:hover {
+  border-color: var(--dl-primaria);
+  color: var(--dl-primaria);
+}
+
+.cf-shell .cf-opcoes button.on,
+.cf-shell .cf-opcoes button.on:hover {
+  color: #fff;
+}
+
+/* cartão escolhido (ex.: tipo de pesquisa) em azul-marinho claro */
+.cf-shell .cf-modo {
+  border: 1px solid var(--dl-borda);
+  border-radius: 12px;
+}
+
+.cf-shell .cf-modo--on {
+  border-color: var(--dl-primaria);
+  background: var(--dl-primaria-suave);
+  box-shadow: inset 0 0 0 1px var(--dl-primaria);
+}
+
+/* campos de formulário */
+.cf-shell input:focus,
+.cf-shell select:focus,
+.cf-shell textarea:focus,
+.px-shell input:focus,
+.px-shell select:focus,
+.px-shell textarea:focus {
+  border-color: #3b82f6;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.12);
+  outline: none;
+}

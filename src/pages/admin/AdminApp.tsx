@@ -60,6 +60,8 @@ export function AdminApp({
   const store = useStore()
   const { refreshFromCloud } = store
   const [section, setSection] = useState('dashboard')
+  // Menu lateral como no WMS Doca Livre: recolhido, abre com o mouse; o botão do topo o deixa fixo.
+  const [menuFixo, setMenuFixo] = useState(false)
 
   // Dependia de `store`, que é um objeto novo a cada render: cada atualização disparava outra
   // busca do banco inteiro, em loop, enquanto o admin ficava aberto.
@@ -90,7 +92,7 @@ export function AdminApp({
   }
 
   return (
-    <div className="px-shell px-shell--admin">
+    <div className={`px-shell px-shell--admin${menuFixo ? ' px-shell--menu-fixo' : ''}`}>
       {emDemo() && (
         <div className="px-banner-switch">
           <span>
@@ -103,11 +105,23 @@ export function AdminApp({
         </div>
       )}
       <header className="px-topbar">
+        <button
+          type="button"
+          className="px-topbar-menu"
+          aria-label={menuFixo ? 'Recolher o menu' : 'Fixar o menu aberto'}
+          aria-pressed={menuFixo}
+          title="Fixar / recolher o menu"
+          onClick={() => setMenuFixo((valor) => !valor)}
+        >
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" aria-hidden>
+            <path d="M4 6h16M4 12h16M4 18h16" />
+          </svg>
+        </button>
         <div className="px-topbar-left">
           <img src={LOGO_DOCA_LIVRE_SRC} alt="Doca Livre" className="px-topbar-logo" />
           <div>
-            <strong className="px-topbar-brand">Painel Administrativo</strong>
-            <p className="px-topbar-sub">Doca Livre fazumfreela</p>
+            <strong className="px-topbar-brand">fazumfreela</strong>
+            <p className="px-topbar-sub">Painel administrativo</p>
           </div>
         </div>
         <div className="px-topbar-right" style={{ marginLeft: 'auto' }}>
