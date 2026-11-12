@@ -20,6 +20,25 @@ export function emDemo() {
   return modoAtual() === 'demo'
 }
 
+/**
+ * Link da equipe: abrir o site em /demo (ou com ?demo) já entra na demonstração. O botão não fica
+ * à vista do público desde a abertura dos cadastros. Chamado antes de o app montar.
+ */
+export function entrarNaDemoPeloLink() {
+  try {
+    const { pathname, search } = window.location
+    const pediu = pathname.replace(/\/+$/, '') === '/demo' || new URLSearchParams(search).has('demo')
+    if (!pediu) return
+    if (localStorage.getItem(CHAVE_MODO) !== 'demo') {
+      localStorage.setItem(CHAVE_MODO, 'demo')
+      sessionStorage.removeItem('mao-portal-ativo')
+    }
+    window.history.replaceState(null, '', '/')
+  } catch {
+    /* sem storage: segue no modo real */
+  }
+}
+
 /** Troca de modo recarregando a página: estado, cliente do banco e sessão começam do zero. */
 export function trocarModo(modo: Modo) {
   try {
