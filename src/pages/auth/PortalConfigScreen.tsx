@@ -210,8 +210,8 @@ export function PortalConfigScreen({ onContinuar, onSair }: Props) {
         <div>
           <h1>Hierarquia e permissões</h1>
           <p>
-            Controle de acesso dos portais Empresa, Profissional e Admin. Superusuários Diego e Elder
-            têm acesso total.
+            Controle de acesso dos portais Empresa, Profissional e Admin. Superusuários têm acesso
+            total.
           </p>
         </div>
         <div className="pconfig-actions">
@@ -301,9 +301,6 @@ export function PortalConfigScreen({ onContinuar, onSair }: Props) {
                       {u.usuario}
                     </option>
                   ))}
-                <option value="Diego">Diego (super)</option>
-                <option value="Elder">Elder (super)</option>
-                <option value="admin">admin</option>
               </select>
               <button type="button" className="pconfig-btn pconfig-btn--primary" onClick={saveHier}>
                 Salvar hierarquia

@@ -1,4 +1,5 @@
 import { enviarEmail } from '../email.mjs'
+import { pool } from '../migrar.mjs'
 
 function escaparHtml(texto) {
   return String(texto)
@@ -8,22 +9,38 @@ function escaparHtml(texto) {
     .replace(/"/g, "&quot;")
 }
 
-export function montarEmailNotificacaoCadastro({ nome, tipo, decisao, motivo }) {
+export function montarEmailNotificacaoCadastro({ nome, tipo, decisao, motivo, usuario, email }) {
   const quem = tipo === 'empresa' ? 'da empresa' : 'de colaborador'
   const rotulo = String(nome || '').trim() || 'olá'
   const rotuloHtml = escaparHtml(rotulo)
   if (decisao === 'aprovado' || decisao === 'aprovada') {
     const assunto = 'Doca Livre fazumfreela — cadastro aprovado'
+    const portal = tipo === 'empresa' ? 'Empresa' : 'Profissional'
+    // A senha não vai no e-mail: o sistema só guarda o hash e não tem como saber qual é.
+    const login = String(usuario || '').trim()
+    const contato = String(email || '').trim()
+    const linhasAcesso = [
+      login ? `Usuário: ${login}` : '',
+      contato ? `${login ? 'Ou o e-mail' : 'E-mail'}: ${contato}` : '',
+      'Senha: a que você criou no cadastro',
+    ].filter(Boolean)
     const texto =
       `Olá, ${rotulo}!\n\n` +
-      `Seu cadastro ${quem} no Doca Livre fazumfreela foi aprovado.\n` +
-      'Agora você já pode entrar e acessar o portal em https://fazumfreela.com.br\n\n' +
+      `Seu cadastro ${quem} no Doca Livre fazumfreela foi aprovado.\n\n` +
+      `Como entrar: acesse https://fazumfreela.com.br e escolha "${portal}".\n` +
+      linhasAcesso.map((l) => `  ${l}\n`).join('') +
+      '\nEsqueceu a senha? Na tela de login, clique em "Esqueci a senha" e use o código enviado para este e-mail.\n\n' +
       'Se não foi você quem se cadastrou, ignore este e-mail.'
     const html =
       `<p>Olá, <strong>${rotuloHtml}</strong>!</p>` +
       `<p>Seu cadastro ${quem} no <strong>Doca Livre fazumfreela</strong> foi <strong>aprovado</strong>.</p>` +
-      '<p>Agora você já pode entrar e acessar o portal em ' +
-      '<a href="https://fazumfreela.com.br">fazumfreela.com.br</a>.</p>' +
+      `<p><strong>Como entrar:</strong> acesse <a href="https://fazumfreela.com.br">fazumfreela.com.br</a> e escolha <strong>${portal}</strong>.</p>` +
+      '<table style="border-collapse:collapse;margin:8px 0 12px;font-size:15px">' +
+      (login ? `<tr><td style="padding:4px 12px 4px 0;color:#64748b">Usuário</td><td style="padding:4px 0"><strong>${escaparHtml(login)}</strong></td></tr>` : '') +
+      (contato ? `<tr><td style="padding:4px 12px 4px 0;color:#64748b">${login ? 'Ou o e-mail' : 'E-mail'}</td><td style="padding:4px 0">${escaparHtml(contato)}</td></tr>` : '') +
+      '<tr><td style="padding:4px 12px 4px 0;color:#64748b">Senha</td><td style="padding:4px 0">a que você criou no cadastro</td></tr>' +
+      '</table>' +
+      '<p>Esqueceu a senha? Na tela de login, clique em <strong>Esqueci a senha</strong> e use o código enviado para este e-mail.</p>' +
       '<p style="color:#64748b;font-size:13px">Se não foi você quem se cadastrou, ignore este e-mail.</p>'
     return { assunto, texto, html }
   }
@@ -73,11 +90,23 @@ export async function notificarCadastro(payload) {
     return { ok: false, status: 400, erro: 'Informe o motivo da recusa.' }
   }
 
+  // O login vem do banco (não do que a tela mandou): é o usuário da conta dona deste e-mail.
+  let usuario = ''
+  if (resultado === 'aprovado') {
+    try {
+      const { rows } = await pool.query(`select usuario from mao_contas where lower(email) = $1 limit 1`, [destino])
+      usuario = rows[0]?.usuario || ''
+    } catch {
+      /* sem o usuário, o e-mail mostra só o e-mail de acesso */
+    }
+  }
   const { assunto, texto, html } = montarEmailNotificacaoCadastro({
     nome,
     tipo: papel,
     decisao: resultado,
     motivo,
+    usuario,
+    email: destino,
   })
   const r = await enviarEmail({ para: destino, assunto, texto, html, rotulo: 'o aviso de cadastro' })
   if (r.ok) return { ok: true, status: 200 }

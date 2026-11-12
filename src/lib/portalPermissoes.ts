@@ -1,5 +1,12 @@
-/** Contas super do painel. O colaborador Diego Isidoro não entra nesta lista. */
+import { emDemo } from './modo'
+
+/**
+ * Contas super da DEMONSTRAÇÃO, reconhecidas pelo nome. No sistema real quem decide é o tipo da
+ * conta no banco (role "super"): antes, qualquer conta criada com o nome "Diego" ou "Elder"
+ * ganhava acesso total na tela e não podia ser excluída.
+ */
 export function isLocalSuperUser(usuario: string): boolean {
+  if (!emDemo()) return false
   const u = (usuario || '').trim().toLowerCase()
   if (!u) return false
   const ascii = u.normalize('NFD').replace(/[\u0300-\u036f]/g, '')
