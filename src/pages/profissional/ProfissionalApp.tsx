@@ -11,6 +11,7 @@ import { formatarDistancia, rotuloPeriodo } from '../../lib/periodoMissao'
 import { checklistProfissional, resumoDocumental } from '../../lib/documentos'
 import { pendenciasParaIniciar } from '../../lib/dossieTemporario'
 import { diasComPresenca, diasEntre, hojeLocal, horasRegistradas, missaoNoDia, pontoDeHoje, pontosDe } from '../../lib/ponto'
+import { BotaoAtualizar, RelogioTopo } from '../../components/TopoDocaLivre'
 import { BRAND_PRODUCT_NAME, LOGO_DOCA_LIVRE_SRC } from '../../lib/brandAssets'
 import { validarChavePix } from '../../lib/pix'
 import { useStore } from '../../lib/store'
@@ -93,6 +94,8 @@ export function ProfissionalApp({ onLogout }: { onLogout: () => void }) {
               setTermoId(pecaId ?? null)
             }}
           />
+          <BotaoAtualizar onAtualizar={store.refreshFromCloud} />
+          <RelogioTopo />
           <div className="cf-topbar-user">
             <span>
               <strong>{prof.nome.split(' ')[0]}</strong>
