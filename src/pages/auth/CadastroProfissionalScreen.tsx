@@ -7,7 +7,6 @@ import { AceiteCadastro, todosAceitos } from '../../components/AceiteTermos'
 import { AnexoCurriculo, CamposSobre, ListaExperiencias, conferirExperiencias } from '../../components/CurriculoCampos'
 import type { TermoId } from '../../lib/termos'
 import { ACCEPT_DOCUMENTO_CADASTRO, analisarDocumentoCadastro, lerArquivoCadastro, type FotoDocumento, type PapelDocumento } from '../../lib/analisarDocumentoCadastro'
-import type { ResultadoRosto } from '../../lib/compararRostos'
 import { coordenadaDaCidade } from '../../lib/coordenadaCidade'
 import { hojeLocal } from '../../lib/ponto'
 import { CERTIFICADOS_COMUNS, habilidadesDoTexto, mesclarCurriculo, nomeCertificado, semContato } from '../../lib/curriculo'
@@ -233,52 +232,6 @@ export function CadastroProfissionalScreen({ onBack, onDone }: Props) {
     set('raioKm', valor === '' || !Number.isFinite(numero) || numero <= 0 ? null : Math.min(500, Math.round(numero)))
   }
 
-  const [rosto, setRosto] = useState<ResultadoRosto | { status: 'comparando' } | null>(null)
-  // O modelo de rosto leva alguns segundos para baixar e aquecer: começa ao abrir a etapa,
-  // enquanto a pessoa escolhe as fotos.
-  useEffect(() => {
-    if (step !== PASSO.documentos) return
-    void import('../../lib/compararRostos').then((m) => m.prepararComparacaoRostos()).catch(() => undefined)
-  }, [step])
-  const fotoDoc = linhas.documento.arquivo
-  const fotoSelfie = linhas.selfie.arquivo
-  useEffect(() => {
-    if (!fotoDoc || !fotoSelfie || !/^image\//.test(fotoDoc.mime) || !/^image\//.test(fotoSelfie.mime)) {
-      setRosto(null)
-      return
-    }
-    let vivo = true
-    setRosto({ status: 'comparando' })
-    void import('../../lib/compararRostos')
-      .then(({ compararRostos }) => compararRostos(copiaDocumento(fotoDoc), copiaDocumento(fotoSelfie)))
-      .catch((): ResultadoRosto => ({ status: 'erro' }))
-      .then((res) => {
-        if (vivo) setRosto(res)
-      })
-    return () => {
-      vivo = false
-    }
-  }, [fotoDoc, fotoSelfie])
-
-  function textoRosto() {
-    if (!rosto) return ''
-    if (rosto.status === 'confere') return `Rosto confere com o documento (similaridade ${rosto.similaridade}%).`
-    if (rosto.status === 'diferente') return `Rosto não parece o mesmo do documento (similaridade ${rosto.similaridade}%). Será conferido pela equipe.`
-    if (rosto.status === 'sem_rosto_documento') return 'Não deu para achar o rosto na foto do documento. Será conferido pela equipe.'
-    if (rosto.status === 'sem_rosto_selfie') return 'Não encontramos um rosto na selfie. Tire outra foto com o rosto de frente e bem iluminado.'
-    if (rosto.status === 'comparando') return 'Comparando o rosto da selfie com o do documento...'
-    return 'Não foi possível comparar os rostos agora. Será conferido pela equipe.'
-  }
-
-  function observacaoRosto() {
-    if (!rosto || rosto.status === 'comparando') return ''
-    if (rosto.status === 'confere' || rosto.status === 'diferente') {
-      return ` Comparação facial: ${rosto.status === 'confere' ? 'confere' : 'NÃO CONFERE, revisar'} (similaridade ${rosto.similaridade}%, distância ${rosto.distancia}, limite ${0.55}).`
-    }
-    if (rosto.status === 'sem_rosto_documento') return ' Comparação facial: rosto não encontrado no documento, revisar.'
-    return ' Comparação facial: não realizada, revisar.'
-  }
-
   function problemaDocumentos() {
     const papeis: PapelDocumento[] = ['documento', 'verso', 'selfie']
     if (papeis.some((p) => linhas[p].status === 'analisando')) return 'Aguarde a conferência dos arquivos terminar.'
@@ -289,8 +242,6 @@ export function CadastroProfissionalScreen({ onBack, onDone }: Props) {
     }
     if (!linhas.documento.arquivo) return 'Envie o documento com foto (RG, CIN ou CNH).'
     if (!linhas.selfie.arquivo) return 'Envie a selfie para continuar.'
-    if (rosto?.status === 'comparando') return 'Aguarde a comparação do rosto terminar.'
-    if (rosto?.status === 'sem_rosto_selfie') return textoRosto()
     if (form.cnhCategoria.trim()) {
       if (!/^(ACC|A|B|C|D|E|AB|AC|AD|AE)$/.test(form.cnhCategoria.trim())) return 'Categoria da CNH inválida. Use ACC, A, B, C, D, E, AB, AC, AD ou AE.'
       if (!form.cnhValidade) return 'Informe a validade da CNH.'
@@ -320,7 +271,7 @@ export function CadastroProfissionalScreen({ onBack, onDone }: Props) {
       {
         tipoId: 'selfie',
         arquivoNome: face.nome,
-        observacao: `${observacaoDoc(linhas.selfie)}${observacaoRosto()}`,
+        observacao: observacaoDoc(linhas.selfie),
         arquivoDados: copiaDocumento(face),
       },
       ...(curriculo
@@ -593,9 +544,6 @@ export function CadastroProfissionalScreen({ onBack, onDone }: Props) {
             <CampoDoc titulo="Documento com foto (RG, CIN ou CNH)" obrigatorio dica="Frente legível, com nome e CPF." papel="documento" linha={linhas.documento} onEscolher={escolherFoto} />
             <CampoDoc titulo="Verso do documento" dica="Opcional. Envie se o CPF estiver no verso." papel="verso" linha={linhas.verso} onEscolher={escolherFoto} />
             <CampoDoc titulo="Selfie" obrigatorio dica="Rosto visível, sem óculos escuros ou boné." papel="selfie" linha={linhas.selfie} onEscolher={escolherFoto} />
-            {rosto && (
-              <p className={rosto.status === 'confere' ? 'docs-ok' : rosto.status === 'sem_rosto_selfie' ? 'error' : 'muted'}>{textoRosto()}</p>
-            )}
             <label className="field">
               <span>CNH (categoria, se aplicável)</span>
               <input

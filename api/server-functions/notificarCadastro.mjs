@@ -1,13 +1,11 @@
+import { enviarEmail } from '../email.mjs'
+
 function escaparHtml(texto) {
   return String(texto)
     .replace(/&/g, "&amp;")
     .replace(/</g, "&lt;")
     .replace(/>/g, "&gt;")
     .replace(/"/g, "&quot;")
-}
-
-function ambiente(env) {
-  return env ?? process.env
 }
 
 export function montarEmailNotificacaoCadastro({ nome, tipo, decisao, motivo }) {
@@ -54,7 +52,6 @@ export async function notificarCadastro(payload) {
     tipo,
     decisao,
     motivo = '',
-    env,
   } = payload || {}
 
   const destino = String(email || '').trim().toLowerCase()
@@ -76,53 +73,20 @@ export async function notificarCadastro(payload) {
     return { ok: false, status: 400, erro: 'Informe o motivo da recusa.' }
   }
 
-  const config = ambiente(env)
-  const apiKey = String(config.RESEND_API_KEY || '').trim()
-  if (!apiKey) {
-    return {
-      ok: false,
-      status: 503,
-      erro: 'Não foi possível enviar o e-mail. O envio ainda não está configurado neste ambiente.',
-    }
-  }
-
-  const from =
-    String(config.RESEND_FROM || '').trim() ||
-    String(config.SMTP_FROM || '').trim() ||
-    'Doca Livre fazumfreela <onboarding@resend.dev>'
   const { assunto, texto, html } = montarEmailNotificacaoCadastro({
     nome,
     tipo: papel,
     decisao: resultado,
     motivo,
   })
-
-  try {
-    const resposta = await fetch(config.RESEND_API_URL || 'https://api.resend.com/emails', {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${apiKey}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        from,
-        to: [destino],
-        subject: assunto,
-        text: texto,
-        html,
-      }),
-    })
-    if (resposta.status === 200 || resposta.status === 201) return { ok: true, status: 200 }
+  const r = await enviarEmail({ para: destino, assunto, texto, html, rotulo: 'o aviso de cadastro' })
+  if (r.ok) return { ok: true, status: 200 }
+  if (r.naoConfigurado) {
     return {
       ok: false,
       status: 503,
-      erro: 'Não foi possível enviar o e-mail. Tente de novo em instantes.',
-    }
-  } catch {
-    return {
-      ok: false,
-      status: 503,
-      erro: 'Não foi possível enviar o e-mail. Tente de novo em instantes.',
+      erro: 'Não foi possível enviar o e-mail. O envio ainda não está configurado neste ambiente.',
     }
   }
+  return { ok: false, status: 503, erro: 'Não foi possível enviar o e-mail. Tente de novo em instantes.' }
 }

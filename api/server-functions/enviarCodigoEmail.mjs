@@ -6,6 +6,7 @@
 // qualquer e-mail e trocar a senha de qualquer conta.
 import { createHash } from 'node:crypto'
 import { gerarCodigo, gerarTokenAleatorio, segredoJwt } from '../auth.mjs'
+import { enviarEmail } from '../email.mjs'
 import { pool } from '../migrar.mjs'
 
 const OTP_MINUTOS = 10
@@ -43,30 +44,18 @@ function emailValido(email) {
   return /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)
 }
 
-async function enviarResend(email, codigo, finalidade) {
-  const apiKey = String(process.env.RESEND_API_KEY || '').trim()
-  if (!apiKey) {
+async function enviarCodigo(email, codigo, finalidade) {
+  const { assunto, texto, html } = montarEmailCodigo(finalidade, codigo)
+  // O motivo de uma recusa (domínio não verificado, limite, permissão) só vai para o log do
+  // servidor; quem pediu o código recebe a mensagem genérica.
+  const r = await enviarEmail({ para: email, assunto, texto, html, rotulo: 'o código' })
+  if (r.ok) return { ok: true, status: 200 }
+  if (r.naoConfigurado) {
     return {
       ok: false,
       status: 503,
       erro: 'Não foi possível enviar o e-mail. O envio ainda não está configurado neste ambiente.',
     }
-  }
-  const from =
-    String(process.env.RESEND_FROM || '').trim() ||
-    String(process.env.SMTP_FROM || '').trim() ||
-    'Doca Livre fazumfreela <onboarding@resend.dev>'
-  const { assunto, texto, html } = montarEmailCodigo(finalidade, codigo)
-  try {
-    const resposta = await fetch(process.env.RESEND_API_URL || 'https://api.resend.com/emails', {
-      method: 'POST',
-      headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
-      signal: AbortSignal.timeout(20000),
-      body: JSON.stringify({ from, to: [email], subject: assunto, text: texto, html }),
-    })
-    if (resposta.status === 200 || resposta.status === 201) return { ok: true, status: 200 }
-  } catch {
-    /* cai no erro abaixo */
   }
   return { ok: false, status: 503, erro: 'Não foi possível enviar o e-mail. Tente de novo em instantes.' }
 }
@@ -116,7 +105,7 @@ async function enviar({ email, identificador, finalidade, portalRole }) {
      values ($1, $2, $3, now() + make_interval(mins => $4), $5) returning id`,
     [finalidade, destino, hashCodigo(codigo), OTP_MINUTOS, papel],
   )
-  const enviado = await enviarResend(destino, codigo, finalidade)
+  const enviado = await enviarCodigo(destino, codigo, finalidade)
   if (!enviado.ok) {
     await pool.query(`delete from mao_email_codigos where id = $1`, [rows[0].id])
     return enviado

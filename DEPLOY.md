@@ -20,7 +20,7 @@ Imagem Docker a partir de `api/Dockerfile`. Ao iniciar, `start.mjs` roda a migra
 | `JWT_SECRET` | recomendada | Segredo do token de sessão (32+ caracteres aleatórios). Sem ela, é derivado de `PGPASSWORD` — trocar a senha do banco desloga todo mundo. |
 | `STORAGE_SIGN_SECRET` | recomendada | Segredo dos links de documento. Sem ela usa `AZURE_STORAGE_KEY` ou `PGPASSWORD`. |
 | `AZURE_STORAGE_KEY` ou identidade gerenciada (`AZURE_CLIENT_ID`) | sim | Acesso ao Blob `stofertacargaprod/mao-documentos`. O container deve ser **privado**. |
-| `RESEND_API_KEY`, `RESEND_FROM` | sim | E-mail do código de cadastro/senha e de aprovação. Remetente de domínio verificado. |
+| `ACS_ENDPOINT`, `EMAIL_FROM` | sim | E-mail do código de cadastro/senha e de aprovação, pelo Azure Communication Services `acs-docalivre-prod` (`https://acs-docalivre-prod.brazil.communication.azure.com`). `EMAIL_FROM` é um remetente do domínio verificado `mail.docalivre.com.br` (ex.: `fazumfreela@mail.docalivre.com.br`); o nome exibido vem do remetente cadastrado no domínio. O container se autentica pela identidade gerenciada de sistema, que tem o papel *Communication and Email Service Owner* no recurso. Fora do Azure, use `ACS_CONNECTION_STRING`. Recusas aparecem no log como `[email]`. |
 | `GEMINI_API_KEY` (e/ou `CLOUDFLARE_*`, `OPENROUTER_API_KEY`) | opcional | Análise automática de documento e leitura de currículo. Sem elas, vai tudo para a validação manual. |
 | `IMPORT_TOKEN` | opcional | Protege `/copiar` e as contagens do `/saude`. |
 
