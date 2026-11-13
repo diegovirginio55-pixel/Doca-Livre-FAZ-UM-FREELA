@@ -1,5 +1,13 @@
 import { useEffect, useState, type FormEvent, type InputHTMLAttributes } from 'react'
-import { LOGO_DOCA_LIVRE_SRC } from '../../lib/brandAssets'
+import { BRAND_PRODUCT_NAME, LOGO_DOCA_LIVRE_SRC } from '../../lib/brandAssets'
+import { usuarioExisteNaNuvem } from '../../lib/supabaseSync'
+import {
+  REGRAS_SENHA,
+  normalizarUsuario,
+  problemaSenhaCadastro,
+  usuarioComNumero,
+  usuarioDoEmail,
+} from '../../lib/usuarioAcesso'
 import {
   portalCadastroEnviarCodigo,
   portalCadastroVerificarCodigo,
@@ -298,21 +306,38 @@ export function PortalLoginScreen({ portal, avisoInicial, onSuccess, onBack }: P
       }
       setVerifyToken(result.verify_token)
       setInfo(result.mensagem)
-      setUsuario('')
+      // O usuário já vem sugerido pelo e-mail (diego.isidoro@... vira diego.isidoro); a pessoa troca se quiser.
+      const sugestao = usuarioDoEmail(email)
+      setUsuario(sugestao)
       setSenha('')
       setConfirmarSenha('')
       setStep('dados')
       setCodigo('')
+      if (sugestao) void trocarSeJaExiste(sugestao)
     } finally {
       setLoading(false)
     }
   }
 
+  /** Se a sugestão já for de outra pessoa, coloca a mesma com números no fim (só se a pessoa não mexeu). */
+  async function trocarSeJaExiste(sugestao: string) {
+    const local = store.state.users.some((conta) => (conta.usuario || '').toLowerCase() === sugestao)
+    const existe = local || (await usuarioExisteNaNuvem(sugestao))
+    if (existe) setUsuario((atual) => (atual === sugestao ? usuarioComNumero(sugestao) : atual))
+  }
+
   async function handleCadastroConcluir(e: FormEvent) {
     e.preventDefault()
     resetMessages()
-    if (senha !== confirmarSenha) {
-      setErro('As senhas não coincidem.')
+    const us = normalizarUsuario(usuario)
+    if (us.length < 3) {
+      setErro('Escolha um usuário com pelo menos 3 letras ou números.')
+      return
+    }
+    if (us !== usuario) setUsuario(us)
+    const falhaSenha = problemaSenhaCadastro(senha)
+    if (falhaSenha) {
+      setErro(falhaSenha)
       return
     }
     const peeked = portalPeekCadastroToken(verifyToken)
@@ -324,18 +349,24 @@ export function PortalLoginScreen({ portal, avisoInicial, onSuccess, onBack }: P
     try {
       const reg = await store.portalRegisterUser({
         email: peeked.email,
-        usuario: usuario.trim(),
+        usuario: us,
         senha,
         role: peeked.portalRole,
         verifyToken,
       })
       if (!reg.ok) {
+        if (/já existe/i.test(reg.error ?? '')) {
+          const outro = usuarioComNumero(us)
+          setUsuario(outro)
+          setErro(`O usuário ${us} já é de outra pessoa. Deixamos ${outro} no lugar: é só tocar em Concluir cadastro.`)
+          return
+        }
         setErro(reg.error || 'Não foi possível cadastrar.')
         return
       }
       await portalConsumeCadastroToken(verifyToken)
       onSuccess({
-        usuario: usuario.trim(),
+        usuario: us,
         role: peeked.portalRole,
         precisaPerfil: true,
       })
@@ -418,8 +449,16 @@ export function PortalLoginScreen({ portal, avisoInicial, onSuccess, onBack }: P
       <div className="portal-login__card">
         <div className="portal-login__header">
           <img src={LOGO_DOCA_LIVRE_SRC} alt="Doca Livre" className="portal-login__logo" />
+          {/* Nome do sistema embaixo da logo: a Doca Livre tem outros sistemas (WMS, Oferta de Carga). */}
+          <p className="portal-login__produto">{BRAND_PRODUCT_NAME}</p>
           <h1 className="portal-login__title">
-            {mode === 'cadastro' ? 'Cadastro' : mode === 'trocar' ? 'Defina sua senha' : PORTAL_TITLE[portal]}
+            {mode === 'cadastro'
+              ? portal === 'empresa'
+                ? 'Cadastro de empresa'
+                : 'Cadastro de profissional'
+              : mode === 'trocar'
+                ? 'Defina sua senha'
+                : PORTAL_TITLE[portal]}
           </h1>
           <p className="portal-login__tagline">{PORTAL_TAG[portal]}</p>
         </div>
@@ -521,9 +560,25 @@ export function PortalLoginScreen({ portal, avisoInicial, onSuccess, onBack }: P
               className="portal-login__input"
               value={usuario}
               onChange={(e) => setUsuario(e.target.value)}
-              autoComplete="off"
+              onBlur={() => {
+                const ajustado = normalizarUsuario(usuario)
+                if (ajustado) setUsuario(ajustado)
+              }}
+              autoComplete="username"
+              autoCapitalize="none"
+              spellCheck={false}
               required
             />
+            <p className="portal-login__hint" aria-live="polite">
+              {usuario.trim() && normalizarUsuario(usuario) !== usuario.trim() ? (
+                <>
+                  Você vai entrar como <strong>{normalizarUsuario(usuario) || '…'}</strong>. Também dá para entrar com o
+                  seu e-mail.
+                </>
+              ) : (
+                'É com ele, ou com o seu e-mail, que você entra no sistema. Pode trocar se quiser.'
+              )}
+            </p>
             <label className="portal-login__label" htmlFor="pl-new-pass">
               Senha
             </label>
@@ -533,20 +588,19 @@ export function PortalLoginScreen({ portal, avisoInicial, onSuccess, onBack }: P
               onChange={(e) => setSenha(e.target.value)}
               autoComplete="new-password"
               required
-              minLength={8}
             />
-            <p className="portal-login__hint">{REGRA_SENHA}</p>
-            <label className="portal-login__label" htmlFor="pl-new-pass2">
-              Confirmar senha
-            </label>
-            <PasswordField
-              id="pl-new-pass2"
-              value={confirmarSenha}
-              onChange={(e) => setConfirmarSenha(e.target.value)}
-              autoComplete="new-password"
-              required
-              minLength={8}
-            />
+            <ul className="portal-login__regras" aria-label="Regras da senha">
+              {REGRAS_SENHA.map((regra) => {
+                const ok = regra.ok(senha)
+                return (
+                  <li key={regra.id} className={ok ? 'portal-login__regra--ok' : undefined}>
+                    <span aria-hidden="true">{ok ? '✓' : '•'}</span>
+                    {regra.texto}
+                    <span className="portal-login__oculto">{ok ? ' (cumprido)' : ' (falta)'}</span>
+                  </li>
+                )
+              })}
+            </ul>
             {erro && <p className="portal-login__erro">{erro}</p>}
             <button type="submit" className="portal-login__submit" disabled={loading}>
               {loading ? 'Salvando…' : 'Concluir cadastro'}

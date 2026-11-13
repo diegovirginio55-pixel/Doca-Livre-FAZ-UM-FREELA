@@ -2198,13 +2198,39 @@ button.cf-vaga-nome:disabled {
   cursor: pointer;
 }
 
-.cf-cv {
+/* Convidar quem não atende todos os requisitos: botão em contorno âmbar e confirmação com o que falta. */
+.cf-btn--mesmo-assim {
+  background: #fffbeb;
+  color: #92400e;
+  box-shadow: inset 0 0 0 1.5px #f59e0b;
+}
+
+.cf-btn--mesmo-assim:hover {
+  background: #fef3c7;
+}
+
+.cf-convite-aviso {
   display: grid;
   gap: 6px;
-  padding: 12px;
+  padding: 14px;
   border-radius: 14px;
-  background: linear-gradient(180deg, #eff6ff, #f8fafc);
-  border: 1px solid #dbeafe;
+  background: #fffbeb;
+  border: 1px solid #fcd34d;
+  color: #78350f;
+}
+
+.cf-convite-aviso strong {
+  font-size: 0.9rem;
+}
+
+.cf-convite-aviso p {
+  margin: 0;
+  font-size: 0.84rem;
+  line-height: 1.45;
+}
+
+.cf-convite-aviso .cf-actions {
+  margin-top: 4px;
 }
 
 .cf-missao-lista {
