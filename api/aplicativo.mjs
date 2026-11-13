@@ -166,7 +166,7 @@ async function resumoProfissional(conta) {
     conta.id,
   ])
   const base = {
-    titulo: 'fazumfreela · Profissional',
+    titulo: 'fazumfreela · Trabalhador',
     abrir: '/?aba=vagas',
     atalhos: [
       { id: 'agenda', rotulo: 'Vagas aceitas', link: '/?aba=agenda' },

@@ -45,7 +45,7 @@ export function montarEmailNotificacaoCadastro({ nome, tipo, decisao, motivo, us
   const rotuloHtml = escaparHtml(rotulo)
   if (decisao === 'aprovado' || decisao === 'aprovada') {
     const assunto = 'Doca Livre fazumfreela — cadastro aprovado'
-    const portal = tipo === 'empresa' ? 'Empresa' : 'Profissional'
+    const portal = tipo === 'empresa' ? 'Empresa' : 'Trabalhador'
     // A senha não vai no e-mail: o sistema só guarda o hash e não tem como saber qual é.
     const login = String(usuario || '').trim()
     const contato = String(email || '').trim()

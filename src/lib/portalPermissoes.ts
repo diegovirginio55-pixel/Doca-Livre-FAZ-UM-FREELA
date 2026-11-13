@@ -61,7 +61,7 @@ export const MODULOS_POR_SISTEMA: Record<SistemaId, { id: string; label: string 
 
 export const SISTEMA_LABEL: Record<SistemaId, string> = {
   empresa: 'Portal Empresa',
-  profissional: 'Portal Profissional',
+  profissional: 'Portal Trabalhador',
   admin: 'Painel Admin',
 }
 

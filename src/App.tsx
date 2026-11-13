@@ -176,7 +176,7 @@ function AppRoutes() {
         return (
           <div className="auth-screen">
             <div className="auth-card">
-              <p>Carregando painel do profissional…</p>
+              <p>Carregando painel do trabalhador…</p>
             </div>
           </div>
         )
