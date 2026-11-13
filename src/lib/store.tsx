@@ -243,10 +243,10 @@ export type ResultadoLogin = {
 
 function portalErrado(user: User, portal: PortalLogin): string | null {
   if (portal === 'empresa' && user.role !== 'empresa') {
-    return 'Esta conta não é de Empresa. Use o login de Profissional ou Admin.'
+    return 'Esta conta não é de Empresa. Use o login de Trabalhador ou Admin.'
   }
   if (portal === 'profissional' && user.role !== 'profissional') {
-    return 'Esta conta não é de Profissional. Use o login de Empresa ou Admin.'
+    return 'Esta conta não é de Trabalhador. Use o login de Empresa ou Admin.'
   }
   if (portal === 'admin' && user.role !== 'admin' && user.role !== 'super') {
     return 'Sem permissão para o Painel Admin.'

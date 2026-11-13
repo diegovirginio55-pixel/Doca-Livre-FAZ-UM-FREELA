@@ -30,15 +30,15 @@ export function PortalSelectScreen({ onEmpresa, onProfissional, onAdmin }: Props
 
         <div className="portal-select__grid">
           <button type="button" className="portal-select__card" onClick={onEmpresa}>
-            <span className="portal-select__card-kicker">Contratante</span>
+            <span className="portal-select__card-kicker">Quero contratar</span>
             <strong className="portal-select__card-title">Empresa</strong>
             <span className="portal-select__card-desc">
               Publique demandas, gerencie prestadores, contratos e financeiro.
             </span>
           </button>
           <button type="button" className="portal-select__card" onClick={onProfissional}>
-            <span className="portal-select__card-kicker">fazumfreela</span>
-            <strong className="portal-select__card-title">Profissional</strong>
+            <span className="portal-select__card-kicker">Quero trabalhar</span>
+            <strong className="portal-select__card-title">Trabalhador</strong>
             <span className="portal-select__card-desc">
               Encontre oportunidades, agenda, documentos e pagamentos.
             </span>

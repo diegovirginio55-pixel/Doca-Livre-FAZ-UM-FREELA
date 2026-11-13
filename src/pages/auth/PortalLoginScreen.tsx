@@ -87,13 +87,13 @@ function PasswordField({ id, className, ...rest }: PasswordFieldProps) {
 
 const PORTAL_TITLE: Record<PortalRole | 'admin', string> = {
   empresa: 'Login Empresa',
-  profissional: 'Login Profissional',
+  profissional: 'Login Trabalhador',
   admin: 'Login Admin',
 }
 
 const PORTAL_TAG: Record<PortalRole | 'admin', string> = {
   empresa: 'Contratantes · demandas · prestadores',
-  profissional: 'Trabalhador · currículo · missões temporárias',
+  profissional: 'Currículo · vagas · missões temporárias',
   admin: 'Administração · hierarquia · permissões',
 }
 
@@ -455,7 +455,7 @@ export function PortalLoginScreen({ portal, avisoInicial, onSuccess, onBack }: P
             {mode === 'cadastro'
               ? portal === 'empresa'
                 ? 'Cadastro de empresa'
-                : 'Cadastro de profissional'
+                : 'Cadastro de trabalhador'
               : mode === 'trocar'
                 ? 'Defina sua senha'
                 : PORTAL_TITLE[portal]}

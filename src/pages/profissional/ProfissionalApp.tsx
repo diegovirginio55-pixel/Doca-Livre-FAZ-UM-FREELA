@@ -62,7 +62,7 @@ export function ProfissionalApp({ onLogout }: { onLogout: () => void }) {
     return (
       <div className="auth-screen">
         <div className="auth-card">
-          <p>Profissional não encontrado.</p>
+          <p>Trabalhador não encontrado.</p>
           <p className="muted" style={{ marginTop: 8 }}>
             Use uma conta de mão de obra (ex.: <strong>carlos</strong> / demo123) ou complete o cadastro.
           </p>
