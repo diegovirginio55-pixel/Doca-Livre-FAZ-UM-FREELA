@@ -2,9 +2,11 @@ import { UFS, mascararCep, useCepAutomatico, useCidadesDaUf } from '../../lib/ap
 import { mascararCpf, mascararRg, mascararTelefone } from '../../lib/documentosPessoais'
 import { useEffect, useId, useMemo, useRef, useState } from 'react'
 import { AnexoCurriculo, CamposSobre, ListaExperiencias, conferirExperiencias } from '../../components/CurriculoCampos'
+import { MapaRaio } from '../../components/MapaRaio'
 import { CATEGORIES, cargoLabel } from '../../data/categories'
 import { LOCAIS_OPERACAO } from '../../data/cidades'
 import { coordenadaDaCidade } from '../../lib/coordenadaCidade'
+import { chaveDoEndereco, pontoValido, useLocalizacaoEndereco } from '../../lib/localizacaoEndereco'
 import { hojeLocal } from '../../lib/ponto'
 import { CERTIFICADOS_COMUNS, habilidadesDoTexto, mesclarCurriculo, nomeCertificado } from '../../lib/curriculo'
 import type { LeituraCurriculo } from '../../lib/lerCurriculo'
@@ -45,6 +47,7 @@ type Rascunho = {
   cep: string
   rua: string
   numero: string
+  complemento: string
   cidade: string
   estado: string
   raioKm: number | null
@@ -71,6 +74,7 @@ function rascunhoDe(prof: Profissional): Rascunho {
     cep: prof.endereco.cep,
     rua: prof.endereco.rua,
     numero: prof.endereco.numero,
+    complemento: prof.endereco.complemento ?? '',
     cidade: prof.endereco.cidade,
     estado: prof.endereco.estado,
     raioKm: prof.raioKm,
@@ -118,6 +122,24 @@ export function EditorPerfil({
       estado: e.estado || f.estado,
     })),
   )
+  const pontoCidade = useMemo(() => {
+    const ponto = coordenadaDaCidade(form.cidade, form.estado, [
+      ...state.profissionais.map((pessoa) => pessoa.endereco),
+      ...state.empresas.map((empresa) => empresa.endereco),
+    ])
+    return pontoValido(ponto) ? ponto : null
+  }, [form.cidade, form.estado, state.profissionais, state.empresas])
+  // O ponto já salvo vale enquanto o endereço não muda (pode ter sido ajustado à mão no mapa).
+  const salvo = useMemo(
+    () => ({ chave: chaveDoEndereco(prof.endereco), ponto: { lat: prof.endereco.lat, lng: prof.endereco.lng } }),
+    [prof.endereco],
+  )
+  const localizacao = useLocalizacaoEndereco({
+    endereco: { rua: form.rua, numero: form.numero, cidade: form.cidade, estado: form.estado },
+    pontoCep: cepStatus.coord,
+    pontoCidade,
+    salvo,
+  })
   const pixInfo = form.pix.trim() ? validarChavePix(form.pix) : null
 
   useEffect(() => {
@@ -190,7 +212,9 @@ export function EditorPerfil({
     const mesmaCidade =
       form.cidade.trim().toLowerCase() === prof.endereco.cidade.trim().toLowerCase() &&
       form.estado.trim().toUpperCase() === prof.endereco.estado.trim().toUpperCase()
-    const coordenada = cepStatus.coord
+    const coordenada = localizacao.ponto
+      ? localizacao.ponto
+      : cepStatus.coord
       ? cepStatus.coord
       : mesmaCidade
       ? { lat: prof.endereco.lat, lng: prof.endereco.lng }
@@ -221,6 +245,7 @@ export function EditorPerfil({
         cep: form.cep,
         rua: form.rua,
         numero: form.numero,
+        complemento: form.complemento.trim() || undefined,
         cidade: form.cidade,
         estado: form.estado,
         ...coordenada,
@@ -332,6 +357,16 @@ export function EditorPerfil({
             <span>Número</span>
             <input value={form.numero} onChange={(e) => set('numero', e.target.value)} />
           </label>
+          <label>
+            <span>Complemento (opcional)</span>
+            <input
+              value={form.complemento}
+              onChange={(e) => set('complemento', e.target.value)}
+              placeholder="Apto, bloco, casa 2..."
+              autoComplete="address-line2"
+              maxLength={60}
+            />
+          </label>
 
           <label>
             <span>Raio máximo para trabalhar (km)</span>
@@ -360,6 +395,13 @@ export function EditorPerfil({
             </button>
           ))}
         </div>
+        <MapaRaio
+          ponto={localizacao.ponto}
+          origem={localizacao.origem}
+          raioKm={form.raioKm}
+          cidade={form.cidade.trim()}
+          onMover={localizacao.mover}
+        />
       </section>
 
       <section className="td-card">

@@ -1,0 +1,89 @@
+/* Mapa do raio de trabalho no cadastro e no perfil do trabalhador. O tema escuro sai do build. */
+
+.casa-raio {
+  display: grid;
+  gap: 6px;
+}
+
+.casa-raio-tela {
+  height: 260px;
+  border-radius: 12px;
+  overflow: hidden;
+  border: 1px solid var(--dl-borda, #e2e8f0);
+  background: #e5e7eb;
+  z-index: 0;
+}
+
+.casa-raio-vazio {
+  margin: 0;
+  font-size: 0.85rem;
+  color: var(--dl-texto-sec, #64748b);
+}
+
+.casa-raio-legenda {
+  margin: 0;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 8px;
+  font-size: 0.86rem;
+  font-weight: 600;
+  color: var(--dl-texto, #1f2937);
+}
+
+.casa-raio-legenda small {
+  flex-basis: 100%;
+  font-weight: 400;
+  font-size: 0.8rem;
+  color: var(--dl-texto-sec, #64748b);
+}
+
+.casa-raio-legenda-casa {
+  width: 12px;
+  height: 12px;
+  border-radius: 50% 50% 50% 0;
+  transform: rotate(-45deg);
+  background: #1a237e;
+  border: 2px solid #f9db00;
+}
+
+.casa-raio-legenda-raio {
+  margin-left: 8px;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: rgba(249, 219, 0, 0.35);
+  border: 2px solid #1a237e;
+}
+
+/* Marcador da casa: gota azul-marinho com borda amarela. */
+.casa-raio-pin {
+  background: transparent;
+  border: 0;
+}
+
+.casa-raio-pin span {
+  position: absolute;
+  left: 2px;
+  top: 2px;
+  width: 24px;
+  height: 24px;
+  border-radius: 50% 50% 50% 0;
+  transform: rotate(-45deg);
+  background: #1a237e;
+  border: 3px solid #f9db00;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.35);
+  cursor: grab;
+}
+
+.casa-raio-pin span::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 7px;
+  height: 7px;
+  margin: -3.5px 0 0 -3.5px;
+  border-radius: 50%;
+  background: #fff;
+}

@@ -44,6 +44,8 @@ export type Endereco = {
   cep: string
   rua: string
   numero: string
+  /** Apto, bloco, casa 2... Fica só com a pessoa e a gestão (a empresa vê só cidade e UF). */
+  complemento?: string
   cidade: string
   estado: string
   lat: number
