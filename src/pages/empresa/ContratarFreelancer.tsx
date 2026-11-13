@@ -372,6 +372,17 @@ function posicaoAposDigitos(texto: string, digitos: number) {
   return texto.length
 }
 
+type CampoObrigatorio = 'cargo' | 'quantidade' | 'periodo' | 'jornada' | 'motivo' | 'atividades' | 'remuneracao'
+
+/** Asterisco dos campos obrigatórios da vaga. */
+function Obrig() {
+  return (
+    <span className="cf-obrig" aria-hidden>
+      *
+    </span>
+  )
+}
+
 function valorNumero(texto: string) {
   const match = texto.replace(/\./g, '').replace(',', '.').match(/\d+(?:\.\d+)?/)
   return match ? Number(match[0]) : 0
@@ -704,6 +715,47 @@ export function ContratarFreelancer({ onLogout }: { onLogout: () => void }) {
 
   const dias = diasEntre(inicio, fim)
   const avisoPrazo = validarNecessidade('temporario', inicio, fim)
+  // O que ainda falta para publicar ou encontrar profissionais (mesmas regras de validarPedido).
+  const [tentouEnviar, setTentouEnviar] = useState(false)
+  const pendencias: { campo: CampoObrigatorio; texto: string }[] = []
+  if (!cargoId) pendencias.push({ campo: 'cargo', texto: 'Cargo / função' })
+  if (!Number.isInteger(quantidade) || quantidade < 1) {
+    pendencias.push({ campo: 'quantidade', texto: 'Quantidade de trabalhadores' })
+  }
+  if (!inicio || !fim) pendencias.push({ campo: 'periodo', texto: 'Período da missão (início e término)' })
+  else if (inicio < hojeLocal()) pendencias.push({ campo: 'periodo', texto: 'Data de início (já passou)' })
+  else if (avisoPrazo.nivel === 'bloqueio') {
+    pendencias.push({ campo: 'periodo', texto: 'Período da missão (passa do limite legal)' })
+  }
+  if (!horaInicio || !horaFim) pendencias.push({ campo: 'jornada', texto: 'Jornada / turno' })
+  if (!motivo) pendencias.push({ campo: 'motivo', texto: 'Motivo da contratação temporária' })
+  if (!atividades.trim()) pendencias.push({ campo: 'atividades', texto: 'Atividades que serão realizadas' })
+  if (!(valorNumero(finalizarMoeda(remuneracao)) > 0)) {
+    pendencias.push({ campo: 'remuneracao', texto: 'Remuneração prevista por dia' })
+  }
+  const falta = (campo: CampoObrigatorio) => tentouEnviar && pendencias.some((p) => p.campo === campo)
+
+  function irParaCampo(campo: CampoObrigatorio) {
+    const alvo = document.querySelector<HTMLElement>(`[data-campo="${campo}"]`)
+    if (!alvo) return
+    alvo.scrollIntoView({ behavior: 'smooth', block: 'center' })
+    alvo.classList.remove('cf-campo-piscar')
+    void alvo.offsetWidth
+    alvo.classList.add('cf-campo-piscar')
+    const entrada = alvo.querySelector<HTMLElement>('input, select, textarea')
+    window.setTimeout(() => entrada?.focus({ preventScroll: true }), 350)
+  }
+
+  /** Com algo faltando, o botão leva ao primeiro campo vazio e marca os que faltam. */
+  function seCompleto(acao: () => void) {
+    if (pendencias.length > 0) {
+      setTentouEnviar(true)
+      setErro('')
+      irParaCampo(pendencias[0].campo)
+      return
+    }
+    acao()
+  }
   const valorBarra = Math.min(MAXIMO_DIAS, Math.max(1, dias))
 
   function definirDias(quantidade: number) {
@@ -1447,9 +1499,15 @@ export function ContratarFreelancer({ onLogout }: { onLogout: () => void }) {
               </div>
             ) : (
             <div className="cf-grid">
+              <p className="cf-legenda-obrig">
+                Campos com <Obrig /> são obrigatórios para publicar ou encontrar profissionais.
+              </p>
               <div>
-                <label className="cf-field">
-                  <span>Cargo / função</span>
+                <label className={`cf-field ${falta('cargo') ? 'cf-field--falta' : ''}`} data-campo="cargo">
+                  <span>
+                    Cargo / função
+                    <Obrig />
+                  </span>
                   <select value={cargoId} onChange={(e) => aoMudarCargo(e.target.value)}>
                     {CATEGORIES.map((cat) => (
                       <optgroup key={cat.id} label={cat.label}>
@@ -1523,8 +1581,11 @@ export function ContratarFreelancer({ onLogout }: { onLogout: () => void }) {
               </div>
 
               <div>
-                <label className="cf-field">
-                  <span>Quantidade de trabalhadores</span>
+                <label className={`cf-field ${falta('quantidade') ? 'cf-field--falta' : ''}`} data-campo="quantidade">
+                  <span>
+                    Quantidade de trabalhadores
+                    <Obrig />
+                  </span>
                   <input
                     type="number"
                     min={1}
@@ -1535,8 +1596,11 @@ export function ContratarFreelancer({ onLogout }: { onLogout: () => void }) {
                   />
                 </label>
 
-                <p className="cf-label">Período da missão temporária</p>
-                <div className="cf-dates">
+                <p className="cf-label">
+                  Período da missão temporária
+                  <Obrig />
+                </p>
+                <div className={`cf-dates ${falta('periodo') ? 'cf-grupo--falta' : ''}`} data-campo="periodo">
                   <label className="cf-field">
                     <span>Início</span>
                     <input type="date" value={inicio} min={hojeLocal()} onChange={(e) => mudarInicio(e.target.value)} />
@@ -1614,8 +1678,11 @@ export function ContratarFreelancer({ onLogout }: { onLogout: () => void }) {
                   {avisoPrazo.nivel !== 'ok' && <p>{avisoPrazo.texto}</p>}
                 </div>
 
-                <p className="cf-label">Jornada / turno</p>
-                <div className="cf-dates">
+                <p className="cf-label">
+                  Jornada / turno
+                  <Obrig />
+                </p>
+                <div className={`cf-dates ${falta('jornada') ? 'cf-grupo--falta' : ''}`} data-campo="jornada">
                   <label className="cf-field">
                     <span>Das</span>
                     <input type="time" value={horaInicio} onChange={(e) => setHoraInicio(e.target.value)} />
@@ -1626,8 +1693,11 @@ export function ContratarFreelancer({ onLogout }: { onLogout: () => void }) {
                   </label>
                 </div>
 
-                <p className="cf-label">Motivo da contratação temporária</p>
-                <div className="cf-checks">
+                <p className="cf-label">
+                  Motivo da contratação temporária
+                  <Obrig />
+                </p>
+                <div className={`cf-checks ${falta('motivo') ? 'cf-grupo--falta' : ''}`} data-campo="motivo">
                   {MOTIVOS_TEMPORARIOS.map((item) => (
                     <label key={item.id} className="cf-check">
                       <input
@@ -1641,8 +1711,11 @@ export function ContratarFreelancer({ onLogout }: { onLogout: () => void }) {
                   ))}
                 </div>
 
-                <label className="cf-field">
-                  <span>Atividades que serão realizadas</span>
+                <label className={`cf-field ${falta('atividades') ? 'cf-field--falta' : ''}`} data-campo="atividades">
+                  <span>
+                    Atividades que serão realizadas
+                    <Obrig />
+                  </span>
                   <textarea
                     value={atividades}
                     onChange={(e) => setAtividades(e.target.value)}
@@ -1650,8 +1723,11 @@ export function ContratarFreelancer({ onLogout }: { onLogout: () => void }) {
                   />
                 </label>
 
-                <label className="cf-field">
-                  <span>Remuneração prevista por dia (R$)</span>
+                <label className={`cf-field ${falta('remuneracao') ? 'cf-field--falta' : ''}`} data-campo="remuneracao">
+                  <span>
+                    Remuneração prevista por dia (R$)
+                    <Obrig />
+                  </span>
                   <input
                     ref={remuneracaoRef}
                     inputMode="decimal"
@@ -1708,6 +1784,23 @@ export function ContratarFreelancer({ onLogout }: { onLogout: () => void }) {
                 </div>
               </div>
             )}
+            {empresaValidada &&
+              (pendencias.length > 0 ? (
+                <div className="cf-faltam" role="status">
+                  <strong>Falta preencher para publicar ou encontrar profissionais:</strong>
+                  <div className="cf-faltam-lista">
+                    {pendencias.map((p) => (
+                      <button key={p.campo} type="button" onClick={() => irParaCampo(p.campo)}>
+                        {p.texto}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              ) : (
+                <p className="cf-faltam cf-faltam--ok" role="status">
+                  Tudo preenchido. Já dá para publicar a vaga ou encontrar profissionais.
+                </p>
+              ))}
             <div className="cf-actions">
               <button type="button" className="cf-btn cf-btn--dark" onClick={salvarPublicacao} disabled={analisando}>
                 Salvar publicação
@@ -1715,8 +1808,8 @@ export function ContratarFreelancer({ onLogout }: { onLogout: () => void }) {
               <button
                 type="button"
                 className="cf-primary"
-                onClick={analisar}
-                disabled={analisando || avisoPrazo.nivel === 'bloqueio' || !motivo || !empresaValidada}
+                onClick={() => seCompleto(analisar)}
+                disabled={analisando || !empresaValidada}
               >
                 {analisando ? 'Analisando currículos' : 'Encontrar profissionais'}
               </button>
@@ -1724,8 +1817,8 @@ export function ContratarFreelancer({ onLogout }: { onLogout: () => void }) {
                 <button
                   type="button"
                   className="cf-btn cf-btn--dark"
-                  onClick={() => publicar(false)}
-                  disabled={analisando || avisoPrazo.nivel === 'bloqueio' || !motivo || !empresaValidada}
+                  onClick={() => seCompleto(() => publicar(false))}
+                  disabled={analisando || !empresaValidada}
                 >
                   Publicar vaga
                 </button>

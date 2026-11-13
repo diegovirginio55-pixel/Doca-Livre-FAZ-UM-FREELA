@@ -2592,3 +2592,84 @@ button.cf-vaga-nome:disabled {
   background: #fff7ed;
   color: #9a3412;
 }
+
+/* campos obrigatórios da vaga e o que ainda falta preencher */
+.cf-obrig {
+  margin-left: 3px;
+  color: #dc2626;
+  font-weight: 800;
+}
+
+.cf-legenda-obrig {
+  grid-column: 1 / -1;
+  margin: 0 0 4px;
+  color: #64748b;
+  font-size: 0.85rem;
+}
+
+.cf-field--falta input,
+.cf-field--falta select,
+.cf-field--falta textarea {
+  border-color: #dc2626;
+  box-shadow: 0 0 0 3px rgba(220, 38, 38, 0.14);
+}
+
+.cf-grupo--falta {
+  border-radius: 10px;
+  outline: 2px solid rgba(220, 38, 38, 0.55);
+  outline-offset: 4px;
+}
+
+.cf-campo-piscar {
+  animation: cf-piscar-campo 1.4s ease;
+}
+
+@keyframes cf-piscar-campo {
+  0%,
+  60% {
+    background-color: rgba(250, 204, 21, 0.28);
+  }
+  100% {
+    background-color: transparent;
+  }
+}
+
+.cf-faltam {
+  margin: 4px 0 0;
+  padding: 10px 12px;
+  border: 1px solid #fca5a5;
+  border-radius: 10px;
+  background: #fef2f2;
+  color: #991b1b;
+  font-size: 0.88rem;
+}
+
+.cf-faltam-lista {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.cf-faltam-lista button {
+  padding: 5px 11px;
+  border: 1px solid #fca5a5;
+  border-radius: 999px;
+  background: #fff;
+  color: #991b1b;
+  font: inherit;
+  font-size: 0.82rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.cf-faltam-lista button:hover {
+  background: #fee2e2;
+}
+
+.cf-faltam--ok {
+  border-color: #86efac;
+  background: #f0fdf4;
+  color: #166534;
+  font-weight: 600;
+}
