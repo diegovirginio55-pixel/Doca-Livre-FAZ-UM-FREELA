@@ -51,6 +51,31 @@
   color: var(--dl-titulo, #000);
 }
 
+/* sino (Empresa e Profissional) com o mesmo contorno dos botões ao lado */
+.cf-shell .cf-sino-btn {
+  width: 36px;
+  height: 36px;
+  border: 1px solid var(--dl-borda, #d0d7de);
+  border-radius: 8px;
+  background: var(--dl-card, #fff);
+  color: var(--dl-titulo, #000);
+}
+
+.cf-shell .cf-sino-btn svg {
+  width: 18px;
+  height: 18px;
+}
+
+.cf-shell .cf-sino-btn:hover,
+.cf-shell .cf-sino-btn--ativa {
+  background: var(--dl-suave, #eceef0);
+}
+
+.cf-shell .cf-sino-badge {
+  top: -6px;
+  right: -6px;
+}
+
 .dl-topo-atualizar--girando svg {
   animation: dl-topo-girar 0.7s linear infinite;
 }
