@@ -439,6 +439,30 @@ export type CadastroEtt = {
   procuracoes: string
 }
 
+/** Modelo de vaga salvo pela empresa ("Salvar como modelo"). Fica no servidor: vale em qualquer aparelho. */
+export type ModeloVaga = {
+  id: string
+  empresaId: string
+  salvoEm: string
+  titulo: string
+  cargoId: string
+  requisitos: string[]
+  diferenciais: string[]
+  cidade: string
+  estado?: string
+  raioKm?: number | null
+  horaInicio: string
+  horaFim: string
+  inicio: string
+  fim: string
+  observacoes: string
+  motivo: string
+  atividades: string
+  remuneracao: string
+  beneficios: string
+  quantidade: number
+}
+
 export type AppState = {
   users: User[]
   empresas: Empresa[]
@@ -456,6 +480,8 @@ export type AppState = {
   enderecosEmpresa: EnderecoEmpresa[]
   veiculos: Veiculo[]
   relatorios: RelatorioGerado[]
+  /** Modelos de vaga salvos pelas empresas. */
+  modelosVaga: ModeloVaga[]
   contratos: ContratoServico[]
   documentos: DocumentoRegistro[]
   pecas: PecaDocumental[]
