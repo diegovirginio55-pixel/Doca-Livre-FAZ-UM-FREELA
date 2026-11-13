@@ -274,6 +274,7 @@ function FichaPessoa({
 }) {
   const turnos = TURNOS.filter((item) => pessoa.disponibilidade[item.key])
   const [perfilAberto, setPerfilAberto] = useState(false)
+  const { state } = useStore()
   return (
     <article className="mapa-ficha">
       <header>
@@ -315,7 +316,7 @@ function FichaPessoa({
         >
           Ver perfil
         </button>
-        <button type="button" className="cf-btn cf-btn--yellow" onClick={() => abrirCurriculoPdf(pessoa)}>
+        <button type="button" className="cf-btn cf-btn--yellow" onClick={() => abrirCurriculoPdf(pessoa, { documentos: state.documentos, distanciaKm: distancia })}>
           Ver currículo
         </button>
       </div>

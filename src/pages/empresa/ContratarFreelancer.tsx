@@ -10,6 +10,7 @@ import {
 } from 'react'
 import { AceiteTermosGate } from '../../components/AceiteTermos'
 import { BibliotecaDocumental } from '../../components/BibliotecaDocumental'
+import { CurriculoDetalhado } from '../../components/CurriculoDetalhado'
 import { PecaViewer } from '../../components/PecaViewer'
 import { CATEGORIES, allCargos, cargoCategoria, cargoLabel } from '../../data/categories'
 import { LOCAIS_OPERACAO } from '../../data/cidades'
@@ -28,12 +29,12 @@ import { MapaMaoDeObra } from './MapaMaoDeObra'
 import { SinoEmpresa } from './SinoEmpresa'
 import { AvaliacaoTrabalhador } from './AvaliacaoTrabalhador'
 import { PerfilColaborador } from './PerfilColaborador'
-import { certificadosDoCurriculo, checklistProfissional, resumoDocumental } from '../../lib/documentos'
+import { checklistProfissional, resumoDocumental } from '../../lib/documentos'
 import { distanciaKm } from '../../lib/matching'
 import { coordenadaDaCidade } from '../../lib/coordenadaCidade'
 import { rotuloPeriodo } from '../../lib/periodoMissao'
 import { hojeLocal } from '../../lib/ponto'
-import type { Demanda, DocumentoRegistro, DocumentoStatus } from '../../lib/types'
+import type { Demanda, DocumentoRegistro } from '../../lib/types'
 import {
   AVISO_FORMALIZACAO,
   MOTIVOS_TEMPORARIOS,
@@ -1302,6 +1303,9 @@ export function ContratarFreelancer({ onLogout }: { onLogout: () => void }) {
   }
 
   const basica = modoResultado === 'basica'
+  const vagaDaBusca = basica
+    ? `Pesquisa básica · ${cidade || empresa.endereco.cidade}${estado ? `/${estado}` : ''}`
+    : `${quantidade} ${cargoLabel(cargoId)} · ${dias} dia${dias === 1 ? '' : 's'} · ${horaInicio}–${horaFim} · ${cidade || empresa.endereco.cidade}${estado ? `/${estado}` : ''}${motivo ? ` · ${rotuloMotivo(motivo)}` : ''}`
 
   const camposCidade = (
     <>
@@ -2045,6 +2049,7 @@ export function ContratarFreelancer({ onLogout }: { onLogout: () => void }) {
                 {compativeis.map((item) => (
                   <PessoaCard
                     key={item.profissional.id}
+                    vaga={vagaDaBusca}
                     item={item}
                     modo={modoResultado}
                     aberto={aberto === item.profissional.id}
@@ -2069,7 +2074,7 @@ export function ContratarFreelancer({ onLogout }: { onLogout: () => void }) {
                       {incompletos.length
                         ? basica
                           ? 'Quem tem as atividades no currículo aparece na lista seguinte.'
-                          : 'Quem ficou perto aparece na lista seguinte, com o item que faltou.'
+                          : 'Quem ficou perto aparece na lista seguinte, com o item que faltou. Você pode convidar mesmo assim.'
                         : basica
                           ? 'Tente descrever as atividades com outras palavras ou aumentar o raio de busca.'
                           : 'Quem ficou perto aparece na lista seguinte, com o item que faltou.'}
@@ -2087,14 +2092,18 @@ export function ContratarFreelancer({ onLogout }: { onLogout: () => void }) {
                     {incompletos.map((item) => (
                       <PessoaCard
                         key={item.profissional.id}
+                        vaga={vagaDaBusca}
                         item={item}
                         modo={modoResultado}
                         aberto={aberto === item.profissional.id}
+                        convite={basica ? null : conviteDe(item.profissional.id)}
                         documentos={state.documentos}
                         requisitos={basica ? [] : requisitos}
                         onToggle={() =>
                           setAberto((id) => (id === item.profissional.id ? null : item.profissional.id))
                         }
+                        onConvidar={basica || missaoFechada ? undefined : () => convidar(item)}
+                        onContrato={basica ? undefined : (candidaturaId) => confirmCandidato(candidaturaId)}
                       />
                     ))}
                   </div>
@@ -2109,6 +2118,7 @@ export function ContratarFreelancer({ onLogout }: { onLogout: () => void }) {
                     {bloqueadosPeriodo.map((item) => (
                       <PessoaCard
                         key={item.profissional.id}
+                        vaga={vagaDaBusca}
                         item={item}
                         aberto={aberto === item.profissional.id}
                         documentos={state.documentos}
@@ -2919,6 +2929,7 @@ function PessoaCard({
   convite,
   documentos,
   requisitos,
+  vaga,
 }: {
   item: CurriculoAnalisado
   modo?: ModoBusca
@@ -2929,13 +2940,19 @@ function PessoaCard({
   convite?: { id: string; status: string; contratoNumero?: string; fechada?: boolean } | null
   documentos: DocumentoRegistro[]
   requisitos: string[]
+  /** Texto da vaga pesquisada, para o PDF do currículo. */
+  vaga?: string
 }) {
   const p = item.profissional
   const [perfilAberto, setPerfilAberto] = useState(false)
+  const [confirmarConvite, setConfirmarConvite] = useState(false)
   const docs = resumoDocumental(checklistProfissional(p, documentos, requisitos))
-  const cursos = certificadosDoCurriculo(p, documentos)
   const podeContrato = convite?.status === 'aceita' && docs.completo && !convite.fechada
   const bloqueado = item.situacao === 'bloqueado'
+  // Fora do ciclo temporário (prazo legal) nunca recebe convite; quem só não atende um requisito pode ser
+  // convidado se a empresa quiser, depois de ver o que falta.
+  const podeConvidar = Boolean(onConvidar) && !bloqueado && !convite
+  const faltando = item.checagens.filter((checagem) => checagem.obrigatorio && !checagem.ok).map((checagem) => checagem.rotulo)
   const selo = bloqueado
     ? 'Fora do ciclo'
     : modo === 'basica'
@@ -2953,6 +2970,7 @@ function PessoaCard({
     ['Localização', item.compatibilidade.localizacao],
     ['Certificações', item.compatibilidade.certificacoes],
   ] as const
+  const extrasCurriculo = { documentos, analise: item, vaga, selo, distanciaKm: item.distanciaKm }
 
   return (
     <article className={`cf-pro ${bloqueado ? 'cf-pro--blocked' : item.atendeObrigatorios ? 'cf-pro--fit' : 'cf-pro--aside'}`}>
@@ -3022,12 +3040,17 @@ function PessoaCard({
         <button type="button" className="cf-btn cf-btn--dark" onClick={onToggle}>
           {aberto ? 'Ocultar currículo' : 'Ver currículo'}
         </button>
-        <button type="button" className="cf-btn cf-btn--blue" onClick={() => abrirCurriculoPdf(p)}>
+        <button type="button" className="cf-btn cf-btn--blue" onClick={() => abrirCurriculoPdf(p, extrasCurriculo)}>
           Ver currículo em PDF
         </button>
-        {onConvidar && item.atendeObrigatorios && item.situacao !== 'bloqueado' && !convite && (
+        {podeConvidar && item.atendeObrigatorios && (
           <button type="button" className="cf-btn cf-btn--yellow" onClick={onConvidar}>
             Convidar para a missão
+          </button>
+        )}
+        {podeConvidar && !item.atendeObrigatorios && !confirmarConvite && (
+          <button type="button" className="cf-btn cf-btn--mesmo-assim" onClick={() => setConfirmarConvite(true)}>
+            Convidar mesmo assim
           </button>
         )}
         {convite?.status === 'pendente' && <span className="cf-note">Convite enviado. Aguardando o trabalhador.</span>}
@@ -3051,6 +3074,33 @@ function PessoaCard({
         {convite?.status === 'cancelada' && <span className="cf-note">Convite cancelado.</span>}
         {convite?.contratoNumero && <span className="cf-note">Contrato temporário {convite.contratoNumero} gerado.</span>}
       </div>
+      {podeConvidar && !item.atendeObrigatorios && confirmarConvite && (
+        <div className="cf-convite-aviso" role="alertdialog" aria-label="Confirmar convite">
+          <strong>Convidar mesmo sem atender todos os requisitos?</strong>
+          <p>
+            {p.nome.split(' ')[0]} não atende: {faltando.length ? faltando.join(', ') : 'um requisito obrigatório da vaga'}.
+          </p>
+          <p>
+            O convite vai normalmente. Se a pessoa aceitar, o contrato temporário continua esperando a documentação
+            obrigatória ser validada, como em qualquer convite.
+          </p>
+          <div className="cf-actions">
+            <button
+              type="button"
+              className="cf-btn cf-btn--yellow"
+              onClick={() => {
+                setConfirmarConvite(false)
+                onConvidar?.()
+              }}
+            >
+              Sim, convidar
+            </button>
+            <button type="button" className="cf-btn cf-btn--leve" onClick={() => setConfirmarConvite(false)}>
+              Cancelar
+            </button>
+          </div>
+        </div>
+      )}
       {perfilAberto && (
         <PerfilColaborador
           pessoa={p}
@@ -3058,39 +3108,9 @@ function PessoaCard({
           onFechar={() => setPerfilAberto(false)}
         />
       )}
-      {aberto && (
-        <div className="cf-cv">
-          <strong>Currículo estruturado</strong>
-          {p.resumo && <span>Resumo: {p.resumo}</span>}
-          <span>Cidade: {p.endereco.cidade}/{p.endereco.estado}</span>
-          <span>CNH: {p.cnhCategoria ?? 'não informada'}</span>
-          {p.escolaridade && <span>Escolaridade: {p.escolaridade}</span>}
-          <span>
-            Experiências:{' '}
-            {p.experiencia.length
-              ? p.experiencia.map((e) => `${e.cargo} na ${e.empresa} (${e.inicio} a ${e.fim})`).join(' · ')
-              : 'não descritas'}
-          </span>
-          <span>
-            Certificados:{' '}
-            {cursos.length
-              ? cursos.map((c) => `${c.curso} (${c.ok ? 'aprovado' : SITUACAO_CERTIFICADO[c.status]})`).join(', ')
-              : 'nenhum registrado'}
-          </span>
-          {(p.habilidades?.length ?? 0) > 0 && <span>Habilidades: {p.habilidades?.join(', ')}</span>}
-          {item.situacaoTexto && <span>{item.situacaoTexto}</span>}
-        </div>
-      )}
+      {aberto && <CurriculoDetalhado profissional={p} extras={extrasCurriculo} />}
     </article>
   )
-}
-
-const SITUACAO_CERTIFICADO: Record<DocumentoStatus, string> = {
-  pendente: 'sem certificado enviado',
-  em_analise: 'em análise',
-  aprovado: 'aprovado',
-  recusado: 'recusado',
-  vencido: 'vencido',
 }
 
 const CORES_AVATAR = ['#7c3aed', '#2563eb', '#0891b2', '#059669', '#d97706', '#db2777', '#4f46e5', '#ea580c']

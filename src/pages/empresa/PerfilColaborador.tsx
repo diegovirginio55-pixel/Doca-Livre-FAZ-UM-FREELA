@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom'
 import { LevelBadge } from '../../components/LevelBadge'
 import { cargoLabel } from '../../data/categories'
 import { abrirCurriculoPdf } from '../../lib/curriculoPdf'
+import { useStore } from '../../lib/store'
 import type { Disponibilidade, Profissional } from '../../lib/types'
 import './perfilColaborador.css'
 
@@ -33,6 +34,7 @@ export function PerfilColaborador({
   const nota = pessoa.avaliacaoMedia.toLocaleString('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 1 })
   const turnos = TURNOS.filter((item) => pessoa.disponibilidade[item.key])
   const cargo = pessoa.profissoes[0] ? cargoLabel(pessoa.profissoes[0]) : 'Trabalhador'
+  const { state } = useStore()
 
   useEffect(() => {
     function fechar(event: KeyboardEvent) {
@@ -148,7 +150,7 @@ export function PerfilColaborador({
               </div>
             </section>
           )}
-          <button type="button" className="pc-curriculo" onClick={() => abrirCurriculoPdf(pessoa)}>
+          <button type="button" className="pc-curriculo" onClick={() => abrirCurriculoPdf(pessoa, { documentos: state.documentos, distanciaKm: distancia })}>
             Ver currículo
           </button>
         </div>

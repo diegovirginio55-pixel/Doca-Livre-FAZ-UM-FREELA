@@ -30,6 +30,16 @@
   margin: 0 auto 10px;
 }
 
+/* Nome do sistema embaixo da logo, como na tela de entrada. */
+.portal-login__produto {
+  margin: -4px 0 10px;
+  font-size: clamp(1.45rem, 4vw, 1.75rem);
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  line-height: 1.1;
+  color: #0f172a;
+}
+
 .portal-login__title {
   margin: 0 0 6px;
   font-size: clamp(1.25rem, 3vw, 1.5rem);
@@ -195,4 +205,49 @@
   color: #94a3b8;
   text-decoration: none;
   cursor: default;
+}
+
+/* Regras da senha que ficam verdes enquanto a pessoa digita (no lugar do "Confirmar senha"). */
+.portal-login__regras {
+  list-style: none;
+  margin: -2px 0 10px;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 16px;
+  font-size: 0.88rem;
+  color: #64748b;
+}
+
+.portal-login__regras li {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.portal-login__regras li > span:first-child {
+  display: inline-grid;
+  place-items: center;
+  width: 16px;
+  font-weight: 800;
+}
+
+.portal-login__regras .portal-login__regra--ok {
+  color: #15803d;
+  font-weight: 600;
+}
+
+.portal-login__oculto {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+/* O Edge põe um olho próprio no campo de senha; o nosso botão já faz isso. */
+.portal-login__input--password::-ms-reveal,
+.portal-login__input--password::-ms-clear {
+  display: none;
 }
