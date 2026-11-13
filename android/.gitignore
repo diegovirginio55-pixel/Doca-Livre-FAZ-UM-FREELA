@@ -1,0 +1,10 @@
+.gradle/
+.kotlin/
+build/
+app/build/
+local.properties
+# A chave que assina o app fica so neste computador (guarde uma copia em lugar seguro).
+assinatura/
+*.p12
+*.jks
+*.keystore

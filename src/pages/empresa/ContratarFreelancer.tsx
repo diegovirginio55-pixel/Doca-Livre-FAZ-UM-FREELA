@@ -42,6 +42,8 @@ import {
   type MotivoTemporario,
 } from '../../lib/modalidadeContratacao'
 import { BoasVindas, BotaoAtualizar, BotaoTema, RelogioTopo, UsuarioTopo } from '../../components/TopoDocaLivre'
+import { AplicativoCelular, IconeCelular } from '../../components/AplicativoCelular'
+import { abaPedida, esquecerAbaPedida } from '../../lib/aplicativo'
 import { BRAND_PRODUCT_NAME, LOGO_DOCA_LIVRE_SRC } from '../../lib/brandAssets'
 import { useStore } from '../../lib/store'
 import './contratar.css'
@@ -454,6 +456,7 @@ const ABAS_EMPRESA = [
   { id: 'contratacoes', label: 'Minhas contratações', icon: <IconeContratacoes /> },
   { id: 'documentos', label: 'Documentação', icon: <IconeDocs /> },
   { id: 'dados', label: 'Dados da empresa', icon: <IconeEmpresa /> },
+  { id: 'aplicativo', label: 'Aplicativo', icon: <IconeCelular /> },
 ] as const
 
 type AbaEmpresa = (typeof ABAS_EMPRESA)[number]['id']
@@ -692,8 +695,9 @@ export function ContratarFreelancer({ onLogout }: { onLogout: () => void }) {
     apagarModelosLocais(empresa.id)
   }, [empresa.id, patchState])
   const [avisoModelo, setAvisoModelo] = useState('')
-  // Abre na tela de boas-vindas, como o Oferta de Carga.
-  const [aba, setAba] = useState<AbaEmpresa>('inicio')
+  // Abre na tela de boas-vindas, como o Oferta de Carga (ou na aba pedida por um atalho/aviso do app: /?aba=).
+  const [aba, setAba] = useState<AbaEmpresa>(() => abaPedida(ABAS_EMPRESA.map((item) => item.id)) ?? 'inicio')
+  useEffect(() => esquecerAbaPedida(), [])
   const [menuFixo, setMenuFixo] = useState(false)
   const [menuHover, setMenuHover] = useState(false)
   const [telaEstreita, setTelaEstreita] = useState(false)
@@ -1493,6 +1497,7 @@ export function ContratarFreelancer({ onLogout }: { onLogout: () => void }) {
           {aba === 'mapa' && <MapaMaoDeObra empresa={empresa} />}
           {aba === 'contratacoes' && <PainelContratacoes empresaId={empresa.id} />}
           {aba === 'dados' && <PainelDados />}
+          {aba === 'aplicativo' && <AplicativoCelular papel="empresa" />}
           {aba === 'missao' && (
           <>
           <div className="cf-intro">

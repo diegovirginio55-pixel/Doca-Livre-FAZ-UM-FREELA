@@ -6,7 +6,7 @@ export const pool = new pg.Pool({
   ssl: process.env.PGHOST && process.env.PGSSL !== 'off' ? { rejectUnauthorized: false } : undefined,
 })
 
-const arquivos = ['001_tabelas.sql', '002_permissoes.sql', '003_seguranca.sql']
+const arquivos = ['001_tabelas.sql', '002_permissoes.sql', '003_seguranca.sql', '004_aplicativo.sql']
 
 // Contas de gestão que já existiam no app (antes só no código do site, com a senha à vista).
 // Entram no banco real com a senha inicial de sempre, em hash, e são obrigadas a trocar por

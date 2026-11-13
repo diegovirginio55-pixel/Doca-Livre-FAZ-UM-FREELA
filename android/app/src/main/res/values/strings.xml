@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">fazumfreela</string>
+    <string name="launch_url" translatable="false">https://fazumfreela.com.br/?app=android</string>
+    <string name="status_title">App do fazumfreela</string>
+    <string name="shortcut_vagas">Vagas</string>
+    <string name="shortcut_status">App do fazumfreela</string>
+    <string name="widget_label">Resumo · fazumfreela</string>
+    <string name="widget_description">Convites, vagas novas e contratações da sua conta</string>
+    <string name="widget_title">fazumfreela</string>
+    <string name="widget_waiting">Abra o fazumfreela → Aplicativo → Ativar neste celular</string>
+    <string name="asset_statements" translatable="false">[{\"relation\": [\"delegate_permission/common.handle_all_urls\"], \"target\": {\"namespace\": \"web\", \"site\": \"https://fazumfreela.com.br\"}}]</string>
+</resources>

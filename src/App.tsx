@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { IntroSplash } from './components/IntroSplash'
+import { AppDoNavegadorDesativado } from './components/AplicativoCelular'
+import { abertoComoAppDoNavegador } from './lib/aplicativo'
 import { emDemo, trocarModo } from './lib/modo'
 import './pages/auth/PortalSelectScreen.css'
 import { StoreProvider, avisoAcessoEmpresa, avisoAcessoProfissional, useStore } from './lib/store'
@@ -11,7 +13,6 @@ import { PortalLoginScreen } from './pages/auth/PortalLoginScreen'
 import { PortalSelectScreen } from './pages/auth/PortalSelectScreen'
 import { ContratarFreelancer } from './pages/empresa/ContratarFreelancer'
 import { ProfissionalApp } from './pages/profissional/ProfissionalApp'
-import { PwaInstallBanner } from './pwa/PwaInstallBanner'
 import './App.css'
 
 type PortalTipo = 'empresa' | 'profissional' | 'admin'
@@ -272,12 +273,15 @@ function FaixaDemo() {
   )
 }
 
+// O app instalado pelo navegador (Chrome/Edge, Tela de Início do iPhone) não abre mais o sistema: só o APK.
+const APP_DO_NAVEGADOR = abertoComoAppDoNavegador()
+
 export default function App() {
+  if (APP_DO_NAVEGADOR) return <AppDoNavegadorDesativado />
   return (
     <StoreProvider>
       <AppRoutes />
       <FaixaDemo />
-      <PwaInstallBanner />
     </StoreProvider>
   )
 }

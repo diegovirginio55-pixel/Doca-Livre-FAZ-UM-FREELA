@@ -14,6 +14,8 @@ import {
 import { LOGO_DOCA_LIVRE_SRC } from '../../lib/brandAssets'
 import { emDemo } from '../../lib/modo'
 import { useStore } from '../../lib/store'
+import { abaPedida, esquecerAbaPedida } from '../../lib/aplicativo'
+import { AplicativoCelular } from '../../components/AplicativoCelular'
 
 /**
  * Gera uma senha provisória (a pessoa troca no primeiro login). O sistema não guarda senhas,
@@ -58,6 +60,7 @@ const ITEMS = [
   { id: 'demandas', label: 'Demandas' },
   { id: 'financeiro', label: 'Financeiro' },
   { id: 'auditoria', label: 'Auditoria' },
+  { id: 'aplicativo', label: 'Aplicativo' },
 ]
 
 export function AdminApp({
@@ -70,7 +73,9 @@ export function AdminApp({
   const store = useStore()
   const { refreshFromCloud } = store
   // Abre na tela de boas-vindas, como o Oferta de Carga.
-  const [section, setSection] = useState('inicio')
+  // Ou a aba pedida por um atalho ou aviso do app (/?aba=empresas).
+  const [section, setSection] = useState(() => abaPedida(ITEMS.map((item) => item.id)) ?? 'inicio')
+  useEffect(() => esquecerAbaPedida(), [])
   // Menu lateral como no WMS Doca Livre: recolhido, abre com o mouse; o botão do topo o deixa fixo.
   const [menuFixo, setMenuFixo] = useState(false)
 
@@ -215,6 +220,7 @@ export function AdminApp({
           {section === 'demandas' && <DemandasAdmin />}
           {section === 'financeiro' && <FinanceiroAdmin />}
           {section === 'auditoria' && <AuditoriaAdmin />}
+          {section === 'aplicativo' && <AplicativoCelular papel="gestao" />}
         </main>
       </div>
       <button type="button" className="px-chat-fab" title="Suporte">
@@ -278,6 +284,12 @@ function IconeAba({ id }: { id: string }) {
           <rect x="3.5" y="6" width="17" height="12" rx="2" {...traco} />
           <path d="M3.5 10h17" {...traco} />
           <path d="M7 14.5h4" {...traco} />
+        </>
+      )}
+      {id === 'aplicativo' && (
+        <>
+          <rect x="6.5" y="2.75" width="11" height="18.5" rx="2.2" {...traco} />
+          <path d="M10.5 18h3" {...traco} />
         </>
       )}
       {id === 'auditoria' && (

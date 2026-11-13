@@ -20,6 +20,8 @@ const types = {
   '.webmanifest': 'application/manifest+json',
   '.txt': 'text/plain; charset=utf-8',
   '.woff2': 'font/woff2',
+  // Instalador do app Android (public/app, gerado por android/gerar-apk.ps1).
+  '.apk': 'application/vnd.android.package-archive',
 }
 
 function arquivoPublico(pathname) {
@@ -36,8 +38,18 @@ function arquivoPublico(pathname) {
 }
 
 function enviarArquivo(req, res, arquivo) {
-  const tipo = types[extname(arquivo)] || 'application/octet-stream'
-  res.writeHead(200, { 'Content-Type': tipo })
+  const extensao = extname(arquivo)
+  const tipo = types[extensao] || 'application/octet-stream'
+  const cabecalhos = { 'Content-Type': tipo }
+  if (extensao === '.apk') {
+    // tamanho para o celular mostrar o progresso; sempre a versão mais nova
+    cabecalhos['Content-Length'] = statSync(arquivo).size
+    cabecalhos['Content-Disposition'] = 'attachment; filename="fazumfreela.apk"'
+    cabecalhos['Cache-Control'] = 'no-cache'
+  } else if (arquivo.endsWith(`${sep}app${sep}versao.json`)) {
+    cabecalhos['Cache-Control'] = 'no-cache'
+  }
+  res.writeHead(200, cabecalhos)
   if (req.method === 'HEAD') {
     res.end()
     return

@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Azul-marinho do logo do fazumfreela (barra de status, abertura e fundo do icone). -->
+    <color name="background">#FF043460</color>
+</resources>

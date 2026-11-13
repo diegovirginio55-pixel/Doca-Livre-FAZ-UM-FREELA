@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Atalhos fixos ao segurar o icone do app. Os outros dois mudam conforme a conta (empresa, profissional ou
+     gestao) e vem do proprio fazumfreela, junto com o resumo (ver Atalhos.java). -->
+<shortcuts xmlns:android="http://schemas.android.com/apk/res/android">
+    <shortcut
+        android:enabled="true"
+        android:icon="@mipmap/ic_launcher"
+        android:shortcutId="vagas"
+        android:shortcutShortLabel="@string/shortcut_vagas">
+        <intent
+            android:action="android.intent.action.VIEW"
+            android:data="https://fazumfreela.com.br/?aba=vagas&amp;app=android"
+            android:targetClass="com.google.androidbrowserhelper.trusted.LauncherActivity"
+            android:targetPackage="br.com.docalivre.fazumfreela" />
+    </shortcut>
+    <shortcut
+        android:enabled="true"
+        android:icon="@mipmap/ic_launcher"
+        android:shortcutId="status"
+        android:shortcutShortLabel="@string/shortcut_status">
+        <intent
+            android:action="android.intent.action.VIEW"
+            android:targetClass="br.com.docalivre.fazumfreela.StatusActivity"
+            android:targetPackage="br.com.docalivre.fazumfreela" />
+    </shortcut>
+</shortcuts>

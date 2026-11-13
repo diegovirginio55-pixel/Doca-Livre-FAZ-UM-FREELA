@@ -1,7 +1,8 @@
-// Service worker mínimo. Objetivo: deixar o app instalável.
+// Service worker mínimo: guarda os ícones e os arquivos do site para abrir mais rápido. (A instalação pelo
+// Chrome saiu: o celular usa o app Android, em public/app.)
 // HTML e o próprio SW vêm sempre da rede para não prender uma versão antiga.
-const CACHE = 'mao-de-obra-shell-v3'
-const SHELL = ['/manifest.webmanifest', '/icon-192.png', '/icon-512.png', '/apple-touch-icon.png']
+const CACHE = 'mao-de-obra-shell-v4'
+const SHELL = ['/icon-192.png', '/icon-512.png', '/apple-touch-icon.png']
 
 self.addEventListener('install', (event) => {
   event.waitUntil(
