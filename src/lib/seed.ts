@@ -546,6 +546,7 @@ export function createSeedState(): AppState {
       },
     ],
     relatorios: [],
+    modelosVaga: [],
     contratos: [],
     documentos,
     pecas: [],

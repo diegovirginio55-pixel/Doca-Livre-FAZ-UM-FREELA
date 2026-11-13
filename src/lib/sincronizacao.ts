@@ -40,6 +40,7 @@ export const COLECOES_REGISTRO = [
   'enderecosEmpresa',
   'veiculos',
   'relatorios',
+  'modelosVaga',
 ] as const
 
 type ColecaoRegistro = (typeof COLECOES_REGISTRO)[number]

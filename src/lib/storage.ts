@@ -79,6 +79,7 @@ export function estadoVazio(): AppState {
     enderecosEmpresa: [],
     veiculos: [],
     relatorios: [],
+    modelosVaga: [],
     contratos: [],
     documentos: [],
     pecas: [],
