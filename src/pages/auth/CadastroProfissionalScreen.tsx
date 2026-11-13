@@ -3,11 +3,13 @@ import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react'
 import { CATEGORIES } from '../../data/categories'
 import { LOCAIS_OPERACAO } from '../../data/cidades'
 import { AvailabilityToggle } from '../../components/AvailabilityToggle'
+import { MapaRaio } from '../../components/MapaRaio'
 import { AceiteCadastro, todosAceitos } from '../../components/AceiteTermos'
 import { AnexoCurriculo, CamposSobre, ListaExperiencias, conferirExperiencias } from '../../components/CurriculoCampos'
 import type { TermoId } from '../../lib/termos'
 import { ACCEPT_DOCUMENTO_CADASTRO, lerArquivoCadastro, type FotoDocumento, type PapelDocumento } from '../../lib/analisarDocumentoCadastro'
 import { coordenadaDaCidade } from '../../lib/coordenadaCidade'
+import { pontoValido, useLocalizacaoEndereco } from '../../lib/localizacaoEndereco'
 import { hojeLocal } from '../../lib/ponto'
 import { CERTIFICADOS_COMUNS, habilidadesDoTexto, mesclarCurriculo, nomeCertificado, semContato } from '../../lib/curriculo'
 import type { LeituraCurriculo } from '../../lib/lerCurriculo'
@@ -133,6 +135,7 @@ export function CadastroProfissionalScreen({ onBack, onDone }: Props) {
     estado: 'SP',
     rua: '',
     numero: '',
+    complemento: '',
     raioKm: null as number | null,
   })
   const formAtual = useRef(form)
@@ -154,6 +157,19 @@ export function CadastroProfissionalScreen({ onBack, onDone }: Props) {
       estado: e.estado || f.estado,
     })),
   )
+  // Centro da cidade (fica parado enquanto a cidade não muda): último recurso do ponto no mapa.
+  const pontoCidade = useMemo(() => {
+    const ponto = coordenadaDaCidade(form.cidade, form.estado, [
+      ...state.profissionais.map((pessoa) => pessoa.endereco),
+      ...state.empresas.map((empresa) => empresa.endereco),
+    ])
+    return pontoValido(ponto) ? ponto : null
+  }, [form.cidade, form.estado, state.profissionais, state.empresas])
+  const localizacao = useLocalizacaoEndereco({
+    endereco: { rua: form.rua, numero: form.numero, cidade: form.cidade, estado: form.estado },
+    pontoCep: cepStatus.coord,
+    pontoCidade,
+  })
   const pixInfo = form.pix.trim() ? validarChavePix(form.pix) : null
   const certsExtras = form.certificados.filter((item) => !CERTIFICADOS_COMUNS.includes(item.tipo))
 
@@ -418,9 +434,10 @@ export function CadastroProfissionalScreen({ onBack, onDone }: Props) {
         cep: form.cep,
         rua: form.rua,
         numero: form.numero,
+        complemento: form.complemento.trim() || undefined,
         cidade: form.cidade.trim(),
         estado: form.estado.trim().toUpperCase(),
-        ...(cepStatus.coord ??
+        ...(localizacao.ponto ??
           coordenadaDaCidade(form.cidade, form.estado, [
             ...state.profissionais.map((pessoa) => pessoa.endereco),
             ...state.empresas.map((empresa) => empresa.endereco),
@@ -460,7 +477,7 @@ export function CadastroProfissionalScreen({ onBack, onDone }: Props) {
         <button type="button" className="btn btn-ghost link-back" onClick={prev}>
           ← Voltar
         </button>
-        <h1 className="auth-title">Cadastro de colaborador</h1>
+        <h1 className="auth-title">Cadastro de trabalhador</h1>
         <p className="step-indicator">
           Etapa {step} de {ETAPAS.length} · {ETAPAS[step - 1]}
         </p>
@@ -664,6 +681,16 @@ export function CadastroProfissionalScreen({ onBack, onDone }: Props) {
               <input value={form.numero} onChange={(e) => set('numero', e.target.value)} />
             </label>
             <label className="field">
+              <span>Complemento (opcional)</span>
+              <input
+                value={form.complemento}
+                onChange={(e) => set('complemento', e.target.value)}
+                placeholder="Apto, bloco, casa 2..."
+                autoComplete="address-line2"
+                maxLength={60}
+              />
+            </label>
+            <label className="field">
               <span>Raio máximo para trabalhar</span>
               <span className="raio-linha">
                 <input
@@ -696,6 +723,13 @@ export function CadastroProfissionalScreen({ onBack, onDone }: Props) {
                 Você pode ir trabalhar em até {form.raioKm} km de {form.cidade.trim()}/{form.estado}.
               </p>
             )}
+            <MapaRaio
+              ponto={localizacao.ponto}
+              origem={localizacao.origem}
+              raioKm={form.raioKm}
+              cidade={form.cidade.trim()}
+              onMover={localizacao.mover}
+            />
           </div>
         )}
         {step === PASSO.pagamento && (

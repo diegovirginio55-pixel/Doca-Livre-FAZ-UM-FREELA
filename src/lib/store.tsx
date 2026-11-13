@@ -766,7 +766,16 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         { identificador, senha },
         { erroPadrao: 'Não foi possível entrar agora. Tente de novo em instantes.' },
       )
-      if (!r.ok) return { ok: false, error: r.erro }
+      if (!r.ok) {
+        // Quem digita "admin" aqui quase sempre quer o super usuário, que só entra pelo portal Admin.
+        if (identificador !== usuarioOuEmail.trim() && /inválid|tentativas/i.test(r.erro)) {
+          return {
+            ok: false,
+            error: `Aqui "admin" é a conta de teste do portal ${portal === 'empresa' ? 'Empresa' : 'Trabalhador'}. Para o super usuário, volte à tela inicial e use "Acesso Admin / Superusuário".`,
+          }
+        }
+        return { ok: false, error: r.erro }
+      }
       const conta = contaDaApi(r.conta)
       const falha = portalErrado(conta, portal)
       if (falha) return { ok: false, error: falha }

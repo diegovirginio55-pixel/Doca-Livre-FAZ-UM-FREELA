@@ -253,7 +253,7 @@ export function CadastroProfissionalDetalhe({
                 <dt>Endereço</dt>
                 <dd>
                   {profissional.endereco
-                    ? `${profissional.endereco.rua}, ${profissional.endereco.numero} — ${profissional.endereco.cidade}/${profissional.endereco.estado} (CEP ${profissional.endereco.cep})`
+                    ? `${profissional.endereco.rua}, ${profissional.endereco.numero}${profissional.endereco.complemento ? `, ${profissional.endereco.complemento}` : ""} — ${profissional.endereco.cidade}/${profissional.endereco.estado} (CEP ${profissional.endereco.cep})`
                     : '—'}
                 </dd>
               </div>
