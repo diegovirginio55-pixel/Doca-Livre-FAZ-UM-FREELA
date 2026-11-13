@@ -47,6 +47,14 @@ O site fala com a API em `https://fazumfreela-api.purpleocean-4b1d485c.brazilsou
 2. Teste o cadastro de uma empresa: portal Empresa → **Criar conta** → código por e-mail → formulário → aparece em Admin → Empresas como pendente → **Ver cadastro** abre os documentos.
 3. Quem esquecer a senha: **Esqueci a senha** (e-mail) ou, no Admin, **Senha provisória** (a pessoa troca no primeiro login). O sistema não guarda senhas legíveis — nem o admin consegue vê-las.
 
+## Aplicativo Android
+
+O app (pasta `android/`, no modelo do app do WMS Doca Livre) abre o site em tela cheia (Trusted Web Activity) e tem, em código nativo, widget, avisos e atalhos. Não está na Play Store: o instalador é `public/app/fazumfreela.apk`, servido pelo próprio site (menu **Aplicativo** e link na tela de entrada). A instalação pelo Chrome (manifest) saiu.
+
+- **Versão nova do app** (só quando mudar algo em `android/`): `powershell -ExecutionPolicy Bypass -File android\gerar-apk.ps1`. O script compila, assina, confere a assinatura com `public/.well-known/assetlinks.json` e atualiza `public/app/fazumfreela.apk` e `public/app/versao.json`. Depois é publicar o site.
+- **Chave de assinatura**: `android/assinatura/` (fora do Git, só no computador que gerou). Guarde uma cópia da pasta em lugar seguro: sem ela, uma versão nova não instala por cima da anterior. A impressão digital (pública) está no `assetlinks.json`.
+- **Widget e avisos**: o celular é ativado em **Aplicativo → Ativar neste celular**, que cria um código próprio do celular na API (`/api/app/*`, tabela `mao_app_aparelhos`, só o hash fica no banco). A cada 30 minutos o app busca `/api/app/resumo` com esse código.
+
 ## Modo demonstração
 
 Botão **Ver demonstração** na tela inicial: dados fictícios só no navegador, sem nenhum acesso ao banco. As contas demo (`logexpress`, `joao`, `Diego`… com `demo123`) só existem nesse modo.

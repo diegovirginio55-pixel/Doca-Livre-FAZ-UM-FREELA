@@ -1,0 +1,12 @@
+[
+  {
+    "relation": ["delegate_permission/common.handle_all_urls"],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "br.com.docalivre.fazumfreela",
+      "sha256_cert_fingerprints": [
+        "2C:B4:90:60:6A:E4:BD:3C:E9:41:FD:33:2D:16:CA:84:7B:FA:33:5C:54:2F:41:0A:18:CC:7F:88:35:B6:81:BF"
+      ]
+    }
+  }
+]

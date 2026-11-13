@@ -1,3 +1,6 @@
+import { useState } from 'react'
+import { AplicativoJanela } from '../../components/AplicativoCelular'
+import { estaNoApp } from '../../lib/aplicativo'
 import { LOGO_DOCA_LIVRE_SRC, BRAND_SLOGAN } from '../../lib/brandAssets'
 import { emDemo, trocarModo } from '../../lib/modo'
 import './PortalSelectScreen.css'
@@ -17,6 +20,7 @@ type Props = {
 }
 
 export function PortalSelectScreen({ onEmpresa, onProfissional, onAdmin }: Props) {
+  const [verApp, setVerApp] = useState(false)
   return (
     <div className="portal-select">
       <div className="portal-select__inner">
@@ -41,6 +45,17 @@ export function PortalSelectScreen({ onEmpresa, onProfissional, onAdmin }: Props
           </button>
         </div>
 
+        {/* O app Android substitui a instalação pelo Chrome. Dentro do app, o link some. */}
+        {!estaNoApp() && (
+          <button type="button" className="portal-select__app" onClick={() => setVerApp(true)}>
+            <svg viewBox="0 0 24 24" fill="none" aria-hidden>
+              <rect x="6.5" y="2.75" width="11" height="18.5" rx="2.2" stroke="currentColor" strokeWidth="1.75" />
+              <path d="M10.5 18h3" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" />
+            </svg>
+            Baixar o aplicativo para Android
+          </button>
+        )}
+
         <button type="button" className="portal-select__admin" onClick={onAdmin}>
           Acesso Admin / Superusuário
         </button>
@@ -59,6 +74,7 @@ export function PortalSelectScreen({ onEmpresa, onProfissional, onAdmin }: Props
           )
         )}
       </div>
+      {verApp && <AplicativoJanela onFechar={() => setVerApp(false)} />}
     </div>
   )
 }

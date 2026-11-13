@@ -12,6 +12,8 @@ import { checklistProfissional, resumoDocumental } from '../../lib/documentos'
 import { pendenciasParaIniciar } from '../../lib/dossieTemporario'
 import { diasComPresenca, diasEntre, hojeLocal, horasRegistradas, missaoNoDia, pontoDeHoje, pontosDe } from '../../lib/ponto'
 import { BotaoAtualizar, BotaoTema, RelogioTopo, UsuarioTopo } from '../../components/TopoDocaLivre'
+import { AplicativoCelular, IconeCelular } from '../../components/AplicativoCelular'
+import { abaPedida, esquecerAbaPedida } from '../../lib/aplicativo'
 import { BRAND_PRODUCT_NAME, LOGO_DOCA_LIVRE_SRC } from '../../lib/brandAssets'
 import { validarChavePix } from '../../lib/pix'
 import { useStore } from '../../lib/store'
@@ -30,6 +32,7 @@ const TABS = [
   { id: 'financeiro', label: 'Financeiro', icon: <IconeFinanceiro /> },
   { id: 'perfil', label: 'Perfil', icon: <IconePerfil /> },
   { id: 'opcoes', label: 'Opções', icon: <IconeOpcoes /> },
+  { id: 'aplicativo', label: 'Aplicativo', icon: <IconeCelular /> },
 ] as const
 
 type TabId = (typeof TABS)[number]['id']
@@ -37,7 +40,9 @@ type TabId = (typeof TABS)[number]['id']
 export function ProfissionalApp({ onLogout }: { onLogout: () => void }) {
   const store = useStore()
   const prof = store.currentProfissional
-  const [tab, setTab] = useState<TabId>('inicio')
+  // Aba pedida por um atalho ou aviso do app (/?aba=vagas); sem isso, o Início.
+  const [tab, setTab] = useState<TabId>(() => abaPedida(TABS.map((item) => item.id)) ?? 'inicio')
+  useEffect(() => esquecerAbaPedida(), [])
   const [termoId, setTermoId] = useState<string | null>(null)
   const [menuFixo, setMenuFixo] = useState(false)
   const [menuHover, setMenuHover] = useState(false)
@@ -180,6 +185,7 @@ export function ProfissionalApp({ onLogout }: { onLogout: () => void }) {
             {tab === 'financeiro' && <FinanceiroTab />}
             {tab === 'perfil' && <PerfilTab />}
             {tab === 'opcoes' && <OpcoesTab onIr={setTab} />}
+            {tab === 'aplicativo' && <AplicativoCelular papel="profissional" />}
           </div>
         </main>
       </div>

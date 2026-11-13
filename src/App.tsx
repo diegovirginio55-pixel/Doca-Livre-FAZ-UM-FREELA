@@ -11,7 +11,6 @@ import { PortalLoginScreen } from './pages/auth/PortalLoginScreen'
 import { PortalSelectScreen } from './pages/auth/PortalSelectScreen'
 import { ContratarFreelancer } from './pages/empresa/ContratarFreelancer'
 import { ProfissionalApp } from './pages/profissional/ProfissionalApp'
-import { PwaInstallBanner } from './pwa/PwaInstallBanner'
 import './App.css'
 
 type PortalTipo = 'empresa' | 'profissional' | 'admin'
@@ -277,7 +276,6 @@ export default function App() {
     <StoreProvider>
       <AppRoutes />
       <FaixaDemo />
-      <PwaInstallBanner />
     </StoreProvider>
   )
 }

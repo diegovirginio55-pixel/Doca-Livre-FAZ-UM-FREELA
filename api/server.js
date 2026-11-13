@@ -20,6 +20,7 @@ import { enviarCodigoEmail } from './server-functions/enviarCodigoEmail.mjs'
 import { notificarCadastro } from './server-functions/notificarCadastro.mjs'
 import { analisarDocumentoCadastro } from './server-functions/analisarDocumentoCadastro.mjs'
 import { lerCurriculo } from './server-functions/lerCurriculo.mjs'
+import { ativarAparelho, desativarAparelho, listarAparelhos, resumoDoAparelho, sairDoAparelho } from './aplicativo.mjs'
 
 const port = Number(process.env.PORT || 8080)
 
@@ -307,6 +308,16 @@ const server = http.createServer(async (req, res) => {
     return
   }
 
+  // 2b. Aplicativo Android: o widget e os avisos usam o código do celular (X-App-Token), sem a chave da API.
+  if (caminho === '/api/app/resumo' && req.method === 'GET') {
+    await rotaJson(req, res, 0, () => resumoDoAparelho(req), 'Não foi possível montar o resumo.')
+    return
+  }
+  if (caminho === '/api/app/sair' && req.method === 'POST') {
+    await rotaJson(req, res, 1000, () => sairDoAparelho(req), 'Não foi possível desativar.')
+    return
+  }
+
   // 3. Chave da API. O download de link assinado passa sem chave: o token do link protege
   //    (<img> e nova aba não mandam cabeçalho).
   const linkAssinado =
@@ -381,6 +392,20 @@ const server = http.createServer(async (req, res) => {
       (c) => adminRedefinirSenha(req, campos(c, ['contaId'])),
       'Não foi possível redefinir a senha.',
     )
+    return
+  }
+
+  // Aplicativo Android: ativar e desativar celulares (com a sessão do site).
+  if (caminho === '/api/app/ativar' && req.method === 'POST') {
+    await rotaJson(req, res, 1000, () => ativarAparelho(req), 'Não foi possível ativar o celular.')
+    return
+  }
+  if (caminho === '/api/app/aparelhos' && req.method === 'GET') {
+    await rotaJson(req, res, 0, () => listarAparelhos(req), 'Não foi possível listar os celulares.')
+    return
+  }
+  if (caminho === '/api/app/desativar' && req.method === 'POST') {
+    await rotaJson(req, res, 1000, (c) => desativarAparelho(req, campos(c, ['id'])), 'Não foi possível desativar.')
     return
   }
 
