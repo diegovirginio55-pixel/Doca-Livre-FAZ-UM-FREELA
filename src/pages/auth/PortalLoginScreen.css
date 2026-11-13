@@ -207,7 +207,7 @@
   cursor: default;
 }
 
-/* Regras da senha que ficam verdes enquanto a pessoa digita (no lugar do "Confirmar senha"). */
+/* Regras da senha (e "senhas iguais") que ficam verdes enquanto a pessoa digita. */
 .portal-login__regras {
   list-style: none;
   margin: -2px 0 10px;
