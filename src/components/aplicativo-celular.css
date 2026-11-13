@@ -295,3 +295,60 @@
     padding: 44px 12px 12px;
   }
 }
+
+/* Tela no lugar do sistema quando aberto como "app instalado pelo navegador" (desativado). */
+.app-cel-bloqueio {
+  min-height: 100vh;
+  min-height: 100dvh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px 16px;
+  background: var(--dl-fundo);
+  color: var(--dl-texto);
+}
+
+.app-cel-bloqueio-caixa {
+  width: min(480px, 100%);
+  padding: 28px 24px;
+  border: 1px solid var(--dl-borda);
+  border-radius: 18px;
+  background: var(--dl-card);
+  box-shadow: var(--dl-sombra-card);
+  text-align: center;
+}
+
+.app-cel-bloqueio-icone {
+  display: block;
+  margin: 0 auto 14px;
+  border-radius: 18px;
+  border: 1px solid var(--dl-borda);
+  background: #ffffff;
+}
+
+.app-cel-bloqueio h1 {
+  margin: 0 0 10px;
+  font-size: 1.3rem;
+  color: var(--dl-titulo);
+}
+
+.app-cel-bloqueio p {
+  margin: 0 0 14px;
+  line-height: 1.5;
+  color: var(--dl-texto-medio);
+}
+
+.app-cel-bloqueio-baixar {
+  width: 100%;
+  margin: 4px 0 16px;
+}
+
+.app-cel-bloqueio ol {
+  margin: 0;
+  padding-left: 20px;
+  display: grid;
+  gap: 8px;
+  text-align: left;
+  line-height: 1.45;
+  font-size: 0.92rem;
+}

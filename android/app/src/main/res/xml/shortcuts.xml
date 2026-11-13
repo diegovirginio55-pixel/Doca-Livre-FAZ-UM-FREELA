@@ -9,7 +9,7 @@
         android:shortcutShortLabel="@string/shortcut_vagas">
         <intent
             android:action="android.intent.action.VIEW"
-            android:data="https://fazumfreela.com.br/?aba=vagas"
+            android:data="https://fazumfreela.com.br/?aba=vagas&amp;app=android"
             android:targetClass="com.google.androidbrowserhelper.trusted.LauncherActivity"
             android:targetPackage="br.com.docalivre.fazumfreela" />
     </shortcut>

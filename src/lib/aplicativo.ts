@@ -9,14 +9,26 @@ export const APK_URL = '/app/fazumfreela.apk'
 export const VERSAO_URL = '/app/versao.json'
 
 const CHAVE_NO_APP = 'fazumfreela.noApp'
+/** Marca que o app Android põe nos endereços que ele abre (abertura, atalhos, widget e avisos). */
+const MARCA_DO_APP = 'app'
+let noAppNestaPagina = false
 
 /**
- * O app abre o site com o "referrer" android-app://<pacote>. Só a primeira página recebe isso, então a marca
- * fica guardada na sessão (cada abertura do app é uma sessão nova).
+ * O app abre o site com o "referrer" android-app://<pacote> e, nos endereços dele, com ?app=android. Só a
+ * primeira página recebe isso, então a marca fica guardada na sessão (cada abertura do app é uma sessão nova).
  */
 function marcarSeNoApp() {
   try {
-    if (typeof document !== 'undefined' && document.referrer.startsWith(`android-app://${PACOTE_ANDROID}`)) {
+    const pelaOrigem =
+      typeof document !== 'undefined' && document.referrer.startsWith(`android-app://${PACOTE_ANDROID}`)
+    const url = new URL(window.location.href)
+    const pelaMarca = url.searchParams.get(MARCA_DO_APP) === 'android'
+    if (pelaMarca) {
+      url.searchParams.delete(MARCA_DO_APP)
+      window.history.replaceState(window.history.state, '', url.pathname + url.search + url.hash)
+    }
+    if (pelaOrigem || pelaMarca) {
+      noAppNestaPagina = true
       sessionStorage.setItem(CHAVE_NO_APP, '1')
     }
   } catch {
@@ -26,11 +38,28 @@ function marcarSeNoApp() {
 marcarSeNoApp()
 
 export function estaNoApp() {
+  if (noAppNestaPagina) return true
   try {
     return sessionStorage.getItem(CHAVE_NO_APP) === '1'
   } catch {
     return false
   }
+}
+
+/**
+ * Aberto como "app instalado pelo navegador" (atalho do Chrome/Edge, "Adicionar à Tela de Início" do iPhone)?
+ * Desde o app Android, isso não abre mais o sistema: só o APK. O APK também roda em tela cheia, por isso ele é
+ * reconhecido antes (estaNoApp).
+ */
+export function abertoComoAppDoNavegador() {
+  if (estaNoApp()) return false
+  try {
+    const modos = ['standalone', 'fullscreen', 'minimal-ui', 'window-controls-overlay']
+    if (modos.some((modo) => window.matchMedia(`(display-mode: ${modo})`).matches)) return true
+  } catch {
+    /* navegador sem matchMedia */
+  }
+  return typeof navigator !== 'undefined' && (navigator as Navigator & { standalone?: boolean }).standalone === true
 }
 
 export function ehAndroid() {

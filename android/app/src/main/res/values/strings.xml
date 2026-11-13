@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">fazumfreela</string>
-    <string name="launch_url" translatable="false">https://fazumfreela.com.br/</string>
+    <string name="launch_url" translatable="false">https://fazumfreela.com.br/?app=android</string>
     <string name="status_title">App do fazumfreela</string>
     <string name="shortcut_vagas">Vagas</string>
     <string name="shortcut_status">App do fazumfreela</string>

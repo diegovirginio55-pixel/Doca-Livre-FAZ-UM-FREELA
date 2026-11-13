@@ -49,7 +49,7 @@ O site fala com a API em `https://fazumfreela-api.purpleocean-4b1d485c.brazilsou
 
 ## Aplicativo Android
 
-O app (pasta `android/`, no modelo do app do WMS Doca Livre) abre o site em tela cheia (Trusted Web Activity) e tem, em código nativo, widget, avisos e atalhos. Não está na Play Store: o instalador é `public/app/fazumfreela.apk`, servido pelo próprio site (menu **Aplicativo** e link na tela de entrada). A instalação pelo Chrome (manifest) saiu.
+O app (pasta `android/`, no modelo do app do WMS Doca Livre) abre o site em tela cheia (Trusted Web Activity) e tem, em código nativo, widget, avisos e atalhos. Não está na Play Store: o instalador é `public/app/fazumfreela.apk`, servido pelo próprio site (menu **Aplicativo** e link na tela de entrada). A instalação pelo navegador saiu: o site não tem mais manifest, e quem abre o atalho antigo (Chrome, Edge, Tela de Início do iPhone) vê a tela "atalho desativado" com o link do APK. O APK é reconhecido pela origem `android-app://` e pela marca `?app=android` nos endereços que ele abre.
 
 - **Versão nova do app** (só quando mudar algo em `android/`): `powershell -ExecutionPolicy Bypass -File android\gerar-apk.ps1`. O script compila, assina, confere a assinatura com `public/.well-known/assetlinks.json` e atualiza `public/app/fazumfreela.apk` e `public/app/versao.json`. Depois é publicar o site.
 - **Chave de assinatura**: `android/assinatura/` (fora do Git, só no computador que gerou). Guarde uma cópia da pasta em lugar seguro: sem ela, uma versão nova não instala por cima da anterior. A impressão digital (pública) está no `assetlinks.json`.

@@ -93,9 +93,14 @@ final class Prefs {
         return link;
     }
 
-    /** Intencao que abre o fazumfreela (no app, em tela cheia) num caminho do site. */
+    /**
+     * Intencao que abre o fazumfreela (no app, em tela cheia) num caminho do site. O ?app=android avisa o site que
+     * e o app (o site bloqueia o "app instalado pelo navegador", que tambem roda em tela cheia).
+     */
     static Intent abrirNoApp(Context context, String link) {
-        Intent open = new Intent(Intent.ACTION_VIEW, Uri.parse(SITE + caminhoSeguro(link)));
+        String caminho = caminhoSeguro(link);
+        String marca = (caminho.contains("?") ? "&" : "?") + "app=android";
+        Intent open = new Intent(Intent.ACTION_VIEW, Uri.parse(SITE + caminho + marca));
         open.setClass(context, LauncherActivity.class);
         return open;
     }

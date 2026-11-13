@@ -155,8 +155,8 @@ export function AplicativoCelular({ papel, publico = false }: { papel?: Papel; p
 
       {!noApp && iphone && (
         <div className="app-cel-aviso">
-          <strong>iPhone:</strong> o app é só para Android. No iPhone, abra o fazumfreela no Safari, toque em
-          Compartilhar e depois em <em>Adicionar à Tela de Início</em>.
+          <strong>iPhone:</strong> o app é só para Android. No iPhone, use o fazumfreela pelo Safari, em{' '}
+          <strong>fazumfreela.com.br</strong>.
         </div>
       )}
 
@@ -195,8 +195,8 @@ export function AplicativoCelular({ papel, publico = false }: { papel?: Papel; p
             </li>
           </ol>
           <p className="app-cel-nota">
-            Para atualizar, baixe de novo e instale por cima. O app usa o Google Chrome do celular. Se você tinha
-            adicionado o site à tela inicial pelo Chrome, pode apagar aquele atalho.
+            Para atualizar, baixe de novo e instale por cima. O app usa o Google Chrome do celular. O atalho antigo,
+            instalado pelo navegador, não abre mais o sistema: pode apagá-lo.
           </p>
         </section>
       </div>
@@ -292,6 +292,57 @@ export function AplicativoJanela({ onFechar }: { onFechar: () => void }) {
           ×
         </button>
         <AplicativoCelular publico />
+      </div>
+    </div>
+  )
+}
+
+/**
+ * Tela no lugar do sistema quando ele é aberto como "app instalado pelo navegador" (atalho do Chrome/Edge ou
+ * "Adicionar à Tela de Início" do iPhone). Esse jeito de instalar foi desligado: no celular, só o app Android.
+ */
+export function AppDoNavegadorDesativado() {
+  const [versao, setVersao] = useState<VersaoDoApp | null>(null)
+  const android = ehAndroid()
+  const iphone = ehIphone()
+  useEffect(() => {
+    void lerVersaoDoApp().then(setVersao)
+  }, [])
+  return (
+    <div className="app-cel-bloqueio">
+      <div className="app-cel-bloqueio-caixa">
+        <img src="/icon-192.png" alt="" width={72} height={72} className="app-cel-bloqueio-icone" />
+        <h1>Este atalho do fazumfreela foi desativado</h1>
+        <p>
+          O fazumfreela instalado pelo navegador não funciona mais. No celular, agora o fazumfreela é o{' '}
+          <strong>aplicativo para Android</strong>.
+        </p>
+        {android ? (
+          <>
+            <a className="app-cel-btn app-cel-btn--principal app-cel-bloqueio-baixar" href={APK_URL} download="fazumfreela.apk">
+              Baixar o app para Android
+              {versao && <small>versão {versao.versao}</small>}
+            </a>
+            <ol>
+              <li>Abra o arquivo baixado e instale (se o celular perguntar, permita instalar desta fonte).</li>
+              <li>Entre no app novo com o seu usuário e a sua senha de sempre.</li>
+              <li>
+                Apague este ícone antigo: segure o ícone e toque em <strong>Desinstalar</strong> ou{' '}
+                <strong>Remover</strong>.
+              </li>
+            </ol>
+          </>
+        ) : iphone ? (
+          <p>
+            No iPhone, abra <strong>fazumfreela.com.br</strong> no Safari. Este ícone pode ser apagado: segure o ícone
+            e toque em <strong>Remover App</strong>.
+          </p>
+        ) : (
+          <p>
+            No computador, use o fazumfreela pelo navegador, em <strong>fazumfreela.com.br</strong>. Este atalho pode
+            ser desinstalado.
+          </p>
+        )}
       </div>
     </div>
   )

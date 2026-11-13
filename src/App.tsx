@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { IntroSplash } from './components/IntroSplash'
+import { AppDoNavegadorDesativado } from './components/AplicativoCelular'
+import { abertoComoAppDoNavegador } from './lib/aplicativo'
 import { emDemo, trocarModo } from './lib/modo'
 import './pages/auth/PortalSelectScreen.css'
 import { StoreProvider, avisoAcessoEmpresa, avisoAcessoProfissional, useStore } from './lib/store'
@@ -271,7 +273,11 @@ function FaixaDemo() {
   )
 }
 
+// O app instalado pelo navegador (Chrome/Edge, Tela de Início do iPhone) não abre mais o sistema: só o APK.
+const APP_DO_NAVEGADOR = abertoComoAppDoNavegador()
+
 export default function App() {
+  if (APP_DO_NAVEGADOR) return <AppDoNavegadorDesativado />
   return (
     <StoreProvider>
       <AppRoutes />
