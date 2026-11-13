@@ -340,6 +340,10 @@ export function PortalLoginScreen({ portal, avisoInicial, onSuccess, onBack }: P
       setErro(falhaSenha)
       return
     }
+    if (senha !== confirmarSenha) {
+      setErro('As duas senhas não são iguais. Digite a mesma senha nos dois campos.')
+      return
+    }
     const peeked = portalPeekCadastroToken(verifyToken)
     if (!peeked) {
       setErro('Sessão de cadastro expirada. Solicite um novo código.')
@@ -585,7 +589,10 @@ export function PortalLoginScreen({ portal, avisoInicial, onSuccess, onBack }: P
             <PasswordField
               id="pl-new-pass"
               value={senha}
-              onChange={(e) => setSenha(e.target.value)}
+              onChange={(e) => {
+                setSenha(e.target.value)
+                setErro(null)
+              }}
               autoComplete="new-password"
               required
             />
@@ -601,6 +608,27 @@ export function PortalLoginScreen({ portal, avisoInicial, onSuccess, onBack }: P
                 )
               })}
             </ul>
+            <label className="portal-login__label" htmlFor="pl-new-pass2">
+              Repetir senha
+            </label>
+            <PasswordField
+              id="pl-new-pass2"
+              value={confirmarSenha}
+              onChange={(e) => {
+                setConfirmarSenha(e.target.value)
+                setErro(null)
+              }}
+              autoComplete="new-password"
+              required
+            />
+            {confirmarSenha && (
+              <ul className="portal-login__regras" aria-live="polite">
+                <li className={confirmarSenha === senha ? 'portal-login__regra--ok' : undefined}>
+                  <span aria-hidden="true">{confirmarSenha === senha ? '✓' : '•'}</span>
+                  {confirmarSenha === senha ? 'As duas senhas são iguais' : 'As senhas ainda não são iguais'}
+                </li>
+              </ul>
+            )}
             {erro && <p className="portal-login__erro">{erro}</p>}
             <button type="submit" className="portal-login__submit" disabled={loading}>
               {loading ? 'Salvando…' : 'Concluir cadastro'}
